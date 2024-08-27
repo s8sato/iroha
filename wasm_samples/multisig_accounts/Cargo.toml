@@ -1,5 +1,5 @@
 [package]
-name = "multisig"
+name = "multisig_accounts"
 
 edition.workspace = true
 version.workspace = true
@@ -12,6 +12,7 @@ crate-type = ['cdylib']
 
 [dependencies]
 iroha_trigger.workspace = true
+iroha_executor_data_model.workspace = true
 executor_custom_data_model.workspace = true
 
 panic-halt.workspace = true

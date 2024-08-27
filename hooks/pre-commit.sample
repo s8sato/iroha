@@ -3,9 +3,6 @@
 set -e
 # format checks
 cargo fmt --all -- --check
-cd ./wasm_samples/default_executor
-cargo fmt --all -- --check
-cd -
 cd ./wasm_samples
 cargo fmt --all -- --check
 cd -

@@ -1,4 +1,4 @@
-//! Trigger to control multisignature account
+//! Trigger given per multi-signature account to control multi-signature transactions
 
 #![no_std]
 
@@ -9,7 +9,7 @@ extern crate panic_halt;
 use alloc::{collections::btree_set::BTreeSet, format, vec::Vec};
 
 use dlmalloc::GlobalDlmalloc;
-use executor_custom_data_model::multisig::MultisigArgs;
+use executor_custom_data_model::multisig::MultisigTransactionArgs;
 use iroha_trigger::{debug::dbg_panic, prelude::*, smart_contract::query_single};
 
 #[global_allocator]
@@ -19,7 +19,7 @@ getrandom::register_custom_getrandom!(iroha_trigger::stub_getrandom);
 
 #[iroha_trigger::main]
 fn main(id: TriggerId, _owner: AccountId, event: EventBox) {
-    let (args, signatory): (MultisigArgs, AccountId) = match event {
+    let (args, signatory): (MultisigTransactionArgs, AccountId) = match event {
         EventBox::ExecuteTrigger(event) => (
             event
                 .args()
@@ -32,22 +32,22 @@ fn main(id: TriggerId, _owner: AccountId, event: EventBox) {
     };
 
     let instructions_hash = match &args {
-        MultisigArgs::Instructions(instructions) => HashOf::new(instructions),
-        MultisigArgs::Vote(instructions_hash) => *instructions_hash,
+        MultisigTransactionArgs::Propose(instructions) => HashOf::new(instructions),
+        MultisigTransactionArgs::Approve(instructions_hash) => *instructions_hash,
     };
-    let votes_metadata_key: Name = format!("{instructions_hash}/votes").parse().unwrap();
+    let approvals_metadata_key: Name = format!("{instructions_hash}/approvals").parse().unwrap();
     let instructions_metadata_key: Name =
         format!("{instructions_hash}/instructions").parse().unwrap();
 
-    let (votes, instructions) = match args {
-        MultisigArgs::Instructions(instructions) => {
+    let (approvals, instructions) = match args {
+        MultisigTransactionArgs::Propose(instructions) => {
             query_single(FindTriggerMetadata::new(
                 id.clone(),
-                votes_metadata_key.clone(),
+                approvals_metadata_key.clone(),
             ))
             .expect_err("instructions are already submitted");
 
-            let votes = BTreeSet::from([signatory.clone()]);
+            let approvals = BTreeSet::from([signatory.clone()]);
 
             SetKeyValue::trigger(
                 id.clone(),
@@ -59,29 +59,29 @@ fn main(id: TriggerId, _owner: AccountId, event: EventBox) {
 
             SetKeyValue::trigger(
                 id.clone(),
-                votes_metadata_key.clone(),
-                JsonString::new(&votes),
+                approvals_metadata_key.clone(),
+                JsonString::new(&approvals),
             )
             .execute()
             .dbg_unwrap();
 
-            (votes, instructions)
+            (approvals, instructions)
         }
-        MultisigArgs::Vote(_instructions_hash) => {
-            let mut votes: BTreeSet<AccountId> = query_single(FindTriggerMetadata::new(
+        MultisigTransactionArgs::Approve(_instructions_hash) => {
+            let mut approvals: BTreeSet<AccountId> = query_single(FindTriggerMetadata::new(
                 id.clone(),
-                votes_metadata_key.clone(),
+                approvals_metadata_key.clone(),
             ))
             .dbg_expect("instructions should be submitted first")
             .try_into_any()
             .dbg_unwrap();
 
-            votes.insert(signatory.clone());
+            approvals.insert(signatory.clone());
 
             SetKeyValue::trigger(
                 id.clone(),
-                votes_metadata_key.clone(),
-                JsonString::new(&votes),
+                approvals_metadata_key.clone(),
+                JsonString::new(&approvals),
             )
             .execute()
             .dbg_unwrap();
@@ -94,7 +94,7 @@ fn main(id: TriggerId, _owner: AccountId, event: EventBox) {
             .try_into_any()
             .dbg_unwrap();
 
-            (votes, instructions)
+            (approvals, instructions)
         }
     };
 
@@ -107,16 +107,17 @@ fn main(id: TriggerId, _owner: AccountId, event: EventBox) {
     .dbg_unwrap();
 
     // Require N of N signatures
-    if votes.is_superset(&signatories) {
-        // Cleanup votes and instructions
-        RemoveKeyValue::trigger(id.clone(), votes_metadata_key)
+    // TODO introduce M of N authentication policy
+    if approvals.is_superset(&signatories) {
+        // Cleanup approvals and instructions
+        RemoveKeyValue::trigger(id.clone(), approvals_metadata_key)
             .execute()
             .dbg_unwrap();
         RemoveKeyValue::trigger(id.clone(), instructions_metadata_key)
             .execute()
             .dbg_unwrap();
 
-        // Execute instructions proposal which collected enough votes
+        // Execute instructions proposal which collected enough approvals
         for isi in instructions {
             isi.execute().dbg_unwrap();
         }

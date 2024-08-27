@@ -1,6 +1,7 @@
 use std::{
     io::{BufWriter, Write},
     path::PathBuf,
+    str::FromStr,
 };
 
 use clap::{Parser, Subcommand};
@@ -128,6 +129,29 @@ pub fn generate_default(
         "wonderland".parse()?,
         ALICE_ID.clone(),
     );
+    // Register trigger which responds to requests to register a multisig account in wonderland
+    // FIXME The requester should not be restricted to the trigger authority
+    let register_multisig_accounts_registry_of_wonderland = {
+        // FIXME #5022 This trigger should continue to function regardless of domain ownership changes
+        let authority = ALICE_ID.clone();
+        let multisig_accounts_registry_id = TriggerId::from_str("multisig_accounts_wonderland")?;
+        let wasm = iroha_wasm_builder::Builder::new("wasm_samples/multisig_accounts")
+            .show_output()
+            .build()?
+            .optimize()?
+            .into_bytes()?;
+        let executable = WasmSmartContract::from_compiled(wasm);
+        let multisig_accounts_registry = Trigger::new(
+            multisig_accounts_registry_id.clone(),
+            Action::new(
+                executable,
+                Repeats::Indefinitely,
+                authority,
+                ExecuteTriggerEventFilter::new().for_trigger(multisig_accounts_registry_id.clone()),
+            ),
+        );
+        Register::trigger(multisig_accounts_registry)
+    };
 
     let parameters = Parameters::default();
     let parameters = parameters.parameters();
@@ -136,13 +160,14 @@ pub fn generate_default(
         builder = builder.append_parameter(parameter);
     }
 
-    let instructions: [InstructionBox; 6] = [
+    let instructions: [InstructionBox; 7] = [
         mint.into(),
         mint_cabbage.into(),
         transfer_rose_ownership.into(),
         transfer_wonderland_ownership.into(),
         grant_permission_to_set_parameters.into(),
         grant_permission_to_register_domains.into(),
+        register_multisig_accounts_registry_of_wonderland.into(),
     ];
 
     for isi in instructions {

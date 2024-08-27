@@ -1,4 +1,4 @@
-//! Trigger which register multisignature account and create trigger to control it
+//! Trigger given per domain to control multi-signature accounts and corresponding triggers
 
 #![no_std]
 
@@ -9,7 +9,7 @@ extern crate panic_halt;
 use alloc::format;
 
 use dlmalloc::GlobalDlmalloc;
-use executor_custom_data_model::multisig::MultisigRegisterArgs;
+use executor_custom_data_model::multisig::MultisigAccountArgs;
 use iroha_executor_data_model::permission::trigger::CanExecuteTrigger;
 use iroha_trigger::{debug::dbg_panic, prelude::*};
 
@@ -18,12 +18,15 @@ static ALLOC: GlobalDlmalloc = GlobalDlmalloc;
 
 getrandom::register_custom_getrandom!(iroha_trigger::stub_getrandom);
 
-// Trigger wasm code for handling multisig logic
-const WASM: &[u8] = core::include_bytes!(concat!(core::env!("OUT_DIR"), "/multisig.wasm"));
+// Binary containing common logic to each multisig account for handling multisig transactions
+const WASM: &[u8] = core::include_bytes!(concat!(
+    core::env!("OUT_DIR"),
+    "/multisig_transactions.wasm"
+));
 
 #[iroha_trigger::main]
 fn main(_id: TriggerId, owner: AccountId, event: EventBox) {
-    let args: MultisigRegisterArgs = match event {
+    let args: MultisigAccountArgs = match event {
         EventBox::ExecuteTrigger(event) => event
             .args()
             .dbg_expect("trigger expect args")
@@ -38,51 +41,52 @@ fn main(_id: TriggerId, owner: AccountId, event: EventBox) {
         .execute()
         .dbg_expect("failed to register multisig account");
 
-    let trigger_id: TriggerId = format!(
-        "{}_{}_multisig_trigger",
+    let multisig_transactions_registry_id: TriggerId = format!(
+        "multisig_transactions_{}_{}",
         account_id.signatory(),
         account_id.domain()
     )
     .parse()
     .dbg_expect("failed to parse trigger id");
 
-    let payload = WasmSmartContract::from_compiled(WASM.to_vec());
-    let trigger = Trigger::new(
-        trigger_id.clone(),
+    let executable = WasmSmartContract::from_compiled(WASM.to_vec());
+    let multisig_transactions_registry = Trigger::new(
+        multisig_transactions_registry_id.clone(),
         Action::new(
-            payload,
+            executable,
             Repeats::Indefinitely,
             account_id.clone(),
-            ExecuteTriggerEventFilter::new().for_trigger(trigger_id.clone()),
+            ExecuteTriggerEventFilter::new().for_trigger(multisig_transactions_registry_id.clone()),
         ),
     );
 
-    Register::trigger(trigger)
+    Register::trigger(multisig_transactions_registry)
         .execute()
-        .dbg_expect("failed to register multisig trigger");
+        .dbg_expect("failed to register multisig transactions registry");
 
     let role_id: RoleId = format!(
-        "{}_{}_signatories",
+        "multisig_signatory_{}_{}",
         account_id.signatory(),
         account_id.domain()
     )
     .parse()
     .dbg_expect("failed to parse role");
 
-    let can_execute_multisig_trigger = CanExecuteTrigger {
-        trigger: trigger_id.clone(),
+    let mut signatories = args.signatories;
+
+    let can_execute_multisig_transactions_registry = CanExecuteTrigger {
+        trigger: multisig_transactions_registry_id.clone(),
     };
 
     Register::role(
-        // FIX: args.account.id() should be used but I can't
-        // execute an instruction from a different account
-        Role::new(role_id.clone(), owner).add_permission(can_execute_multisig_trigger),
+        // Temporarily grant a multisig role to the trigger authority to propagate the role to the signatories
+        Role::new(role_id.clone(), owner.clone()).add_permission(can_execute_multisig_transactions_registry),
     )
     .execute()
     .dbg_expect("failed to register multisig role");
 
     SetKeyValue::trigger(
-        trigger_id,
+        multisig_transactions_registry_id,
         "signatories".parse().unwrap(),
         JsonString::new(&args.signatories),
     )
@@ -94,4 +98,8 @@ fn main(_id: TriggerId, owner: AccountId, event: EventBox) {
             .execute()
             .dbg_expect("failed to grant multisig role to account");
     }
+
+    Revoke::account_role(role_id.clone(), owner)
+        .execute()
+        .dbg_expect("failed to revoke multisig role from owner");
 }
