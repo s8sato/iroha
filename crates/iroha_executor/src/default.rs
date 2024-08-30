@@ -1411,6 +1411,20 @@ pub mod trigger {
         if can_execute_trigger_token.is_owned_by(authority) {
             execute!(executor, isi);
         }
+        // Any account in domain can call multisig accounts registry to register any multisig account in the domain
+        // TODO Restrict access to the multisig signatories?
+        // TODO Impose proposal and approval process?
+        if trigger_id
+            .name()
+            .as_ref()
+            .strip_prefix("multisig_accounts_")
+            .and_then(|s| s.parse::<DomainId>().ok())
+            .map_or(false, |registry_domain| {
+                *authority.domain() == registry_domain
+            })
+        {
+            execute!(executor, isi);
+        }
 
         deny!(executor, "Can't execute trigger owned by another account");
     }
