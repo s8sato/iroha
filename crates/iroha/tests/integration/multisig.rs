@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, str::FromStr};
+use std::collections::BTreeMap;
 
 use executor_custom_data_model::multisig::{MultisigAccountArgs, MultisigTransactionArgs};
 use eyre::Result;
@@ -11,7 +11,7 @@ use iroha::{
     },
 };
 use iroha_test_network::*;
-use iroha_test_samples::{gen_account_in, BOB_ID, BOB_KEYPAIR, CARPENTER_ID, CARPENTER_KEYPAIR};
+use iroha_test_samples::{gen_account_in, CARPENTER_ID, CARPENTER_KEYPAIR};
 use nonzero_ext::nonzero;
 
 #[test]
@@ -20,21 +20,75 @@ fn mutlisig() -> Result<()> {
     let (_rt, _peer, test_client) = <PeerBuilder>::new().with_port(11_400).start_with_runtime();
     wait_for_genesis_committed(&vec![test_client.clone()], 0);
 
+    let kingdom = "kingdom";
+    // Assume any domain registered after genesis
+    test_client.submit_all_blocking([Register::domain(Domain::new(kingdom.parse().unwrap()))])?;
+    // One more block to generate a multisig accounts registry for the domain
     test_client.submit_all_blocking([
         SetParameter::new(Parameter::SmartContract(SmartContractParameter::Fuel(
             nonzero!(100_000_000_u64),
-        ))),
+        )))
+        .into(),
         SetParameter::new(Parameter::Executor(SmartContractParameter::Fuel(nonzero!(
             100_000_000_u64
         )))),
     ])?;
 
-    // Predefined in default genesis
-    let multisig_accounts_registry_id = TriggerId::from_str("multisig_accounts_wonderland")?;
+    let multisig_accounts_registry_id: TriggerId =
+        format!("multisig_accounts_{kingdom}").parse()?;
+    // Check that the multisig accounts registry has been generated
+    let _trigger = test_client
+        .query(FindTriggers::new())
+        .filter_with(|trigger| trigger.id.eq(multisig_accounts_registry_id.clone()))
+        .execute_single()
+        .expect("multisig accounts registry should be generated after domain creation");
 
-    // Create multisig account id and destroy it's private key
+    let mut residents = core::iter::repeat_with(|| gen_account_in(kingdom))
+        .take(6)
+        .collect::<BTreeMap<AccountId, KeyPair>>();
+    test_client.submit_all_blocking(
+        residents
+            .keys()
+            .cloned()
+            .map(Account::new)
+            .map(Register::account),
+    )?;
+
+    // Create a multisig account ID and discard the corresponding private key
     // FIXME #5022 Should not allow arbitrary IDs. Otherwise, after #4426 pre-registration account will be hijacked as a multisig account
-    let multisig_account_id = gen_account_in("wonderland").0;
+    let multisig_account_id = gen_account_in(kingdom).0;
+
+    let not_signatory = residents.pop_first().unwrap();
+    let mut signatories = residents;
+
+    let args = MultisigAccountArgs {
+        account: Account::new(multisig_account_id.clone()),
+        signatories: signatories.keys().cloned().collect(),
+    };
+    let register_multisig_account =
+        ExecuteTrigger::new(multisig_accounts_registry_id).with_args(&args);
+
+    let client = |account: AccountId, key_pair: KeyPair| client::Client {
+        account,
+        key_pair,
+        ..test_client.clone()
+    };
+    // Account cannot register multisig account in another domain
+    let carpenter_client = client(CARPENTER_ID.clone(), CARPENTER_KEYPAIR.clone());
+    let _err = carpenter_client
+        .submit_blocking(register_multisig_account.clone())
+        .expect_err("multisig account should not be registered by account of another domain");
+    // Account can register multisig account in domain without special permission
+    let not_signatory_client = client(not_signatory.0, not_signatory.1);
+    not_signatory_client
+        .submit_blocking(register_multisig_account)
+        .expect("multisig account should be registered by account of the same domain");
+    // Check that the multisig account has been registered
+    test_client
+        .query(client::account::all())
+        .filter_with(|account| account.id.eq(multisig_account_id.clone()))
+        .execute_single()
+        .expect("multisig account should be created by calling the multisig accounts registry");
 
     let multisig_transactions_registry_id: TriggerId = format!(
         "multisig_transactions_{}_{}",
@@ -42,59 +96,12 @@ fn mutlisig() -> Result<()> {
         multisig_account_id.domain()
     )
     .parse()?;
-
-    let signatories = core::iter::repeat_with(|| gen_account_in("wonderland"))
-        .take(5)
-        .collect::<BTreeMap<AccountId, KeyPair>>();
-
-    let args = MultisigAccountArgs {
-        account: Account::new(multisig_account_id.clone()),
-        signatories: signatories.keys().cloned().collect(),
-    };
-
-    test_client.submit_all_blocking(
-        signatories
-            .keys()
-            .cloned()
-            .map(Account::new)
-            .map(Register::account),
-    )?;
-
-    let client = |account: AccountId, key_pair: KeyPair| client::Client {
-        account,
-        key_pair,
-        ..test_client.clone()
-    };
-    let register_multisig_account =
-        ExecuteTrigger::new(multisig_accounts_registry_id).with_args(&args);
-
-    // Account cannot register multisig account in another domain
-    let carpenter_client = client(CARPENTER_ID.clone(), CARPENTER_KEYPAIR.clone());
-    let _err = carpenter_client
-        .submit_blocking(register_multisig_account.clone())
-        .expect_err("multisig account should not be registered by account of another domain");
-
-    // Account can register multisig account in domain without special permission
-    let bob_client = client(BOB_ID.clone(), BOB_KEYPAIR.clone());
-    bob_client
-        .submit_blocking(register_multisig_account)
-        .expect("multisig account should be registered by account of the same domain");
-
-    // Check that multisig account exist
-    test_client
-        .query(client::account::all())
-        .filter_with(|account| account.id.eq(multisig_account_id.clone()))
-        .execute_single()
-        .expect("multisig account should be created by calling the multisig accounts registry");
-
-    // Check that multisig transactions registry exist
-    let trigger = test_client
+    // Check that the multisig transactions registry has been generated
+    let _trigger = test_client
         .query(FindTriggers::new())
         .filter_with(|trigger| trigger.id.eq(multisig_transactions_registry_id.clone()))
         .execute_single()
-        .expect("multisig transactions registry should be created along with the corresponding multisig account");
-
-    assert_eq!(trigger.id(), &multisig_transactions_registry_id);
+        .expect("multisig transactions registry should be generated along with the corresponding multisig account");
 
     let key: Name = "key".parse().unwrap();
     let instructions = vec![SetKeyValue::account(
@@ -105,19 +112,17 @@ fn mutlisig() -> Result<()> {
     .into()];
     let instructions_hash = HashOf::new(&instructions);
 
-    let mut signatories_iter = signatories.into_iter();
+    let proposer = signatories.pop_first().unwrap();
+    let approvers = signatories;
 
-    if let Some((signatory, key_pair)) = signatories_iter.next() {
-        let args = MultisigTransactionArgs::Propose(instructions);
-        let propose =
-            ExecuteTrigger::new(multisig_transactions_registry_id.clone()).with_args(&args);
-        test_client.submit_transaction_blocking(
-            &TransactionBuilder::new(test_client.chain.clone(), signatory)
-                .with_instructions([propose])
-                .sign(key_pair.private_key()),
-        )?;
-    }
+    let args = MultisigTransactionArgs::Propose(instructions);
+    let propose = ExecuteTrigger::new(multisig_transactions_registry_id.clone()).with_args(&args);
 
+    test_client.submit_transaction_blocking(
+        &TransactionBuilder::new(test_client.chain.clone(), proposer.0)
+            .with_instructions([propose])
+            .sign(proposer.1.private_key()),
+    )?;
     // Check that the multisig transaction has not yet executed
     let _err = test_client
         .query_single(FindAccountMetadata::new(
@@ -126,17 +131,17 @@ fn mutlisig() -> Result<()> {
         ))
         .expect_err("key-value shouldn't be set without enough approvals");
 
-    for (signatory, key_pair) in signatories_iter {
+    for approver in approvers {
         let args = MultisigTransactionArgs::Approve(instructions_hash);
         let approve =
             ExecuteTrigger::new(multisig_transactions_registry_id.clone()).with_args(&args);
+
         test_client.submit_transaction_blocking(
-            &TransactionBuilder::new(test_client.chain.clone(), signatory)
+            &TransactionBuilder::new(test_client.chain.clone(), approver.0)
                 .with_instructions([approve])
-                .sign(key_pair.private_key()),
+                .sign(approver.1.private_key()),
         )?;
     }
-
     // Check that the multisig transaction has executed
     test_client
         .query_single(FindAccountMetadata::new(

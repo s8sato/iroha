@@ -880,6 +880,7 @@
       }
     ]
   },
+  "CanRegisterAnyTrigger": null,
   "CanRegisterAsset": {
     "Struct": [
       {
