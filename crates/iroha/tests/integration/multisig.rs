@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, time::Duration};
 
 use executor_custom_data_model::multisig::{MultisigAccountArgs, MultisigTransactionArgs};
 use eyre::Result;
@@ -7,7 +7,7 @@ use iroha::{
     crypto::KeyPair,
     data_model::{
         parameter::SmartContractParameter, prelude::*, query::trigger::FindTriggers,
-        transaction::TransactionBuilder,
+        transaction::TransactionBuilder, Level,
     },
 };
 use iroha_test_network::*;
@@ -15,9 +15,17 @@ use iroha_test_samples::{gen_account_in, CARPENTER_ID, CARPENTER_KEYPAIR};
 use nonzero_ext::nonzero;
 
 #[test]
-#[expect(clippy::too_many_lines)]
-fn mutlisig() -> Result<()> {
-    let (_rt, _peer, test_client) = <PeerBuilder>::new().with_port(11_400).start_with_runtime();
+fn multisig() -> Result<()> {
+    multisig_base(None, 11_400)
+}
+
+#[test]
+fn multisig_expires() -> Result<()> {
+    multisig_base(Some(2), 11_405)
+}
+
+fn multisig_base(transaction_ttl_secs: Option<u32>, port: u16) -> Result<()> {
+    let (_rt, _peer, test_client) = <PeerBuilder>::new().with_port(port).start_with_runtime();
     wait_for_genesis_committed(&vec![test_client.clone()], 0);
 
     let kingdom = "kingdom";
@@ -64,6 +72,7 @@ fn mutlisig() -> Result<()> {
     let args = MultisigAccountArgs {
         account: Account::new(multisig_account_id.clone()),
         signatories: signatories.keys().cloned().collect(),
+        transaction_ttl_secs,
     };
     let register_multisig_account =
         ExecuteTrigger::new(multisig_accounts_registry_id).with_args(&args);
@@ -131,6 +140,11 @@ fn mutlisig() -> Result<()> {
         ))
         .expect_err("key-value shouldn't be set without enough approvals");
 
+    if let Some(s) = transaction_ttl_secs {
+        std::thread::sleep(Duration::from_secs(s.into()))
+    };
+    test_client.submit_blocking(Log::new(Level::DEBUG, "Just ticking time".to_string()))?;
+
     for approver in approvers {
         let args = MultisigTransactionArgs::Approve(instructions_hash);
         let approve =
@@ -143,12 +157,16 @@ fn mutlisig() -> Result<()> {
         )?;
     }
     // Check that the multisig transaction has executed
-    test_client
-        .query_single(FindAccountMetadata::new(
-            multisig_account_id.clone(),
-            key.clone(),
-        ))
-        .expect("key-value should be set with enough approvals");
+    let res = test_client.query_single(FindAccountMetadata::new(
+        multisig_account_id.clone(),
+        key.clone(),
+    ));
+
+    if transaction_ttl_secs.is_some() {
+        let _err = res.expect_err("key-value shouldn't be set despite enough approvals");
+    } else {
+        res.expect("key-value should be set with enough approvals");
+    }
 
     Ok(())
 }
