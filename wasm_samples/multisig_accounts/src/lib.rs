@@ -29,17 +29,17 @@ fn main(_id: TriggerId, owner: AccountId, event: EventBox) {
     let args: MultisigAccountArgs = match event {
         EventBox::ExecuteTrigger(event) => event
             .args()
-            .dbg_expect("trigger expect args")
+            .dbg_expect("args should be attached")
             .try_into_any()
-            .dbg_expect("failed to parse args"),
-        _ => dbg_panic("Only work as by call trigger"),
+            .dbg_expect("args should be for a multisig account"),
+        _ => dbg_panic("should be triggered by a call"),
     };
 
     let account_id = args.account.id().clone();
 
     Register::account(args.account.clone())
         .execute()
-        .dbg_expect("failed to register multisig account");
+        .dbg_expect("accounts registry should successfully register a multisig account");
 
     let multisig_transactions_registry_id: TriggerId = format!(
         "multisig_transactions_{}_{}",
@@ -47,7 +47,7 @@ fn main(_id: TriggerId, owner: AccountId, event: EventBox) {
         account_id.domain()
     )
     .parse()
-    .dbg_expect("failed to parse trigger id");
+    .dbg_unwrap();
 
     let executable = WasmSmartContract::from_compiled(WASM.to_vec());
     let multisig_transactions_registry = Trigger::new(
@@ -62,12 +62,20 @@ fn main(_id: TriggerId, owner: AccountId, event: EventBox) {
 
     Register::trigger(multisig_transactions_registry)
         .execute()
-        .dbg_expect("failed to register multisig transactions registry");
+        .dbg_expect("accounts registry should successfully register a transactions registry");
 
     SetKeyValue::trigger(
         multisig_transactions_registry_id.clone(),
         "signatories".parse().unwrap(),
         JsonString::new(&args.signatories),
+    )
+    .execute()
+    .dbg_unwrap();
+
+    SetKeyValue::trigger(
+        multisig_transactions_registry_id.clone(),
+        "quorum".parse().unwrap(),
+        JsonString::new(&args.quorum),
     )
     .execute()
     .dbg_unwrap();
@@ -90,7 +98,7 @@ fn main(_id: TriggerId, owner: AccountId, event: EventBox) {
         account_id.domain()
     )
     .parse()
-    .dbg_expect("failed to parse role");
+    .dbg_unwrap();
 
     let can_execute_multisig_transactions_registry = CanExecuteTrigger {
         trigger: multisig_transactions_registry_id.clone(),
@@ -102,15 +110,19 @@ fn main(_id: TriggerId, owner: AccountId, event: EventBox) {
             .add_permission(can_execute_multisig_transactions_registry),
     )
     .execute()
-    .dbg_expect("failed to register multisig role");
+    .dbg_expect("accounts registry should successfully register a multisig role");
 
-    for signatory in args.signatories {
+    for signatory in args.signatories.keys().cloned() {
         Grant::account_role(role_id.clone(), signatory)
             .execute()
-            .dbg_expect("failed to grant multisig role to account");
+            .dbg_expect(
+                "accounts registry should successfully grant the multisig role to signatories",
+            );
     }
 
     Revoke::account_role(role_id.clone(), owner)
         .execute()
-        .dbg_expect("failed to revoke multisig role from owner");
+        .dbg_expect(
+        "accounts registry should successfully revoke the multisig role from the registry owner",
+    );
 }

@@ -6,7 +6,11 @@ extern crate alloc;
 #[cfg(not(test))]
 extern crate panic_halt;
 
-use alloc::{collections::btree_set::BTreeSet, format, vec::Vec};
+use alloc::{
+    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+    format,
+    vec::Vec,
+};
 
 use dlmalloc::GlobalDlmalloc;
 use executor_custom_data_model::multisig::MultisigTransactionArgs;
@@ -27,25 +31,25 @@ fn main(id: TriggerId, _owner: AccountId, event: EventBox) {
         EventBox::ExecuteTrigger(event) => (
             event
                 .args()
-                .dbg_expect("trigger expect args")
+                .dbg_expect("args should be attached")
                 .try_into_any()
-                .dbg_expect("failed to parse arguments"),
+                .dbg_expect("args should be for a multisig transaction"),
             event.authority().clone(),
         ),
-        _ => dbg_panic("only work as by call trigger"),
+        _ => dbg_panic("should be triggered by a call"),
     };
 
     let instructions_hash = match &args {
         MultisigTransactionArgs::Propose(instructions) => HashOf::new(instructions),
         MultisigTransactionArgs::Approve(instructions_hash) => *instructions_hash,
     };
-    let approvals_metadata_key: Name = format!("proposals/{instructions_hash}/approvals")
-        .parse()
-        .unwrap();
     let instructions_metadata_key: Name = format!("proposals/{instructions_hash}/instructions")
         .parse()
         .unwrap();
     let proposed_at_ms_metadata_key: Name = format!("proposals/{instructions_hash}/proposed_at_ms")
+        .parse()
+        .unwrap();
+    let approvals_metadata_key: Name = format!("proposals/{instructions_hash}/approvals")
         .parse()
         .unwrap();
 
@@ -65,7 +69,7 @@ fn main(id: TriggerId, _owner: AccountId, event: EventBox) {
                 id.clone(),
                 approvals_metadata_key.clone(),
             ))
-            .expect_err("instructions are already submitted");
+            .expect_err("instructions shouldn't already be proposed");
 
             let approvals = BTreeSet::from([signatory.clone()]);
 
@@ -81,16 +85,16 @@ fn main(id: TriggerId, _owner: AccountId, event: EventBox) {
 
             SetKeyValue::trigger(
                 id.clone(),
-                approvals_metadata_key.clone(),
-                JsonString::new(&approvals),
+                proposed_at_ms_metadata_key.clone(),
+                JsonString::new(&now_ms),
             )
             .execute()
             .dbg_unwrap();
 
             SetKeyValue::trigger(
                 id.clone(),
-                proposed_at_ms_metadata_key.clone(),
-                JsonString::new(&now_ms),
+                approvals_metadata_key.clone(),
+                JsonString::new(&approvals),
             )
             .execute()
             .dbg_unwrap();
@@ -102,7 +106,7 @@ fn main(id: TriggerId, _owner: AccountId, event: EventBox) {
                 id.clone(),
                 approvals_metadata_key.clone(),
             ))
-            .dbg_expect("instructions should be submitted first")
+            .dbg_expect("instructions should be proposed first")
             .try_into_any()
             .dbg_unwrap();
 
@@ -128,13 +132,28 @@ fn main(id: TriggerId, _owner: AccountId, event: EventBox) {
         }
     };
 
-    let signatories: BTreeSet<AccountId> = query_single(FindTriggerMetadata::new(
+    let signatories: BTreeMap<AccountId, u8> = query_single(FindTriggerMetadata::new(
         id.clone(),
         "signatories".parse().unwrap(),
     ))
     .dbg_unwrap()
     .try_into_any()
     .dbg_unwrap();
+
+    let quorum: u16 = query_single(FindTriggerMetadata::new(
+        id.clone(),
+        "quorum".parse().unwrap(),
+    ))
+    .dbg_unwrap()
+    .try_into_any()
+    .dbg_unwrap();
+
+    let is_authenticated = quorum
+        <= signatories
+            .into_iter()
+            .filter(|(id, _)| approvals.contains(&id))
+            .map(|(_, weight)| weight as u16)
+            .sum();
 
     let is_expired = {
         let proposed_at_ms: u64 = query_single(FindTriggerMetadata::new(
@@ -156,17 +175,15 @@ fn main(id: TriggerId, _owner: AccountId, event: EventBox) {
         proposed_at_ms + transaction_ttl_secs as u64 * 1_000 < now_ms
     };
 
-    // Require N of N signatures
-    // TODO introduce M of N authentication policy
-    if approvals.is_superset(&signatories) || is_expired {
+    if is_authenticated || is_expired {
         // Cleanup approvals and instructions
         RemoveKeyValue::trigger(id.clone(), approvals_metadata_key)
             .execute()
             .dbg_unwrap();
-        RemoveKeyValue::trigger(id.clone(), instructions_metadata_key)
+        RemoveKeyValue::trigger(id.clone(), proposed_at_ms_metadata_key)
             .execute()
             .dbg_unwrap();
-        RemoveKeyValue::trigger(id.clone(), proposed_at_ms_metadata_key)
+        RemoveKeyValue::trigger(id.clone(), instructions_metadata_key)
             .execute()
             .dbg_unwrap();
 
