@@ -11,7 +11,7 @@ use alloc::format;
 use dlmalloc::GlobalDlmalloc;
 use executor_custom_data_model::multisig::{MultisigAccountArgs, DEFAULT_MULTISIG_TTL_SECS};
 use iroha_executor_data_model::permission::trigger::CanExecuteTrigger;
-use iroha_trigger::{debug::dbg_panic, prelude::*};
+use iroha_trigger::{debug::dbg_panic, prelude::*, smart_contract::query};
 
 #[global_allocator]
 static ALLOC: GlobalDlmalloc = GlobalDlmalloc;
@@ -112,9 +112,49 @@ fn main(_id: TriggerId, owner: AccountId, event: EventBox) {
     .dbg_expect("accounts registry should successfully register a multisig role");
 
     for signatory in args.signatories.keys().cloned() {
+        let is_multisig_again = {
+            let sub_role_id: RoleId = format!(
+                "multisig_signatory_{}_{}",
+                signatory.signatory(),
+                signatory.domain()
+            )
+            .parse()
+            .dbg_unwrap();
+
+            query(FindRoleIds)
+                .filter_with(|role_id| role_id.eq(sub_role_id))
+                .execute_single_opt()
+                .dbg_unwrap()
+                .is_some()
+        };
+
+        if is_multisig_again {
+            // Allow the transactions registry to write to the sub registry
+            let sub_registry_id: TriggerId = format!(
+                "multisig_transactions_{}_{}",
+                signatory.signatory(),
+                signatory.domain()
+            )
+            .parse()
+            .dbg_unwrap();
+
+            Grant::account_permission(
+                CanExecuteUserTrigger {
+                    trigger: sub_registry_id,
+                },
+                account_id.clone(),
+            )
+            .execute()
+            .dbg_expect(
+                "accounts registry should successfully grant permission to the multisig account",
+            );
+        }
+
         Grant::account_role(role_id.clone(), signatory)
             .execute()
-            .dbg_expect("accounts registry should successfully grant the multisig role to signatories");
+            .dbg_expect(
+                "accounts registry should successfully grant the multisig role to signatories",
+            );
     }
 
     Revoke::account_role(role_id.clone(), owner)
