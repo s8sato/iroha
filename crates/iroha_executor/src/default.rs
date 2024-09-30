@@ -371,7 +371,6 @@ pub mod domain {
                 permission.authority.domain() == domain_id
             }
             AnyPermission::CanRegisterAnyTrigger(_)
-<<<<<<< HEAD
             | AnyPermission::CanUnregisterAnyTrigger(_)
             | AnyPermission::CanUnregisterTrigger(_)
             | AnyPermission::CanExecuteTrigger(_)
@@ -379,14 +378,6 @@ pub mod domain {
             | AnyPermission::CanModifyTriggerMetadata(_)
             | AnyPermission::CanManagePeers(_)
             | AnyPermission::CanRegisterDomain(_)
-=======
-            | AnyPermission::CanExecuteUserTrigger(_)
-            | AnyPermission::CanBurnUserTrigger(_)
-            | AnyPermission::CanMintUserTrigger(_)
-            | AnyPermission::CanSetKeyValueInTrigger(_)
-            | AnyPermission::CanRemoveKeyValueInTrigger(_)
-            | AnyPermission::CanUnregisterAnyPeer(_)
->>>>>>> 329f7f2ed (review fix: perpetuate multisig domain-level authority)
             | AnyPermission::CanSetParameters(_)
             | AnyPermission::CanManageRoles(_)
             | AnyPermission::CanUpgradeExecutor(_) => false,
@@ -1179,8 +1170,24 @@ pub mod role {
         use crate::smart_contract::ExecuteOnHost as _;
 
         let role = isi.object();
-        let mut new_role = Role::new(role.id().clone(), role.grant_to().clone());
 
+        let role_name = role.id().name().as_ref();
+        let naming_is_ok = if role_name.starts_with("multisig_signatory") {
+            role_name
+                .rsplit_once('_')
+                .and_then(|(_, domain)| domain.parse::<DomainId>().ok())
+                .and_then(|domain_id| {
+                    crate::permission::domain::is_domain_owner(&domain_id, authority).ok()
+                })
+                .unwrap_or_default()
+        } else {
+            true
+        };
+        if !naming_is_ok {
+            deny!(executor, "Violates role naming restrictions");
+        }
+
+        let mut new_role = Role::new(role.id().clone(), role.grant_to().clone());
         for permission in role.inner().permissions() {
             iroha_smart_contract::debug!(&format!("Checking `{permission:?}`"));
 
@@ -1284,6 +1291,28 @@ pub mod trigger {
         isi: &Register<Trigger>,
     ) {
         let trigger = isi.object();
+
+        let trigger_name = trigger.id().name().as_ref();
+        let naming_is_ok = if trigger_name.starts_with("multisig_accounts") && !is_genesis(executor)
+        {
+            let multisig_system: AccountId =
+                // iroha_test_samples::MULTISIG_SYSTEM_ID
+                "ed01201F677E0900C2F633391310D12D155112DF65EDF9DC800D13797CEE5DAF47B890@system"
+                    .parse()
+                    .unwrap();
+            *authority == multisig_system
+        } else if trigger_name.starts_with("multisig_transactions") {
+            trigger_name
+                .rsplit_once('_')
+                .and_then(|(_, domain)| domain.parse::<DomainId>().ok())
+                .and_then(|domain_id| is_domain_owner(&domain_id, authority).ok())
+                .unwrap_or_default()
+        } else {
+            true
+        };
+        if !naming_is_ok {
+            deny!(executor, "Violates trigger naming restrictions");
+        }
 
         if is_genesis(executor)
             || {

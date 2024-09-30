@@ -16,6 +16,7 @@ use iroha::{
 };
 use iroha_data_model::asset::{AssetDefinition, AssetDefinitionId};
 use iroha_executor_data_model::permission::asset_definition::CanRegisterAssetDefinition;
+use iroha_data_model::events::execute_trigger::ExecuteTriggerEventFilter;
 use iroha_test_network::*;
 use iroha_test_samples::{gen_account_in, ALICE_ID, BOB_ID, CARPENTER_ID, CARPENTER_KEYPAIR};
 
@@ -401,6 +402,51 @@ fn persistent_domain_level_authority() -> Result<()> {
     assert!(*ms_accounts_registry.action().authority() == BOB_ID.clone());
 
     Ok(())
+}
+
+#[test]
+fn reserved_prefixes() {
+    use rand::distributions::DistString;
+
+    let (_rt, _peer, test_client) = <PeerBuilder>::new().with_port(11_420).start_with_runtime();
+    wait_for_genesis_committed(&vec![test_client.clone()], 0);
+
+    let reserved_trigger_prefixes = ["multisig_accounts", "multisig_transactions"];
+    let reserved_role_prefixes = ["multisig_signatory"];
+
+    for reserved_prefix in reserved_trigger_prefixes {
+        let register = {
+            let random_suffix =
+                rand::distributions::Alphanumeric.sample_string(&mut rand::thread_rng(), 8);
+            let id: TriggerId = format!("{reserved_prefix}_{random_suffix}")
+                .parse()
+                .unwrap();
+            let action = Action::new(
+                Vec::<InstructionBox>::new(),
+                Repeats::Indefinitely,
+                ALICE_ID.clone(),
+                ExecuteTriggerEventFilter::new(),
+            );
+            Register::trigger(Trigger::new(id, action))
+        };
+        let _err = test_client
+            .submit_blocking(register)
+            .expect_err("trigger with a reserved prefix shouldn't be registered");
+    }
+
+    for reserved_prefix in reserved_role_prefixes {
+        let register = {
+            let random_suffix =
+                rand::distributions::Alphanumeric.sample_string(&mut rand::thread_rng(), 8);
+            let id: RoleId = format!("{reserved_prefix}_{random_suffix}")
+                .parse()
+                .unwrap();
+            Register::role(Role::new(id))
+        };
+        let _err = test_client
+            .submit_blocking(register)
+            .expect_err("role with a reserved prefix shouldn't be registered");
+    }
 }
 
 fn alt_client(signatory: (AccountId, KeyPair), base_client: &client::Client) -> client::Client {
