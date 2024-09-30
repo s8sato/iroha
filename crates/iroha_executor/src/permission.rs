@@ -114,6 +114,7 @@ declare_permissions! {
     iroha_executor_data_model::permission::role::{CanManageRoles},
 
     iroha_executor_data_model::permission::trigger::{CanRegisterAnyTrigger},
+    iroha_executor_data_model::permission::trigger::{CanUnregisterAnyTrigger},
     iroha_executor_data_model::permission::trigger::{CanRegisterTrigger},
     iroha_executor_data_model::permission::trigger::{CanUnregisterTrigger},
     iroha_executor_data_model::permission::trigger::{CanModifyTrigger},
@@ -632,7 +633,7 @@ pub mod trigger {
     //! Module with pass conditions for trigger related tokens
     use iroha_executor_data_model::permission::trigger::{
         CanExecuteTrigger, CanModifyTrigger, CanModifyTriggerMetadata, CanRegisterAnyTrigger,
-        CanRegisterTrigger, CanUnregisterTrigger,
+        CanRegisterTrigger, CanUnregisterAnyTrigger, CanUnregisterTrigger,
     };
 
     use super::*;
@@ -693,6 +694,15 @@ pub mod trigger {
     }
 
     impl ValidateGrantRevoke for CanRegisterAnyTrigger {
+        fn validate_grant(&self, authority: &AccountId, block_height: u64) -> Result {
+            OnlyGenesis::from(self).validate(authority, block_height)
+        }
+        fn validate_revoke(&self, authority: &AccountId, block_height: u64) -> Result {
+            OnlyGenesis::from(self).validate(authority, block_height)
+        }
+    }
+
+    impl ValidateGrantRevoke for CanUnregisterAnyTrigger {
         fn validate_grant(&self, authority: &AccountId, block_height: u64) -> Result {
             OnlyGenesis::from(self).validate(authority, block_height)
         }

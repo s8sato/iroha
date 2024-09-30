@@ -938,6 +938,7 @@
       }
     ]
   },
+  "CanUnregisterAnyTrigger": null,
   "CanUnregisterAsset": {
     "Struct": [
       {
