@@ -17,7 +17,7 @@ use iroha::{
 use iroha_data_model::asset::{AssetDefinition, AssetDefinitionId};
 use iroha_executor_data_model::permission::asset_definition::CanRegisterAssetDefinition;
 use iroha_test_network::*;
-use iroha_test_samples::{gen_account_in, CARPENTER_ID, CARPENTER_KEYPAIR};
+use iroha_test_samples::{gen_account_in, ALICE_ID, BOB_ID, CARPENTER_ID, CARPENTER_KEYPAIR};
 
 #[test]
 fn multisig() -> Result<()> {
@@ -368,6 +368,37 @@ fn multisig_recursion() -> Result<()> {
         .execute_single()
         .expect("domain should be created with enough approvals");
     assert_eq!(domain.owned_by(), &msa_012345);
+
+    Ok(())
+}
+
+#[test]
+fn persistent_domain_level_authority() -> Result<()> {
+    let (_rt, _peer, test_client) = <PeerBuilder>::new().with_port(11_415).start_with_runtime();
+    wait_for_genesis_committed(&vec![test_client.clone()], 0);
+
+    let wonderland: DomainId = "wonderland".parse().unwrap();
+
+    let ms_accounts_registry_id = multisig_accounts_registry_of(&wonderland);
+
+    // Domain owner changes from Alice to Bob
+    test_client.submit_blocking(Transfer::domain(
+        ALICE_ID.clone(),
+        wonderland,
+        BOB_ID.clone(),
+    ))?;
+
+    // One block gap to follow the domain owner change
+    test_client.submit_blocking(Log::new(Level::DEBUG, "Just ticking time".to_string()))?;
+
+    // Bob is the authority of the wonderland multisig accounts registry
+    let ms_accounts_registry = test_client
+        .query(FindTriggers::new())
+        .filter_with(|trigger| trigger.id.eq(ms_accounts_registry_id.clone()))
+        .execute_single()
+        .expect("multisig accounts registry should survive before and after a domain owner change");
+
+    assert!(*ms_accounts_registry.action().authority() == BOB_ID.clone());
 
     Ok(())
 }
