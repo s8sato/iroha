@@ -25,7 +25,7 @@ const WASM: &[u8] = core::include_bytes!(concat!(
 ));
 
 #[iroha_trigger::main]
-fn main(_id: TriggerId, owner: AccountId, event: EventBox) {
+fn main(id: TriggerId, owner: AccountId, event: EventBox) {
     let args: MultisigAccountArgs = match event {
         EventBox::ExecuteTrigger(event) => event
             .args()
@@ -35,9 +35,15 @@ fn main(_id: TriggerId, owner: AccountId, event: EventBox) {
         _ => dbg_panic("should be triggered by a call"),
     };
 
-    let account_id = args.account.id().clone();
+    let domain_id = id
+        .name()
+        .as_ref()
+        .strip_prefix("multisig_accounts_")
+        .and_then(|s| s.parse::<DomainId>().ok())
+        .dbg_unwrap();
+    let account_id = AccountId::new(domain_id, args.account);
 
-    Register::account(args.account.clone())
+    Register::account(Account::new(account_id.clone()))
         .execute()
         .dbg_expect("accounts registry should successfully register a multisig account");
 
