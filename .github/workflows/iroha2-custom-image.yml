@@ -58,10 +58,31 @@ jobs:
           path: ${{ env.DOCKER_COMPOSE_PATH }}/executor.wasm
           retention-days: 1
 
+  build_genesis_trigger_blobs:
+    runs-on: ubuntu-latest
+    container:
+      image: hyperledger/iroha2-ci:nightly-2024-09-09
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.CHECKOUT_REF }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Build genesis trigger blobs
+        run: |
+          mkdir -p ${{ env.DOCKER_COMPOSE_PATH }}/blobs
+          cargo run --release --bin kagami -- genesis generate --executor-path-in-genesis ./executor.wasm --genesis-public-key ed01204164BF554923ECE1FD412D241036D863A6AE430476C898248B8237D77534CFC4 > ${{ env.DOCKER_COMPOSE_PATH }}/genesis.json
+      - name: Upload genesis trigger blobs to reuse in other jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: blobs
+          path: ${{ env.DOCKER_COMPOSE_PATH }}/blobs
+          retention-days: 1
+
   registry-profiling-image:
     if: ${{ inputs.BUILD_GLIBC_IMAGE == 'false' }} and ${{ inputs.BUILD_ALPINE_IMAGE == 'false' }}
     runs-on: [self-hosted, Linux, iroha2]
-    needs: build_executor
+    needs: [build_executor, build_genesis_trigger_blobs]
     container:
       image: hyperledger/iroha2-ci:nightly-2024-09-09
     steps:
@@ -72,6 +93,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: executor.wasm
+          path: ${{ env.DOCKER_COMPOSE_PATH }}
+      - name: Download genesis trigger blobs
+        uses: actions/download-artifact@v4
+        with:
+          name: blobs
           path: ${{ env.DOCKER_COMPOSE_PATH }}
       - name: Get the release tag
         run: |
@@ -115,7 +141,7 @@ jobs:
   registry-glibc-image:
     if: ${{ inputs.BUILD_GLIBC_IMAGE == 'true' }} and ${{ inputs.BUILD_ALPINE_IMAGE == 'false' }}
     runs-on: [self-hosted, Linux, iroha2]
-    needs: build_executor
+    needs: [build_executor, build_genesis_trigger_blobs]
     container:
       image: hyperledger/iroha2-ci:nightly-2024-09-09
     steps:
@@ -126,6 +152,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: executor.wasm
+          path: ${{ env.DOCKER_COMPOSE_PATH }}
+      - name: Download genesis trigger blobs
+        uses: actions/download-artifact@v4
+        with:
+          name: blobs
           path: ${{ env.DOCKER_COMPOSE_PATH }}
       - name: Login to Soramitsu Harbor
         uses: docker/login-action@v3
@@ -152,7 +183,7 @@ jobs:
   registry-alpine-image:
     if: ${{ inputs.BUILD_GLIBC_IMAGE == 'false' }} and ${{ inputs.BUILD_ALPINE_IMAGE == 'true' }}
     runs-on: [self-hosted, Linux, iroha2]
-    needs: build_executor
+    needs: [build_executor, build_genesis_trigger_blobs]
     container:
       image: hyperledger/iroha2-ci:nightly-2024-09-09
     steps:
@@ -163,6 +194,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: executor.wasm
+          path: ${{ env.DOCKER_COMPOSE_PATH }}
+      - name: Download genesis trigger blobs
+        uses: actions/download-artifact@v4
+        with:
+          name: blobs
           path: ${{ env.DOCKER_COMPOSE_PATH }}
       - name: Login to Soramitsu Harbor
         uses: docker/login-action@v3

@@ -31,6 +31,8 @@ use crate::{
 mod model {
     use getset::Getters;
     use iroha_primitives::const_vec::ConstVec;
+    #[cfg(feature = "std")]
+    use serde_with::{DeserializeFromStr, SerializeDisplay};
 
     use super::*;
     use crate::account::AccountId;
@@ -62,27 +64,20 @@ mod model {
     /// Wrapper for byte representation of [`Executable::Wasm`].
     ///
     /// Uses **base64** (de-)serialization format.
-    #[derive(
-        DebugCustom,
-        Clone,
-        PartialEq,
-        Eq,
-        PartialOrd,
-        Ord,
-        Decode,
-        Encode,
-        Deserialize,
-        Serialize,
-        IntoSchema,
+    #[derive(DebugCustom, Clone, PartialEq, Eq, PartialOrd, Ord, Decode, Encode, IntoSchema)]
+    #[cfg_attr(
+        not(feature = "std"),
+        derive(Deserialize, Serialize,),
+        serde(transparent)
     )]
+    #[cfg_attr(feature = "std", derive(DeserializeFromStr, SerializeDisplay,))]
     #[debug(fmt = "WASM binary(len = {})", "self.0.len()")]
-    #[serde(transparent)]
     #[repr(transparent)]
     // SAFETY: `WasmSmartContract` has no trap representation in `Vec<u8>`
     #[ffi_type(unsafe {robust})]
     pub struct WasmSmartContract(
         /// Raw wasm blob.
-        #[serde(with = "base64")]
+        #[cfg_attr(not(feature = "std"), serde(with = "base64"))]
         pub(super) Vec<u8>,
     );
 
@@ -104,7 +99,6 @@ mod model {
         /// Unique id of the blockchain. Used for simple replay attack protection.
         pub chain: ChainId,
         /// Account ID of transaction creator.
-        /// TODO dedup public keys in transaction #4410
         pub authority: AccountId,
         /// Creation timestamp (unix time in milliseconds).
         pub creation_time_ms: u64,
@@ -215,6 +209,54 @@ impl WasmSmartContract {
     /// Size of the smart contract in bytes
     pub fn size_bytes(&self) -> usize {
         self.0.len()
+    }
+}
+
+#[cfg(feature = "std")]
+const BLOBS_DIR: &str = "../../defaults/blobs";
+
+#[cfg(feature = "std")]
+impl std::str::FromStr for WasmSmartContract {
+    type Err = crate::ParseError;
+
+    fn from_str(hash: &str) -> Result<Self, Self::Err> {
+        let blob = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(BLOBS_DIR)
+            .join(hash);
+        let wasm = std::fs::read(&blob)
+            .map(Self::from_compiled)
+            .map_err(|_| Self::Err {
+                reason: "failed to read wasm blob",
+            })?;
+        let got_hash = iroha_crypto::Hash::new(&wasm);
+        let Ok(expected_hash) = hash.parse::<iroha_crypto::Hash>() else {
+            return Err(Self::Err {
+                reason: "given str is invalid as a hash",
+            });
+        };
+        if got_hash == expected_hash {
+            Ok(wasm)
+        } else {
+            Err(Self::Err {
+                reason: "wasm blob has been tampered with",
+            })
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::fmt::Display for WasmSmartContract {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let hash = iroha_crypto::Hash::new(self);
+        let blob = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(BLOBS_DIR)
+            .join(hash.to_string());
+        std::fs::write(&blob, self).map_err(|err| {
+            eprintln!("failed to write wasm blob to {blob:?}:");
+            eprintln!("{}", err);
+            std::fmt::Error
+        })?;
+        write!(f, "{hash}")
     }
 }
 
@@ -392,6 +434,7 @@ mod candidate {
     }
 }
 
+#[cfg(not(feature = "std"))]
 mod base64 {
     //! Module with (de-)serialization functions for
     //! [`WasmSmartContract`](super::WasmSmartContract)'s bytes using `base64`.
@@ -400,7 +443,6 @@ mod base64 {
 
     use serde::{Deserializer, Serializer};
 
-    #[cfg(not(feature = "std"))]
     use super::Vec;
 
     /// Serialize bytes using `base64`

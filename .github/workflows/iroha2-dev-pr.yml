@@ -76,6 +76,27 @@ jobs:
           path: ${{ env.DOCKER_COMPOSE_PATH }}/executor.wasm
           retention-days: 1
 
+  build_genesis_trigger_blobs:
+    runs-on: ubuntu-latest
+    container:
+      image: hyperledger/iroha2-ci:nightly-2024-09-09
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.CHECKOUT_REF }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Build genesis trigger blobs
+        run: |
+          mkdir -p ${{ env.DOCKER_COMPOSE_PATH }}/blobs
+          cargo run --release --bin kagami -- genesis generate --executor-path-in-genesis ./executor.wasm --genesis-public-key ed01204164BF554923ECE1FD412D241036D863A6AE430476C898248B8237D77534CFC4 > ${{ env.DOCKER_COMPOSE_PATH }}/genesis.json
+      - name: Upload genesis trigger blobs to reuse in other jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: blobs
+          path: ${{ env.DOCKER_COMPOSE_PATH }}/blobs
+          retention-days: 1
+
   unit_tests_with_coverage:
     runs-on: [self-hosted, Linux, iroha2]
     container:
@@ -116,10 +137,11 @@ jobs:
           name: report-coverage
           path: lcov.info
 
-  # include: iroha/tests/integration/
+  # include: iroha/tests/integration/, iroha_p2p/tests/integration/
   # exclude: iroha/tests/integration/extra_functional
   integration:
     runs-on: [self-hosted, Linux, iroha2]
+    needs: [build_executor, build_genesis_trigger_blobs]
     container:
       image: hyperledger/iroha2-ci:nightly-2024-09-09
     needs: build_executor
@@ -130,6 +152,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: executor.wasm
+          path: ${{ env.DOCKER_COMPOSE_PATH }}
+      - name: Download genesis trigger blobs
+        uses: actions/download-artifact@v4
+        with:
+          name: blobs
           path: ${{ env.DOCKER_COMPOSE_PATH }}
       - uses: taiki-e/install-action@nextest
       - name: Run integration tests, with all features
@@ -143,6 +170,7 @@ jobs:
   # include: iroha/tests/integration/extra_functional
   extra_functional:
     runs-on: [self-hosted, Linux, iroha2]
+    needs: [build_executor, build_genesis_trigger_blobs]
     container:
       image: hyperledger/iroha2-ci:nightly-2024-09-09
     needs: build_executor
@@ -153,6 +181,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: executor.wasm
+          path: ${{ env.DOCKER_COMPOSE_PATH }}
+      - name: Download genesis trigger blobs
+        uses: actions/download-artifact@v4
+        with:
+          name: blobs
           path: ${{ env.DOCKER_COMPOSE_PATH }}
       - uses: taiki-e/install-action@nextest
       - name: Run integration tests, with all features
@@ -198,7 +231,7 @@ jobs:
           context: .
 
   docker-compose-and-pytests:
-    needs: build_executor
+    needs: [build_executor, build_genesis_trigger_blobs]
     runs-on: [self-hosted, Linux, iroha2]
     timeout-minutes: 60
     env:
@@ -214,6 +247,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: executor.wasm
+          path: ${{ env.DOCKER_COMPOSE_PATH }}
+      - name: Download genesis trigger blobs
+        uses: actions/download-artifact@v4
+        with:
+          name: blobs
           path: ${{ env.DOCKER_COMPOSE_PATH }}
       - name: Install Python and Poetry
         run: |

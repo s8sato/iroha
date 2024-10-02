@@ -26,17 +26,43 @@ jobs:
           name: executor.wasm
           path: ${{ env.DOCKER_COMPOSE_PATH }}/executor.wasm
 
+  build_genesis_trigger_blobs:
+    runs-on: ubuntu-latest
+    container:
+      image: hyperledger/iroha2-ci:nightly-2024-09-09
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.CHECKOUT_REF }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Build genesis trigger blobs
+        run: |
+          mkdir -p ${{ env.DOCKER_COMPOSE_PATH }}/blobs
+          cargo run --release --bin kagami -- genesis generate --executor-path-in-genesis ./executor.wasm --genesis-public-key ed01204164BF554923ECE1FD412D241036D863A6AE430476C898248B8237D77534CFC4 > ${{ env.DOCKER_COMPOSE_PATH }}/genesis.json
+      - name: Upload genesis trigger blobs to reuse in other jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: blobs
+          path: ${{ env.DOCKER_COMPOSE_PATH }}/blobs
+          retention-days: 1
+
   registry_save_build_artifacts:
     runs-on: [self-hosted, Linux, iroha2]
     container:
       image: hyperledger/iroha2-ci:nightly-2024-09-09
-    needs: build_executor
+    needs: [build_executor, build_genesis_trigger_blobs]
     steps:
       - uses: actions/checkout@v4
       - name: Download executor.wasm file
         uses: actions/download-artifact@v4
         with:
           name: executor.wasm
+          path: ${{ env.DOCKER_COMPOSE_PATH }}
+      - name: Download genesis trigger blobs
+        uses: actions/download-artifact@v4
+        with:
+          name: blobs
           path: ${{ env.DOCKER_COMPOSE_PATH }}
       - name: Set up Docker Buildx
         id: buildx
