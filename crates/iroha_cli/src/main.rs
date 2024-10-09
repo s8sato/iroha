@@ -1401,7 +1401,7 @@ mod multisig {
 
             let transactions_registry = client
                 .query(FindTriggers::new())
-                .filter_with(|trigger| trigger.id.eq(transactions_registry_id.clone()))
+                .filter_with(|trigger| trigger.id.eq(transactions_registry_id))
                 .execute_single()?;
             let proposal_kvs = transactions_registry
                 .action()
