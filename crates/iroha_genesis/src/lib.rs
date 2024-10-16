@@ -389,17 +389,17 @@ impl Decode for ExecutorPath {
     }
 }
 
-/// For readability of [`RawGenesisTransaction`], briefly denotes a trigger with wasm executable registered in genesis
+/// Human-readable alternative to [`Trigger`] whose action has wasm executable
 #[derive(Debug, Clone, Serialize, Deserialize, IntoSchema, Encode, Decode, Constructor)]
 pub struct GenesisWasmTrigger {
     id: TriggerId,
     action: GenesisWasmAction,
 }
 
-/// For readability of [`GenesisWasmTrigger`], briefly denotes an action with wasm executable
+/// Human-readable alternative to [`Action`] which has wasm executable
 #[derive(Debug, Clone, Serialize, Deserialize, IntoSchema, Encode, Decode)]
 pub struct GenesisWasmAction {
-    /// Expected to be converted by [`iroha_test_samples::load_sample_wasm`]
+    /// Path to the wasm crate relative to `wasm_samples/`
     executable: String,
     repeats: Repeats,
     authority: AccountId,
