@@ -77,14 +77,18 @@ pub struct WasmPath(PathBuf);
 impl RawGenesisTransaction {
     const WARN_ON_GENESIS_GTE: u64 = 1024 * 1024 * 1024; // 1Gb
 
-    /// Construct a genesis block from a `.json` file at the specified
-    /// path-like object.
+    /// Construct [`RawGenesisTransaction`] from a json file at `json_path`,
+    /// resolving relative paths to `json_path`.
     ///
     /// # Errors
-    /// If file not found or deserialization from file fails.
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let file = File::open(&path)
-            .wrap_err_with(|| eyre!("failed to open genesis at {}", path.as_ref().display()))?;
+    ///
+    /// - file not found
+    /// - metadata access to the file failed
+    /// - deserialization failed
+    pub fn from_path(json_path: impl AsRef<Path>) -> Result<Self> {
+        let here = json_path.as_ref().parent().expect("json file should be in some directory");
+        let file = File::open(&json_path)
+            .wrap_err_with(|| eyre!("failed to open genesis at {}", json_path.as_ref().display()))?;
         let size = file
             .metadata()
             .wrap_err("failed to access genesis file metadata")?
@@ -93,18 +97,18 @@ impl RawGenesisTransaction {
             eprintln!("Genesis is quite large, it will take some time to process it (size = {}, threshold = {})", size, Self::WARN_ON_GENESIS_GTE);
         }
         let reader = BufReader::new(file);
+
         let mut value: Self = serde_json::from_reader(reader).wrap_err_with(|| {
             eyre!(
                 "failed to deserialize raw genesis block from {}",
-                path.as_ref().display()
+                json_path.as_ref().display()
             )
         })?;
-        value.executor = path
-            .as_ref()
-            .parent()
-            .expect("genesis must be a file in some directory")
-            .join(value.executor.0)
-            .into();
+
+        value.executor.resolve(here);
+        for wasm_trigger in value.wasm_triggers.iter_mut() {
+            wasm_trigger.resolve(here);
+        }
 
         Ok(value)
     }
@@ -126,16 +130,17 @@ impl RawGenesisTransaction {
     /// # Errors
     /// If executor couldn't be read from provided path
     pub fn build_and_sign(self, genesis_key_pair: &KeyPair) -> Result<GenesisBlock> {
-        let executor = get_executor(&self.executor.0)?;
+        let executor = Executor::new(self.executor.try_into()?);
         let parameters = self
             .parameters
             .map_or(Vec::new(), |parameters| parameters.parameters().collect());
+        let wasm_triggers = self.wasm_triggers.into_iter().map(TryInto::try_into);
         let genesis = build_and_sign_genesis(
             self.chain,
             executor,
             parameters,
             self.instructions,
-            self.wasm_triggers,
+            wasm_triggers,
             self.topology,
             genesis_key_pair,
         );
@@ -148,7 +153,7 @@ fn build_and_sign_genesis(
     executor: Executor,
     parameters: Vec<Parameter>,
     instructions: Vec<InstructionBox>,
-    wasm_triggers: Vec<GenesisWasmTrigger>,
+    wasm_triggers: Vec<Trigger>,
     topology: Vec<PeerId>,
     genesis_key_pair: &KeyPair,
 ) -> GenesisBlock {
@@ -170,7 +175,7 @@ fn build_transactions(
     executor: Executor,
     parameters: Vec<Parameter>,
     instructions: Vec<InstructionBox>,
-    wasm_triggers: Vec<GenesisWasmTrigger>,
+    wasm_triggers: Vec<Trigger>,
     topology: Vec<PeerId>,
     genesis_key_pair: &KeyPair,
 ) -> Vec<SignedTransaction> {
@@ -199,7 +204,6 @@ fn build_transactions(
         let register_wasm_triggers = build_transaction(
             wasm_triggers
                 .into_iter()
-                .map(Into::into)
                 .map(Register::trigger)
                 .map(InstructionBox::from)
                 .collect(),
@@ -236,12 +240,6 @@ fn build_transaction(
     TransactionBuilder::new(chain_id, genesis_account_id)
         .with_instructions(instructions)
         .sign(genesis_key_pair.private_key())
-}
-
-fn get_executor(file: &Path) -> Result<Executor> {
-    let wasm = fs::read(file)
-        .wrap_err_with(|| eyre!("failed to read the executor from {}", file.display()))?;
-    Ok(Executor::new(WasmSmartContract::from_compiled(wasm)))
 }
 
 /// Builder type for [`GenesisBlock`]/[`RawGenesisTransaction`].
@@ -349,6 +347,7 @@ impl GenesisBuilder {
         topology: Vec<PeerId>,
         genesis_key_pair: &KeyPair,
     ) -> GenesisBlock {
+        self.build_raw(chain_id, executor_file, topology)
         build_and_sign_genesis(
             chain_id,
             executor_blob,
@@ -447,6 +446,26 @@ impl From<PathBuf> for WasmPath {
     }
 }
 
+impl TryFrom<WasmPath> for WasmSmartContract {
+    type Error = eyre::Report;
+
+    fn try_from(value: WasmPath) -> Result<Self, Self::Error> {
+        let wasm = fs::read(&value.0)
+            .wrap_err_with(|| eyre!("failed to read wasm from {}", value.0.display()))?;
+
+        Ok(WasmSmartContract::from_compiled(wasm))
+    }
+}
+
+impl WasmPath {
+    /// Resolve `self` to `here/self`,
+    /// assuming `self` is an unresolved relative path to `here`.
+    /// Must be applied once.
+    fn resolve(&mut self, here: impl AsRef<Path>) {
+        self.0 = here.as_ref().join(&self.0)
+    }
+}
+
 /// Human-readable alternative to [`Trigger`] whose action has wasm executable
 #[derive(Debug, Clone, Serialize, Deserialize, IntoSchema, Encode, Decode, Constructor)]
 pub struct GenesisWasmTrigger {
@@ -464,6 +483,15 @@ pub struct GenesisWasmAction {
     filter: EventFilterBox,
 }
 
+impl GenesisWasmTrigger {
+    /// Resolve `self.action.executable` to `here/self.action.executable`,
+    /// assuming `self.action.executable` is an unresolved relative path to `here`.
+    /// Must be applied once.
+    fn resolve(&mut self, here: impl AsRef<Path>) {
+        self.action.executable.resolve(here)
+    }
+}
+
 impl GenesisWasmAction {
     /// Construct [`GenesisWasmAction`]
     pub fn new(
@@ -479,46 +507,36 @@ impl GenesisWasmAction {
             filter: filter.into(),
         }
     }
-}
-
-impl From<GenesisWasmTrigger> for Trigger {
-    fn from(value: GenesisWasmTrigger) -> Self {
-        Trigger::new(value.id, value.action.into())
+    /// Resolve `self.executable` to `here/self.executable`,
+    /// assuming `self.executable` is an unresolved relative path to `here`.
+    /// Must be applied once.
+    fn resolve(&mut self, here: impl AsRef<Path>) {
+        self.executable.resolve(here)
     }
 }
 
-impl From<GenesisWasmAction> for Action {
-    fn from(value: GenesisWasmAction) -> Self {
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../defaults/")
-            .join(value.executable.0)
-            .canonicalize()
-            .expect("wasm executable path should be correctly specified");
-        let executable = load_library_wasm(path);
-        Action::new(executable, value.repeats, value.authority, value.filter)
+impl TryFrom<GenesisWasmTrigger> for Trigger {
+    type Error = eyre::Report;
+
+    fn try_from(value: GenesisWasmTrigger) -> Result<Self, Self::Error> {
+        let action = value.action.try_into()?;
+
+        Ok(Trigger::new(value.id, action))
     }
 }
 
-fn read_file(path: impl AsRef<Path>) -> std::io::Result<Vec<u8>> {
-    let mut blob = vec![];
-    std::fs::File::open(path.as_ref())?.read_to_end(&mut blob)?;
-    Ok(blob)
-}
+impl TryFrom<GenesisWasmAction> for Action {
+    type Error = eyre::Report;
 
-fn load_library_wasm(path: impl AsRef<Path>) -> WasmSmartContract {
-    match read_file(&path) {
-        Err(err) => {
-            let name = path.as_ref().file_stem().unwrap().to_str().unwrap();
-            let path = path.as_ref().display();
-            eprintln!(
-                "ERROR: Could not load library WASM `{name}` from `{path}`: {err}\n\
-                    There are two possible reasons why:\n\
-                    1. You haven't pre-built WASM libraries before building genesis block. Make sure to run `build_wasm.sh` first.\n\
-                    2. `{path}` is not a valid path",
-            );
-            panic!("could not build WASM, see the message above");
-        }
-        Ok(blob) => WasmSmartContract::from_compiled(blob),
+    fn try_from(value: GenesisWasmAction) -> Result<Self, Self::Error> {
+        let wasm: WasmSmartContract = value.executable.try_into()?;
+
+        Ok(Action::new(
+            wasm,
+            value.repeats,
+            value.authority,
+            value.filter,
+        ))
     }
 }
 
