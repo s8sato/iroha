@@ -166,9 +166,7 @@ pub fn generate_default(
         )
     };
 
-    for wasm_trigger in [multisig_accounts_registry_for_wonderland] {
-        builder = builder.append_wasm_trigger(wasm_trigger);
-    }
+    builder = builder.append_wasm_trigger(multisig_accounts_registry_for_wonderland);
 
     // Will be replaced with actual topology either in scripts/test_env.py or in iroha_swarm
     let topology = vec![];
