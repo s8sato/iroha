@@ -295,7 +295,6 @@ impl Default for GenesisBuilder {
     }
 }
 
-#[allow(dead_code)]
 #[cfg(test)]
 const N_DEFAULT_INSTRUCTIONS: usize = 4;
 
@@ -525,7 +524,6 @@ fn load_library_wasm(path: impl AsRef<Path>) -> WasmSmartContract {
 
 #[cfg(test)]
 mod tests {
-    #[allow(unused_imports)]
     use iroha_test_samples::{ALICE_KEYPAIR, BOB_KEYPAIR};
 
     use super::*;
@@ -548,7 +546,6 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(not_compile)]
     #[test]
     #[allow(clippy::too_many_lines)]
     fn genesis_block_builder_example() {
@@ -592,7 +589,7 @@ mod tests {
         {
             let transaction = transactions[0];
             // FIXME field `value` of struct `CommittedTransaction` is private
-            let instructions = transaction.value.instructions();
+            let instructions = transaction.as_ref().instructions();
             let Executable::Instructions(instructions) = instructions else {
                 panic!("Expected instructions");
             };
@@ -603,7 +600,7 @@ mod tests {
 
         // Second transaction
         let transaction = transactions[1];
-        let instructions = transaction.value.instructions();
+        let instructions = transaction.as_ref().instructions();
         let Executable::Instructions(instructions) = instructions else {
             panic!("Expected instructions");
         };
