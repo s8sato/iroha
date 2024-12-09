@@ -23,3 +23,9 @@ fn get_asset_value(client: &Client, asset_id: AssetId) -> Numeric {
 
     *asset.value()
 }
+
+/// # Scenario
+#[test]
+fn not_registered_when_potential_event_loops_detected() {
+    todo!()
+}
