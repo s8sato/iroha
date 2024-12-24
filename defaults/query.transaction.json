@@ -1,0 +1,25 @@
+{
+  "Iterable": {
+    "query": {
+      "FindTransactions": {
+        "query": null,
+        "predicate": {
+          "Atom": {
+            "Value": {
+              "Hash": {
+                "Atom": {
+                  "Equals": "TRANSACTION_HASH"
+                }
+              }
+            }
+          }
+        },
+        "selector": [
+          {
+            "Atom": null
+          }
+        ]
+      }
+    }
+  }
+}
