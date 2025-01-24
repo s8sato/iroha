@@ -65,7 +65,5 @@ COPY defaults/genesis.json $CONFIG_DIR
 COPY defaults/executor.wasm $CONFIG_DIR
 COPY defaults/libs $CONFIG_DIR/libs/
 COPY defaults/client.toml $CONFIG_DIR
-COPY defaults/transaction.mock.json $CONFIG_DIR
-COPY defaults/query.transaction.json $CONFIG_DIR
 USER $USER
 CMD ["irohad"]

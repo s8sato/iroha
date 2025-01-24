@@ -89,24 +89,24 @@ Attach another shell to the running container and send a mock transaction:
 
 ```docker
 cd /config
-cat transaction.mock.json | sed 's/extraordinary/astonishing/' | iroha json transaction
+iroha transaction ping --msg "This is an extraordinary mock transaction"
 ```
 
 Example result:
 
-```log
-"50E8CE714D5207792BC819B9B118453E6E9F68B9B56515366F986B104B480103"
+```json
+"23EC79207A5573333057A4836533A72ED015AADE4DABC00CA8676120C919DE67"
 ```
 
 * If it claims the account is not found, your account may not be registered yet
 
 Make sure that the transaction listener reports the transaction approval with the same hash:
 
-```log
+```json
 {
   "Pipeline": {
     "Transaction": {
-      "hash": "50E8CE714D5207792BC819B9B118453E6E9F68B9B56515366F986B104B480103",
+      "hash": "23EC79207A5573333057A4836533A72ED015AADE4DABC00CA8676120C919DE67",
       "block_height": null,
       "status": "Queued"
     }
@@ -115,7 +115,7 @@ Make sure that the transaction listener reports the transaction approval with th
 {
   "Pipeline": {
     "Transaction": {
-      "hash": "50E8CE714D5207792BC819B9B118453E6E9F68B9B56515366F986B104B480103",
+      "hash": "23EC79207A5573333057A4836533A72ED015AADE4DABC00CA8676120C919DE67",
       "block_height": 2,
       "status": "Approved"
     }
@@ -125,13 +125,43 @@ Make sure that the transaction listener reports the transaction approval with th
 
 [Query] the transaction details:
 
-<!-- FIXME crates/iroha_cli/src/main.rs:1240:45
-
 ```docker
 cd /config
-cat query.transaction.json | sed 's/TRANSACTION_HASH/50E8CE714D5207792BC819B9B118453E6E9F68B9B56515366F986B104B480103/' | iroha json query
+iroha transaction get --hash "23EC79207A5573333057A4836533A72ED015AADE4DABC00CA8676120C919DE67"
 ```
--->
+
+Example result:
+
+```json
+{
+  "block_hash": "377BB64FB105B66B9A518903C1F861E144DC552A1C695BC0E1D3C87DE004B6CD",
+  "value": {
+    "version": "1",
+    "content": {
+      "signature": "E715AA09A0D41A05264C05EDF0954C9E3E1E5D15AF65E15DC8288FA2954E2F2FC7AF83A2A2C1684F0E23B86CD3AEEC72CDFE787AFDB8C15AB892BD84AA073F07",
+      "payload": {
+        "chain": "00000000-0000-0000-0000-000000000000",
+        "authority": "ed0120CE7FA46C9DCE7EA4B125E2E36BDB63EA33073E7590AC92816AE1E861B7048B03@wonderland",
+        "creation_time_ms": 1737758809325,
+        "instructions": {
+          "Instructions": [
+            {
+              "Log": {
+                "level": "INFO",
+                "msg": "This is an extraordinary mock transaction"
+              }
+            }
+          ]
+        },
+        "time_to_live_ms": 100000,
+        "nonce": null,
+        "metadata": {}
+      }
+    }
+  },
+  "error": null
+}
+```
 
 <!-- TODO ### Transfer [assets]
 
@@ -144,7 +174,7 @@ iroha asset get --id "rose##<your_public_key>@wonderland"
 
 Example result:
 
-```log
+```json
 {
   "id": "rose##ed0120CE7FA46C9DCE7EA4B125E2E36BDB63EA33073E7590AC92816AE1E861B7048B03@wonderland",
   "value": {
@@ -163,7 +193,7 @@ iroha asset get --id "rose##<your_public_key>@wonderland"
 
 Example result:
 
-```log
+```json
 {
   "id": "rose##ed0120CE7FA46C9DCE7EA4B125E2E36BDB63EA33073E7590AC92816AE1E861B7048B03@wonderland",
   "value": {

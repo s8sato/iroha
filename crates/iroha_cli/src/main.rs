@@ -90,29 +90,32 @@ struct Args {
 
 #[derive(clap::Subcommand, Debug)]
 enum Subcommand {
-    /// The subcommand related to domains
+    /// Read/write domains
     #[clap(subcommand)]
     Domain(domain::Args),
-    /// The subcommand related to accounts
+    /// Read/write accounts
     #[clap(subcommand)]
     Account(account::Args),
-    /// The subcommand related to assets
+    /// Read/write assets
     #[clap(subcommand)]
     Asset(asset::Args),
-    /// The subcommand related to p2p networking
+    /// Read/write peers
     #[clap(subcommand)]
     Peer(peer::Args),
-    /// The subcommand related to event streaming
+    /// Subscribe events: state change or status of transactions/blocks/triggers
     Events(events::Args),
-    /// The subcommand related to Wasm
+    /// Transaction by a Wasm executable input
     Wasm(wasm::Args),
-    /// The subcommand related to block streaming
+    /// Subscribe blocks
     Blocks(blocks::Args),
-    /// The subcommand related to multi-instructions as Json or Json5
+    /// Transaction or query by a serialized raw JSON input
     Json(json::Args),
-    /// The subcommand related to multisig accounts and transactions
+    /// Read/write multisig accounts and transactions
     #[clap(subcommand)]
     Multisig(multisig::Args),
+    /// Commands about transactions in general
+    #[clap(subcommand)]
+    Transaction(transaction::Args),
 }
 
 /// Context inside which command is executed
@@ -168,7 +171,7 @@ macro_rules! match_all {
 impl RunArgs for Subcommand {
     fn run(self, context: &mut dyn RunContext) -> Result<()> {
         use Subcommand::*;
-        match_all!((self, context), { Domain, Account, Asset, Peer, Events, Wasm, Blocks, Json, Multisig })
+        match_all!((self, context), { Domain, Account, Asset, Peer, Events, Wasm, Blocks, Json, Multisig, Transaction })
     }
 }
 
@@ -1598,6 +1601,64 @@ mod multisig {
             }
         }
         fold_proposals(proposals, stack, client)
+    }
+}
+
+mod transaction {
+    use iroha::data_model::{isi::Log, Level as LogLevel};
+
+    use super::*;
+
+    /// Arguments for multisig subcommand
+    #[derive(Debug, clap::Subcommand)]
+    pub enum Args {
+        /// Query transaction details by its hash
+        Get(Get),
+        /// Make an empty transaction that just leaves a log message
+        Ping(Ping),
+    }
+
+    impl RunArgs for Args {
+        fn run(self, context: &mut dyn RunContext) -> Result<()> {
+            match_all!((self, context), { Args::Get, Args::Ping })
+        }
+    }
+
+    /// Query transaction details by its hash
+    #[derive(Debug, clap::Args)]
+    pub struct Get {
+        /// Transaction hash
+        #[arg(short, long)]
+        pub hash: HashOf<SignedTransaction>,
+    }
+
+    impl RunArgs for Get {
+        fn run(self, context: &mut dyn RunContext) -> Result<()> {
+            let client = context.client_from_config();
+            let transaction = client
+                .query(FindTransactions::new())
+                .filter_with(|txn| txn.value.hash.eq(self.hash))
+                .execute_single()?;
+            context.print_data(&transaction)
+        }
+    }
+
+    /// Make an empty transaction that just leaves a log message
+    #[derive(Debug, clap::Args)]
+    pub struct Ping {
+        /// TRACE, DEBUG, INFO, WARN, ERROR: more noticeable in this order
+        #[arg(short, long, default_value = "INFO")]
+        pub log_level: LogLevel,
+        /// Log message
+        #[arg(short, long)]
+        pub msg: String,
+    }
+
+    impl RunArgs for Ping {
+        fn run(self, context: &mut dyn RunContext) -> Result<()> {
+            let ping = Log::new(self.log_level, self.msg);
+            submit([ping], Metadata::default(), context)
+        }
     }
 }
 
