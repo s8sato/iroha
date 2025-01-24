@@ -9,8 +9,12 @@ networks:
 
 services:
   irohad0:
-    image: hyperledger/iroha:2.0.0-rc.1.0
+    image: hyperledger/iroha:testnet-2.0.0-rc.1
     environment:
+      # ATTACHED CLIENT CONFIG OVERRIDE
+      ACCOUNT_PUBLIC_KEY: ed0120E5764F6029D06905D8226A2A779486E1D8A65DA3AF31ECEECD5FE83F9C88388E
+      ACCOUNT_PRIVATE_KEY: 802620F72320B6BF65207B7F39F4F123175F346BE62B427C6D63A587C7DBA9DDC5EBD2
+      # PEER CONFIG
       CHAIN: 00000000-0000-0000-0000-000000000000
       PUBLIC_KEY: ed0120A98BAFB0663CE08D75EBD506FEC38A84E576A7C9B0897693ED4B04FD9EF2D18D
       PRIVATE_KEY: 802620A4DFC16789FBF9A588525E4AC7F791AC51B12AEE8919EACC03EB2FC31D32C692
@@ -55,7 +59,7 @@ services:
           exec irohad
       "
   irohad1:
-    image: hyperledger/iroha:2.0.0-rc.1.0
+    image: hyperledger/iroha:testnet-2.0.0-rc.1
     environment:
       CHAIN: 00000000-0000-0000-0000-000000000000
       PUBLIC_KEY: ed01209897952D14BDFAEA780087C38FF3EB800CB20B882748FC95A575ADB9CD2CB21D
@@ -79,7 +83,7 @@ services:
       retries: 30
       start_period: 4s
   irohad2:
-    image: hyperledger/iroha:2.0.0-rc.1.0
+    image: hyperledger/iroha:testnet-2.0.0-rc.1
     environment:
       CHAIN: 00000000-0000-0000-0000-000000000000
       PUBLIC_KEY: ed01204EE2FCD53E1730AF142D1E23951198678295047F9314B4006B0CB61850B1DB10
@@ -103,7 +107,7 @@ services:
       retries: 30
       start_period: 4s
   irohad3:
-    image: hyperledger/iroha:2.0.0-rc.1.0
+    image: hyperledger/iroha:testnet-2.0.0-rc.1
     environment:
       CHAIN: 00000000-0000-0000-0000-000000000000
       PUBLIC_KEY: ed0120CACF3A84B8DC8710CE9D6B968EE95EC7EE4C93C85858F026F3B4417F569592CE

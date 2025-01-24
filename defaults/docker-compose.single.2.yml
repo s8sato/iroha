@@ -8,29 +8,30 @@ networks:
     name: sharednet
 
 services:
-  irohad9:
-    image: hyperledger/iroha:2.0.0-rc.1.0
+  irohad8:
+    image: hyperledger/iroha:testnet-2.0.0-rc.1
     environment:
+      # PEER CONFIG
       CHAIN: 00000000-0000-0000-0000-000000000000
       # set a unique key pair
-      PUBLIC_KEY: ed0120A36D508BDB1DBEFA4DF361F035A21DFD0F44C4DED67657537718DBF03C60E4C9
-      PRIVATE_KEY: 8026205DF4A899B63A65CA3C093062D6BFBE3D6F6AA331FEAD82847FB95FE0DC7EE682
-      P2P_PUBLIC_ADDRESS: irohad9:1336
-      P2P_ADDRESS: 0.0.0.0:1336
-      API_ADDRESS: 0.0.0.0:8079
+      PUBLIC_KEY: ed0120EBAEC78474D37DD44FCC8E006A31FAD24352C2EF2B79361336B45922CDEA6A63
+      PRIVATE_KEY: 80262073F65FCD4A398999D8FABA0B33CA4CE64DBF264409641F6793FF60D260F9765B
+      P2P_PUBLIC_ADDRESS: irohad8:1335
+      P2P_ADDRESS: 0.0.0.0:1335
+      API_ADDRESS: 0.0.0.0:8078
       GENESIS_PUBLIC_KEY: ed01204164BF554923ECE1FD412D241036D863A6AE430476C898248B8237D77534CFC4
       TOPOLOGY: '[]'
       # at least one correct address of alive peer of the network this peer is joining
-      TRUSTED_PEERS: '["ed0120A98BAFB0663CE08D75EBD506FEC38A84E576A7C9B0897693ED4B04FD9EF2D18D@irohad0:1337"]'
+      TRUSTED_PEERS: '["ed0120A36D508BDB1DBEFA4DF361F035A21DFD0F44C4DED67657537718DBF03C60E4C9@irohad9:1336"]'
     ports:
-    - 1336:1336
-    - 8079:8079
+    - 1335:1335
+    - 8078:8078
     volumes:
     - ./genesis.json:/config/genesis.json:ro
     - ./client.toml:/config/client.toml:ro
     init: true
     healthcheck:
-      test: test $(curl -s http://127.0.0.1:8079/status/blocks) -gt 0
+      test: test $(curl -s http://127.0.0.1:8078/status/blocks) -gt 0
       interval: 2s
       timeout: 1s
       retries: 30
