@@ -163,7 +163,7 @@ Example result:
 }
 ```
 
-<!-- TODO ### Transfer [assets]
+### Transfer [assets]
 
 You should have 100 roses as an airdrop. Query to check it:
 
@@ -201,6 +201,5 @@ Example result:
   }
 }
 ```
--->
 
 <!-- iroha asset list filter '{"Atom": {"Id": {"Account": {"Signatory": {"Atom": {"Equals": "<your_public_key>"}}}}}}' -->

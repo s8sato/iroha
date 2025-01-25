@@ -9,7 +9,9 @@ use iroha_data_model::{isi::InstructionBox, parameter::Parameters, prelude::*};
 use iroha_executor_data_model::permission::{
     domain::CanRegisterDomain, parameter::CanSetParameters, peer::CanManagePeers,
 };
-use iroha_genesis::{GenesisBuilder, RawGenesisTransaction, GENESIS_DOMAIN_ID};
+use iroha_genesis::{
+    GenesisBuilder, GenesisWasmAction, GenesisWasmTrigger, RawGenesisTransaction, GENESIS_DOMAIN_ID,
+};
 use iroha_test_samples::{gen_account_in, ALICE_ID, BOB_ID, CARPENTER_ID};
 
 use crate::{Outcome, RunArgs};
@@ -129,6 +131,8 @@ pub fn generate_default(
         "wonderland".parse()?,
         ALICE_ID.clone(),
     );
+    let set_rose_airdrop =
+        SetKeyValue::asset_definition("rose#wonderland".parse()?, "airdrop".parse()?, 100.0);
 
     let parameters = Parameters::default();
 
@@ -136,13 +140,14 @@ pub fn generate_default(
         builder = builder.append_parameter(parameter);
     }
 
-    let instructions: [InstructionBox; 6] = [
+    let instructions: [InstructionBox; 7] = [
         mint.into(),
         mint_cabbage.into(),
         transfer_rose_ownership.into(),
         transfer_wonderland_ownership.into(),
         grant_permission_to_set_parameters.into(),
         grant_permission_to_register_domains.into(),
+        set_rose_airdrop.into(),
     ];
 
     for isi in instructions
@@ -151,6 +156,17 @@ pub fn generate_default(
     {
         builder = builder.append_instruction(isi);
     }
+
+    let airdrop = GenesisWasmTrigger::new(
+        "airdrop".parse().unwrap(),
+        GenesisWasmAction::new(
+            "trigger_airdrop.wasm",
+            Repeats::Indefinitely,
+            ALICE_ID.clone(),
+            AccountEventFilter::new().for_events(AccountEventSet::Created),
+        ),
+    );
+    builder = builder.append_wasm_trigger(airdrop);
 
     Ok(builder.build_raw())
 }
