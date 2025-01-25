@@ -1,121 +1,78 @@
 //! Iroha client CLI
+#![expect(clippy::doc_markdown)]
 
 use std::{
-    fs::{self, read as read_file},
-    io::{stdin, stdout},
+    fs,
+    io::{self, Read},
     path::PathBuf,
-    str::FromStr,
     time::Duration,
 };
 
 use erased_serde::Serialize;
 use error_stack::{fmt::ColorMode, IntoReportCompat, ResultExt};
-use eyre::{eyre, Error, Result, WrapErr};
+use eyre::{eyre, Result, WrapErr};
 use futures::TryStreamExt;
 use iroha::{client::Client, config::Config, data_model::prelude::*};
-use iroha_primitives::json::Json;
 use thiserror::Error;
 use tokio::runtime::Runtime;
-
-/// Re-usable clap `--metadata <PATH>` (`-m`) argument.
-/// Should be combined with `#[command(flatten)]` attr.
-#[derive(clap::Args, Debug, Clone)]
-pub struct MetadataArgs {
-    /// The JSON/JSON5 file with key-value metadata pairs
-    #[arg(short, long, value_name("PATH"), value_hint(clap::ValueHint::FilePath))]
-    metadata: Option<PathBuf>,
-}
-
-impl MetadataArgs {
-    fn load(self) -> Result<Metadata> {
-        let value: Option<Metadata> = self
-            .metadata
-            .map(|path| {
-                let content = fs::read_to_string(&path).wrap_err_with(|| {
-                    eyre!("Failed to read the metadata file `{}`", path.display())
-                })?;
-                let metadata: Metadata = json5::from_str(&content).wrap_err_with(|| {
-                    eyre!(
-                        "Failed to deserialize metadata from file `{}`",
-                        path.display()
-                    )
-                })?;
-                Ok::<_, eyre::Report>(metadata)
-            })
-            .transpose()?;
-
-        Ok(value.unwrap_or_default())
-    }
-}
-
-/// Re-usable clap `--value <MetadataValue>` (`-v`) argument.
-/// Should be combined with `#[command(flatten)]` attr.
-#[derive(clap::Args, Debug, Clone, PartialEq, Eq)]
-pub struct MetadataValueArg {
-    /// Wrapper around `MetadataValue` to accept possible values and fallback to json.
-    ///
-    /// The following types are supported:
-    /// Numbers: decimal with optional point
-    /// Booleans: false/true
-    /// Objects: e.g. {"Vec":[{"String":"a"},{"String":"b"}]}
-    #[arg(short, long)]
-    value: Json,
-}
-
-impl FromStr for MetadataValueArg {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(MetadataValueArg {
-            value: Json::from_str(s)?,
-        })
-    }
-}
 
 /// Iroha CLI Client provides an ability to interact with Iroha Peers Web API without direct network usage.
 #[derive(clap::Parser, Debug)]
 #[command(name = "iroha", version = concat!("version=", env!("CARGO_PKG_VERSION"), " git_commit_sha=", env!("VERGEN_GIT_SHA")), author)]
 struct Args {
     /// Path to the configuration file
-    #[arg(short, long, value_name("PATH"), value_hint(clap::ValueHint::FilePath))]
-    #[clap(default_value = "client.toml")]
+    #[arg(short, long, value_name("PATH"), default_value = "client.toml")]
     config: PathBuf,
     /// More verbose output
     #[arg(short, long)]
     verbose: bool,
-    /// Subcommands of client cli
+    /// Commands
     #[command(subcommand)]
-    subcommand: Subcommand,
+    command: Command,
+    /// Optional path to read JSON5 file and attach transaction metadata
+    #[arg(short, long)]
+    metadata: Option<PathBuf>,
 }
 
 #[derive(clap::Subcommand, Debug)]
-enum Subcommand {
-    /// Read/write domains
-    #[clap(subcommand)]
-    Domain(domain::Args),
-    /// Read/write accounts
-    #[clap(subcommand)]
-    Account(account::Args),
-    /// Read/write assets
-    #[clap(subcommand)]
-    Asset(asset::Args),
-    /// Read/write peers
-    #[clap(subcommand)]
-    Peer(peer::Args),
-    /// Subscribe events: state change or status of transactions/blocks/triggers
+enum Command {
+    /// Read/Write domains
+    #[command(subcommand)]
+    Domain(domain::Command),
+    /// Read/Write accounts
+    #[command(subcommand)]
+    Account(account::Command),
+    /// Read/Write assets
+    #[command(subcommand)]
+    Asset(asset::Command),
+    /// Read/Write peers
+    #[command(subcommand)]
+    Peer(peer::Command),
+    /// Subscribe events: state changes, status of transactions/blocks/triggers
     Events(events::Args),
-    /// Transaction by a Wasm executable input
-    Wasm(wasm::Args),
     /// Subscribe blocks
     Blocks(blocks::Args),
-    /// Transaction or query by a serialized raw JSON input
-    Json(json::Args),
-    /// Read/write multisig accounts and transactions
-    #[clap(subcommand)]
-    Multisig(multisig::Args),
-    /// Commands about transactions in general
-    #[clap(subcommand)]
-    Transaction(transaction::Args),
+    /// Read/Write multisig accounts and transactions
+    #[command(subcommand)]
+    Multisig(multisig::Command),
+    /// Read in general
+    #[command(subcommand)]
+    Query(query::Command),
+    /// Read transactions, Write in general
+    #[command(subcommand)]
+    Transaction(transaction::Command),
+    /// TODO Read/Write roles
+    #[command(subcommand)]
+    Role(role::Command),
+    /// TODO Read/Write parameters
+    #[command(subcommand)]
+    Parameter(parameter::Command),
+    /// TODO Read/Write triggers
+    #[command(subcommand)]
+    Trigger(trigger::Command),
+    /// TODO Update executor
+    #[command(subcommand)]
+    Executor(executor::Command),
 }
 
 /// Context inside which command is executed
@@ -133,11 +90,37 @@ trait RunContext {
     /// - if serialization fails
     /// - if printing fails
     fn print_data(&mut self, data: &dyn Serialize) -> Result<()>;
+
+    fn transaction_metadata(&self) -> Option<&Metadata>;
+
+    /// Submit instruction with metadata to network.
+    ///
+    /// # Errors
+    /// Fails if submitting over network fails
+    #[expect(clippy::shadow_unrelated)]
+    fn submit(&mut self, instructions: impl Into<Executable>) -> Result<()> {
+        let client = self.client_from_config();
+        let transaction = client.build_transaction(
+            instructions,
+            self.transaction_metadata().cloned().unwrap_or_default(),
+        );
+
+        #[cfg(not(debug_assertions))]
+        let err_msg = "Failed to submit transaction";
+        #[cfg(debug_assertions)]
+        let err_msg = format!("Failed to submit transaction {transaction:?}");
+
+        let hash = client
+            .submit_transaction_blocking(&transaction)
+            .wrap_err(err_msg)?;
+        self.print_data(&hash)
+    }
 }
 
 struct PrintJsonContext<W> {
     write: W,
     config: Config,
+    transaction_metadata: Option<Metadata>,
 }
 
 impl<W: std::io::Write> RunContext for PrintJsonContext<W> {
@@ -149,29 +132,33 @@ impl<W: std::io::Write> RunContext for PrintJsonContext<W> {
         writeln!(&mut self.write, "{}", serde_json::to_string_pretty(data)?)?;
         Ok(())
     }
+
+    fn transaction_metadata(&self) -> Option<&Metadata> {
+        self.transaction_metadata.as_ref()
+    }
 }
 
-/// Runs subcommand
-trait RunArgs {
+/// Runs command
+trait RunCommand {
     /// Runs command
     ///
     /// # Errors
     /// if inner command errors
-    fn run(self, context: &mut dyn RunContext) -> Result<()>;
+    fn run(self, context: &mut impl RunContext) -> Result<()>;
 }
 
 macro_rules! match_all {
     (($self:ident, $context:ident), { $($variants:path),* $(,)?}) => {
         match $self {
-            $($variants(variant) => RunArgs::run(variant, $context),)*
+            $($variants(variant) => RunCommand::run(variant, $context),)*
         }
     };
 }
 
-impl RunArgs for Subcommand {
-    fn run(self, context: &mut dyn RunContext) -> Result<()> {
-        use Subcommand::*;
-        match_all!((self, context), { Domain, Account, Asset, Peer, Events, Wasm, Blocks, Json, Multisig, Transaction })
+impl RunCommand for Command {
+    fn run(self, context: &mut impl RunContext) -> Result<()> {
+        use Command::*;
+        match_all!((self, context), { Domain, Account, Asset, Peer, Events, Blocks, Multisig, Query, Transaction, Role, Parameter, Trigger, Executor })
     }
 }
 
@@ -181,24 +168,23 @@ enum MainError {
     Config,
     #[error("Failed to serialize config")]
     SerializeConfig,
+    #[error("Failed to get transaction metadata from file")]
+    TransactionMetadata,
     #[error("Failed to run the command")]
-    Subcommand,
+    Command,
 }
 
 fn main() -> error_stack::Result<(), MainError> {
-    let Args {
-        config: config_path,
-        subcommand,
-        verbose,
-    } = clap::Parser::parse();
+    let args: Args = clap::Parser::parse();
 
     error_stack::Report::set_color_mode(color_mode());
 
-    let config = Config::load(config_path)
+    let config = Config::load(args.config)
         // FIXME: would be nice to NOT change the context, it's unnecessary
         .change_context(MainError::Config)
         .attach_printable("config path was set by `--config` argument")?;
-    if verbose {
+
+    if args.verbose {
         eprintln!(
             "Configuration: {}",
             &serde_json::to_string_pretty(&config)
@@ -208,13 +194,24 @@ fn main() -> error_stack::Result<(), MainError> {
     }
 
     let mut context = PrintJsonContext {
-        write: stdout(),
+        write: io::stdout(),
         config,
+        transaction_metadata: None,
     };
-    subcommand
+    if let Some(path) = args.metadata {
+        let str = fs::read_to_string(&path)
+            .change_context(MainError::TransactionMetadata)
+            .attach_printable("failed to read to string")?;
+        let metadata: Metadata = json5::from_str(&str)
+            .change_context(MainError::TransactionMetadata)
+            .attach_printable("failed to deserialize to metadata")?;
+        context.transaction_metadata = Some(metadata);
+    }
+
+    args.command
         .run(&mut context)
         .into_report()
-        .map_err(|report| report.change_context(MainError::Subcommand))?;
+        .map_err(|report| report.change_context(MainError::Command))?;
 
     Ok(())
 }
@@ -229,73 +226,41 @@ fn color_mode() -> ColorMode {
     }
 }
 
-/// Submit instruction with metadata to network.
-///
-/// # Errors
-/// Fails if submitting over network fails
-#[allow(clippy::shadow_unrelated)]
-fn submit(
-    instructions: impl Into<Executable>,
-    metadata: Metadata,
-    context: &mut dyn RunContext,
-) -> Result<()> {
-    let client = context.client_from_config();
-    let instructions = instructions.into();
-    let tx = client.build_transaction(instructions, metadata);
-
-    #[cfg(not(debug_assertions))]
-    let err_msg = "Failed to submit transaction.";
-    #[cfg(debug_assertions)]
-    let err_msg = format!("Failed to submit transaction {tx:?}");
-    let hash = client.submit_transaction_blocking(&tx).wrap_err(err_msg)?;
-    context.print_data(&hash)?;
-
-    Ok(())
-}
-
 mod filter {
     use iroha::data_model::query::dsl::CompoundPredicate;
-    use serde::Deserialize;
 
     use super::*;
 
     /// Filter for domain queries
-    #[derive(Clone, Debug, clap::Parser)]
+    #[derive(clap::Args, Debug)]
     pub struct DomainFilter {
         /// Predicate for filtering given as JSON5 string
-        #[clap(value_parser = parse_json5::<CompoundPredicate<Domain>>)]
+        #[arg(value_parser = parse_json5::<CompoundPredicate<Domain>>)]
         pub predicate: CompoundPredicate<Domain>,
     }
 
     /// Filter for account queries
-    #[derive(Clone, Debug, clap::Parser)]
+    #[derive(clap::Args, Debug)]
     pub struct AccountFilter {
         /// Predicate for filtering given as JSON5 string
-        #[clap(value_parser = parse_json5::<CompoundPredicate<Account>>)]
+        #[arg(value_parser = parse_json5::<CompoundPredicate<Account>>)]
         pub predicate: CompoundPredicate<Account>,
     }
 
     /// Filter for asset queries
-    #[derive(Clone, Debug, clap::Parser)]
+    #[derive(clap::Args, Debug)]
     pub struct AssetFilter {
         /// Predicate for filtering given as JSON5 string
-        #[clap(value_parser = parse_json5::<CompoundPredicate<Asset>>)]
+        #[arg(value_parser = parse_json5::<CompoundPredicate<Asset>>)]
         pub predicate: CompoundPredicate<Asset>,
     }
 
     /// Filter for asset definition queries
-    #[derive(Clone, Debug, clap::Parser)]
+    #[derive(clap::Args, Debug)]
     pub struct AssetDefinitionFilter {
         /// Predicate for filtering given as JSON5 string
-        #[clap(value_parser = parse_json5::<CompoundPredicate<AssetDefinition>>)]
+        #[arg(value_parser = parse_json5::<CompoundPredicate<AssetDefinition>>)]
         pub predicate: CompoundPredicate<AssetDefinition>,
-    }
-
-    fn parse_json5<T>(s: &str) -> Result<T, String>
-    where
-        T: for<'a> Deserialize<'a>,
-    {
-        json5::from_str(s).map_err(|err| format!("Failed to deserialize filter from JSON5: {err}"))
     }
 }
 
@@ -305,53 +270,47 @@ mod events {
 
     use super::*;
 
-    #[derive(clap::Args, Debug, Clone, Copy)]
+    #[derive(clap::Args, Debug)]
     pub struct Args {
         /// Wait timeout
-        #[clap(short, long, global = true)]
+        #[arg(short, long, global = true)]
         timeout: Option<humantime::Duration>,
-        #[clap(subcommand)]
+        #[command(subcommand)]
         command: Command,
     }
 
-    /// Get event stream from Iroha peer
-    #[derive(clap::Subcommand, Debug, Clone, Copy)]
+    #[derive(clap::Subcommand, Debug)]
     enum Command {
-        /// Gets block pipeline events
-        BlockPipeline,
-        /// Gets transaction pipeline events
-        TransactionPipeline,
-        /// Gets data events
-        Data,
-        /// Get execute trigger events
-        ExecuteTrigger,
-        /// Get trigger completed events
-        TriggerCompleted,
+        /// Notify when world state has certain changes
+        State,
+        /// Notify when transaction passes certain processes
+        Transaction,
+        /// Notify when block passes certain processes
+        Block,
+        /// Notify when trigger execution is ordered
+        TriggerExecute,
+        /// Notify when trigger execution is completed
+        TriggerComplete,
     }
 
-    impl RunArgs for Args {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
+    impl RunCommand for Args {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            use self::Command::*;
             let timeout: Option<Duration> = self.timeout.map(Into::into);
 
             match self.command {
-                Command::TransactionPipeline => {
-                    listen(TransactionEventFilter::default(), context, timeout)
-                }
-                Command::BlockPipeline => listen(BlockEventFilter::default(), context, timeout),
-                Command::Data => listen(DataEventFilter::Any, context, timeout),
-                Command::ExecuteTrigger => {
-                    listen(ExecuteTriggerEventFilter::new(), context, timeout)
-                }
-                Command::TriggerCompleted => {
-                    listen(TriggerCompletedEventFilter::new(), context, timeout)
-                }
+                State => listen(DataEventFilter::Any, context, timeout),
+                Transaction => listen(TransactionEventFilter::default(), context, timeout),
+                Block => listen(BlockEventFilter::default(), context, timeout),
+                TriggerExecute => listen(ExecuteTriggerEventFilter::new(), context, timeout),
+                TriggerComplete => listen(TriggerCompletedEventFilter::new(), context, timeout),
             }
         }
     }
 
     fn listen(
         filter: impl Into<EventFilterBox>,
-        context: &mut dyn RunContext,
+        context: &mut impl RunContext,
         timeout: Option<Duration>,
     ) -> Result<()> {
         let filter = filter.into();
@@ -387,19 +346,18 @@ mod blocks {
 
     use super::*;
 
-    /// Get block stream from Iroha peer
-    #[derive(clap::Args, Debug, Clone, Copy)]
+    #[derive(clap::Args, Debug)]
     pub struct Args {
         /// Block height from which to start streaming blocks
         height: NonZeroU64,
 
         /// Wait timeout
-        #[clap(short, long)]
+        #[arg(short, long)]
         timeout: Option<humantime::Duration>,
     }
 
-    impl RunArgs for Args {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
+    impl RunCommand for Args {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
             let Args { height, timeout } = self;
             let timeout: Option<Duration> = timeout.map(Into::into);
             listen(height, context, timeout)
@@ -408,7 +366,7 @@ mod blocks {
 
     fn listen(
         height: NonZeroU64,
-        context: &mut dyn RunContext,
+        context: &mut impl RunContext,
         timeout: Option<Duration>,
     ) -> Result<()> {
         let client = context.client_from_config();
@@ -440,47 +398,62 @@ mod blocks {
 mod domain {
     use super::*;
 
-    /// Arguments for domain subcommand
-    #[derive(Debug, clap::Subcommand)]
-    pub enum Args {
+    #[derive(clap::Subcommand, Debug)]
+    pub enum Command {
+        /// List domains
+        #[command(subcommand)]
+        List(List),
         /// Register domain
         Register(Register),
-        /// List domains
-        #[clap(subcommand)]
-        List(List),
+        /// Unregister domain
+        Unregister(Unregister),
         /// Transfer domain
         Transfer(Transfer),
-        /// Edit domain metadata
-        #[clap(subcommand)]
-        Metadata(metadata::Args),
+        /// Read/Write metadata
+        #[command(subcommand)]
+        Meta(metadata::MetadataCommand),
     }
 
-    impl RunArgs for Args {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            match_all!((self, context), { Args::Register, Args::List, Args::Transfer, Args::Metadata,  })
+    impl RunCommand for Command {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            use self::Command::*;
+            match_all!((self, context), { List, Register, Unregister, Transfer, Meta })
         }
     }
 
-    /// Add subcommand for domain
-    #[derive(Debug, clap::Args)]
+    #[derive(clap::Args, Debug)]
     pub struct Register {
         /// Domain name as double-quoted string
         #[arg(short, long)]
         pub id: DomainId,
-        #[command(flatten)]
-        pub metadata: MetadataArgs,
     }
 
-    impl RunArgs for Register {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            let Self { id, metadata } = self;
-            let create_domain = iroha::data_model::isi::Register::domain(Domain::new(id));
-            submit([create_domain], metadata.load()?, context).wrap_err("Failed to create domain")
+    impl RunCommand for Register {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let create_domain = iroha::data_model::isi::Register::domain(Domain::new(self.id));
+            context
+                .submit([create_domain])
+                .wrap_err("Failed to register domain")
         }
     }
 
-    /// List domains with this command
-    #[derive(clap::Subcommand, Debug, Clone)]
+    #[derive(clap::Args, Debug)]
+    pub struct Unregister {
+        /// Domain name as double-quoted string
+        #[arg(short, long)]
+        pub id: DomainId,
+    }
+
+    impl RunCommand for Unregister {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let instruction = iroha::data_model::isi::Unregister::domain(self.id);
+            context
+                .submit([instruction])
+                .wrap_err("Failed to unregister domain")
+        }
+    }
+
+    #[derive(clap::Subcommand, Debug)]
     pub enum List {
         /// All domains
         All,
@@ -488,8 +461,8 @@ mod domain {
         Filter(filter::DomainFilter),
     }
 
-    impl RunArgs for List {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
+    impl RunCommand for List {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
             let client = context.client_from_config();
 
             let query = client.query(FindDomains::new());
@@ -506,100 +479,104 @@ mod domain {
         }
     }
 
-    /// Transfer a domain between accounts
-    #[derive(Debug, clap::Args)]
+    #[derive(clap::Args, Debug)]
     pub struct Transfer {
-        /// Domain name as double-quited string
+        /// Domain name as double-quoted string
         #[arg(short, long)]
         pub id: DomainId,
-        /// Account from which to transfer (in form `name@domain_name`)
+        /// Account from which to transfer, in form "multihash@domain"
         #[arg(short, long)]
         pub from: AccountId,
-        /// Account to which to transfer (in form `name@domain_name`)
+        /// Account to which to transfer, in form "multihash@domain"
         #[arg(short, long)]
         pub to: AccountId,
-        #[command(flatten)]
-        pub metadata: MetadataArgs,
     }
 
-    impl RunArgs for Transfer {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            let Self {
-                id,
-                from,
-                to,
-                metadata,
-            } = self;
-            let transfer_domain = iroha::data_model::isi::Transfer::domain(from, id, to);
-            submit([transfer_domain], metadata.load()?, context)
+    impl RunCommand for Transfer {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let transfer_domain =
+                iroha::data_model::isi::Transfer::domain(self.from, self.id, self.to);
+            context
+                .submit([transfer_domain])
                 .wrap_err("Failed to transfer domain")
         }
     }
+}
 
-    mod metadata {
-        use iroha::data_model::domain::DomainId;
+mod _metadata {
+    use iroha::data_model::domain::DomainId;
 
-        use super::*;
+    use super::*;
 
-        /// Edit domain subcommands
-        #[derive(Debug, Clone, clap::Subcommand)]
-        pub enum Args {
-            /// Set domain metadata
-            Set(Set),
-            /// Remove domain metadata
-            Remove(Remove),
+    #[derive(clap::Subcommand, Debug)]
+    pub enum Command {
+        /// Set domain metadata, from JSON stdin
+        Set(Set),
+        /// Remove domain metadata
+        Remove(Remove),
+    }
+
+    impl RunCommand for Command {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            use self::Command::*;
+            match_all!((self, context), { Set, Remove })
         }
+    }
 
-        impl RunArgs for Args {
-            fn run(self, context: &mut dyn RunContext) -> Result<()> {
-                match_all!((self, context), { Args::Set, Args::Remove, })
-            }
+    #[derive(clap::Args, Debug)]
+    pub struct Set {
+        /// A domain id from which metadata is to be removed
+        #[arg(short, long)]
+        id: DomainId,
+        /// A key of metadata
+        #[arg(short, long)]
+        key: Name,
+    }
+
+    impl RunCommand for Set {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let Self { id, key } = self;
+            let value: Json = parse_json5_stdin()?;
+            let set_key_value = SetKeyValue::domain(id, key, value);
+            context
+                .submit([set_key_value])
+                .wrap_err("Failed to submit Set instruction")
         }
+    }
 
-        /// Set metadata into domain
-        #[derive(Debug, Clone, clap::Args)]
-        pub struct Set {
-            /// A domain id from which metadata is to be removed
-            #[arg(short, long)]
-            id: DomainId,
-            /// A key of metadata
-            #[arg(short, long)]
-            key: Name,
-            #[command(flatten)]
-            value: MetadataValueArg,
+    #[derive(clap::Args, Debug)]
+    pub struct Remove {
+        /// A domain id from which metadata is to be removed
+        #[arg(short, long)]
+        id: DomainId,
+        /// A key of metadata
+        #[arg(short, long)]
+        key: Name,
+    }
+
+    impl RunCommand for Remove {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let Self { id, key } = self;
+            let remove_key_value = RemoveKeyValue::domain(id, key);
+            context
+                .submit([remove_key_value])
+                .wrap_err("Failed to submit Remove instruction")
         }
+    }
+}
 
-        impl RunArgs for Set {
-            fn run(self, context: &mut dyn RunContext) -> Result<()> {
-                let Self {
-                    id,
-                    key,
-                    value: MetadataValueArg { value },
-                } = self;
-                let set_key_value = SetKeyValue::domain(id, key, value);
-                submit([set_key_value], Metadata::default(), context)
-                    .wrap_err("Failed to submit Set instruction")
-            }
-        }
+mod metadata {
+    use super::*;
 
-        /// Remove metadata into domain by key
-        #[derive(Debug, Clone, clap::Args)]
-        pub struct Remove {
-            /// A domain id from which metadata is to be removed
-            #[arg(short, long)]
-            id: DomainId,
-            /// A key of metadata
-            #[arg(short, long)]
-            key: Name,
-        }
+    #[derive(clap::Subcommand, Debug)]
+    pub enum MetadataCommand {
+        /// TODO to be implemented
+        EmptyCommand,
+    }
 
-        impl RunArgs for Remove {
-            fn run(self, context: &mut dyn RunContext) -> Result<()> {
-                let Self { id, key } = self;
-                let remove_key_value = RemoveKeyValue::domain(id, key);
-                submit([remove_key_value], Metadata::default(), context)
-                    .wrap_err("Failed to submit Remove instruction")
-            }
+    impl RunCommand for MetadataCommand {
+        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+            todo!()
         }
     }
 }
@@ -607,54 +584,157 @@ mod domain {
 mod account {
     use std::fmt::Debug;
 
-    use super::{Permission as DataModelPermission, *};
+    use super::*;
 
-    /// subcommands for account subcommand
     #[derive(clap::Subcommand, Debug)]
-    pub enum Args {
-        /// Register account
-        Register(Register),
+    pub enum Command {
+        /// Read/Write account roles
+        #[command(subcommand)]
+        Role(RoleCommand),
+        /// Read/Write account permissions
+        #[command(subcommand)]
+        Permission(PermissionCommand),
         /// List accounts
         #[command(subcommand)]
         List(List),
-        /// Grant a permission to the account
-        Grant(Grant),
-        /// List all account permissions
-        ListPermissions(ListPermissions),
+        /// Register account
+        Register(IdMeta),
+        /// Unregister account
+        Unregister(Id),
+        /// Read/Write metadata
+        #[command(subcommand)]
+        Meta(metadata::MetadataCommand),
     }
 
-    impl RunArgs for Args {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            match_all!((self, context), {
-                Args::Register,
-                Args::List,
-                Args::Grant,
-                Args::ListPermissions,
-            })
+    impl RunCommand for Command {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            use self::Command::*;
+            match self {
+                Role(cmd) => cmd.run(context),
+                Permission(cmd) => cmd.run(context),
+                List(cmd) => cmd.run(context),
+                Register(args) => {
+                    let instruction =
+                        iroha::data_model::isi::Register::account(Account::new(args.id));
+                    context
+                        .submit([instruction])
+                        .wrap_err("Failed to register account")
+                }
+                Unregister(args) => {
+                    let instruction = iroha::data_model::isi::Unregister::account(args.id);
+                    context
+                        .submit([instruction])
+                        .wrap_err("Failed to unregister account")
+                }
+                Meta(cmd) => cmd.run(context),
+            }
         }
     }
 
-    /// Register account
+    #[derive(clap::Subcommand, Debug)]
+    pub enum RoleCommand {
+        /// List account roles
+        List(Id),
+        /// Grant account role
+        Grant(IdRoleMeta),
+        /// Revoke account role
+        Revoke(IdRoleMeta),
+    }
+
+    impl RunCommand for RoleCommand {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            use self::RoleCommand::*;
+            match self {
+                List(args) => {
+                    let client = context.client_from_config();
+                    let roles = client
+                        .query(FindRolesByAccountId::new(args.id))
+                        .execute_all()?;
+                    context.print_data(&roles)
+                }
+                Grant(args) => {
+                    let instruction =
+                        iroha::data_model::isi::Grant::account_role(args.role, args.id);
+                    context
+                        .submit([instruction])
+                        .wrap_err("Failed to grant the role to the account")
+                }
+                Revoke(args) => {
+                    let instruction =
+                        iroha::data_model::isi::Revoke::account_role(args.role, args.id);
+                    context
+                        .submit([instruction])
+                        .wrap_err("Failed to revoke the role from the account")
+                }
+            }
+        }
+    }
+
+    #[derive(clap::Subcommand, Debug)]
+    pub enum PermissionCommand {
+        /// List account permissions
+        List(Id),
+        /// Grant account permission by a serialized JSON5 stdin
+        Grant(IdMeta),
+        /// Revoke account permission by a serialized JSON5 stdin
+        Revoke(IdMeta),
+    }
+
+    impl RunCommand for PermissionCommand {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            use self::PermissionCommand::*;
+            match self {
+                List(args) => {
+                    let client = context.client_from_config();
+                    let permissions = client
+                        .query(FindPermissionsByAccountId::new(args.id))
+                        .execute_all()?;
+                    context.print_data(&permissions)
+                }
+                Grant(args) => {
+                    let permission: Permission = parse_json5_stdin()?;
+                    let instruction =
+                        iroha::data_model::isi::Grant::account_permission(permission, args.id);
+                    context
+                        .submit([instruction])
+                        .wrap_err("Failed to grant the permission to the account")
+                }
+                Revoke(args) => {
+                    let permission: Permission = parse_json5_stdin()?;
+                    let instruction =
+                        iroha::data_model::isi::Revoke::account_permission(permission, args.id);
+                    context
+                        .submit([instruction])
+                        .wrap_err("Failed to revoke the permission from the account")
+                }
+            }
+        }
+    }
+
     #[derive(clap::Args, Debug)]
-    pub struct Register {
-        /// Id of account in form `name@domain_name`
+    pub struct Id {
+        /// Account in form "multihash@domain"
+        #[arg(short, long)]
+        id: AccountId,
+    }
+    #[derive(clap::Args, Debug)]
+    pub struct IdMeta {
+        /// Account in form "multihash@domain"
         #[arg(short, long)]
         pub id: AccountId,
-        #[command(flatten)]
-        pub metadata: MetadataArgs,
     }
 
-    impl RunArgs for Register {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            let Self { id, metadata } = self;
-            let create_account = iroha::data_model::isi::Register::account(Account::new(id));
-            submit([create_account], metadata.load()?, context)
-                .wrap_err("Failed to register account")
-        }
+    #[derive(clap::Args, Debug)]
+    pub struct IdRoleMeta {
+        /// Account in form "multihash@domain"
+        #[arg(short, long)]
+        pub id: AccountId,
+        /// Role name as double-quoted string
+        #[arg(short, long)]
+        pub role: RoleId,
     }
 
-    /// List accounts with this command
-    #[derive(clap::Subcommand, Debug, Clone)]
+    #[derive(clap::Subcommand, Debug)]
     pub enum List {
         /// All accounts
         All,
@@ -662,8 +742,8 @@ mod account {
         Filter(filter::AccountFilter),
     }
 
-    impl RunArgs for List {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
+    impl RunCommand for List {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
             let client = context.client_from_config();
 
             let query = client.query(FindAccounts::new());
@@ -679,70 +759,6 @@ mod account {
             Ok(())
         }
     }
-
-    #[derive(clap::Args, Debug)]
-    pub struct Grant {
-        /// Account id
-        #[arg(short, long)]
-        pub id: AccountId,
-        /// The JSON/JSON5 file with a permission token
-        #[arg(short, long)]
-        pub permission: Permission,
-        #[command(flatten)]
-        pub metadata: MetadataArgs,
-    }
-
-    /// [`DataModelPermission`] wrapper implementing [`FromStr`]
-    #[derive(Debug, Clone)]
-    pub struct Permission(DataModelPermission);
-
-    impl FromStr for Permission {
-        type Err = Error;
-
-        fn from_str(s: &str) -> Result<Self> {
-            let content = fs::read_to_string(s)
-                .wrap_err(format!("Failed to read the permission token file {}", &s))?;
-            let permission: DataModelPermission = json5::from_str(&content).wrap_err(format!(
-                "Failed to deserialize the permission token from file {}",
-                &s
-            ))?;
-            Ok(Self(permission))
-        }
-    }
-
-    impl RunArgs for Grant {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            let Self {
-                id,
-                permission,
-                metadata,
-            } = self;
-            let grant = iroha::data_model::isi::Grant::account_permission(permission.0, id);
-            submit([grant], metadata.load()?, context)
-                .wrap_err("Failed to grant the permission to the account")
-        }
-    }
-
-    /// List all account permissions
-    #[derive(clap::Args, Debug)]
-    pub struct ListPermissions {
-        /// Account id
-        #[arg(short, long)]
-        id: AccountId,
-    }
-
-    impl RunArgs for ListPermissions {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            let client = context.client_from_config();
-            let find_all_permissions = FindPermissionsByAccountId::new(self.id);
-            let permissions = client
-                .query(find_all_permissions)
-                .execute_all()
-                .wrap_err("Failed to get all account permissions")?;
-            context.print_data(&permissions)?;
-            Ok(())
-        }
-    }
 }
 
 mod asset {
@@ -750,36 +766,39 @@ mod asset {
 
     use super::*;
 
-    /// Subcommand for dealing with asset
     #[derive(clap::Subcommand, Debug)]
-    pub enum Args {
-        /// Command for managing asset definitions
-        #[clap(subcommand)]
-        Definition(definition::Args),
-        /// Command for minting asset in existing Iroha account
-        Mint(Mint),
-        /// Command for burning asset in existing Iroha account
-        Burn(Burn),
-        /// Transfer asset between accounts
-        Transfer(Transfer),
-        /// Get info of asset
+    pub enum Command {
+        /// Read/Write asset definitions
+        #[command(subcommand)]
+        Definition(definition::Command),
+        /// Read a single asset
         Get(Get),
         /// List assets
-        #[clap(subcommand)]
+        #[command(subcommand)]
         List(List),
-        /// Get a value from a Store asset
+        /// Increase an amount of asset
+        Mint(Mint),
+        /// Decrease an amount of asset
+        Burn(Burn),
+        /// Transfer an amount of asset between accounts
+        Transfer(Transfer),
+        /// Read a value from a key-value store
+        #[command(name = "getkv")]
         GetKeyValue(GetKeyValue),
-        /// Set a key-value entry in a Store asset
+        /// Create or update an entry in a key-value store, by a serialized JSON5 stdin
+        #[command(name = "setkv")]
         SetKeyValue(SetKeyValue),
-        /// Remove a key-value entry from a Store asset
+        /// Delete an entry from a key-value store
+        #[command(name = "removekv")]
         RemoveKeyValue(RemoveKeyValue),
     }
 
-    impl RunArgs for Args {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
+    impl RunCommand for Command {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            use self::Command::*;
             match_all!(
                 (self, context),
-                { Args::Definition, Args::Mint, Args::Burn, Args::Transfer, Args::Get, Args::List, Args::SetKeyValue, Args::RemoveKeyValue, Args::GetKeyValue}
+                { Definition, Get, List, Mint, Burn, Transfer, GetKeyValue, SetKeyValue, RemoveKeyValue }
             )
         }
     }
@@ -789,30 +808,34 @@ mod asset {
 
         use super::*;
 
-        /// Subcommand for managing asset definitions
         #[derive(clap::Subcommand, Debug)]
-        pub enum Args {
-            /// Command for Registering a new asset
-            Register(Register),
+        pub enum Command {
             /// List asset definitions
-            #[clap(subcommand)]
+            #[command(subcommand)]
             List(List),
+            /// Register asset definition
+            Register(Register),
+            /// Unregister asset definition
+            Unregister(Unregister),
+            /// Read/Write metadata
+            #[command(subcommand)]
+            Meta(metadata::MetadataCommand),
         }
 
-        impl RunArgs for Args {
-            fn run(self, context: &mut dyn RunContext) -> Result<()> {
+        impl RunCommand for Command {
+            fn run(self, context: &mut impl RunContext) -> Result<()> {
+                use self::Command::*;
                 match_all!(
                     (self, context),
-                    { Args::Register, Args::List }
+                    { List, Register, Unregister, Meta }
                 )
             }
         }
 
-        /// Register subcommand of asset
         #[derive(clap::Args, Debug)]
         pub struct Register {
-            /// Asset definition id for registering (in form of `asset#domain_name`)
-            #[arg(long)]
+            /// Asset definition in form "asset#domain"
+            #[arg(short, long)]
             pub id: AssetDefinitionId,
             /// Mintability of asset
             #[arg(short, long)]
@@ -820,31 +843,39 @@ mod asset {
             /// Value type stored in asset
             #[arg(short, long)]
             pub r#type: AssetType,
-            #[command(flatten)]
-            pub metadata: MetadataArgs,
         }
 
-        impl RunArgs for Register {
-            fn run(self, context: &mut dyn RunContext) -> Result<()> {
-                let Self {
-                    id: asset_id,
-                    r#type,
-                    unmintable,
-                    metadata,
-                } = self;
-                let mut asset_definition = AssetDefinition::new(asset_id, r#type);
-                if unmintable {
+        impl RunCommand for Register {
+            fn run(self, context: &mut impl RunContext) -> Result<()> {
+                let mut asset_definition = AssetDefinition::new(self.id, self.r#type);
+                if self.unmintable {
                     asset_definition = asset_definition.mintable_once();
                 }
-                let create_asset_definition =
+                let instruction =
                     iroha::data_model::isi::Register::asset_definition(asset_definition);
-                submit([create_asset_definition], metadata.load()?, context)
+                context
+                    .submit([instruction])
                     .wrap_err("Failed to register asset")
             }
         }
 
-        /// List asset definitions with this command
-        #[derive(clap::Subcommand, Debug, Clone)]
+        #[derive(clap::Args, Debug)]
+        pub struct Unregister {
+            /// Asset definition in form "asset#domain"
+            #[arg(short, long)]
+            pub id: AssetDefinitionId,
+        }
+
+        impl RunCommand for Unregister {
+            fn run(self, context: &mut impl RunContext) -> Result<()> {
+                let instruction = iroha::data_model::isi::Unregister::asset_definition(self.id);
+                context
+                    .submit([instruction])
+                    .wrap_err("Failed to unregister asset")
+            }
+        }
+
+        #[derive(clap::Subcommand, Debug)]
         pub enum List {
             /// All asset definitions
             All,
@@ -852,8 +883,8 @@ mod asset {
             Filter(filter::AssetDefinitionFilter),
         }
 
-        impl RunArgs for List {
-            fn run(self, context: &mut dyn RunContext) -> Result<()> {
+        impl RunCommand for List {
+            fn run(self, context: &mut impl RunContext) -> Result<()> {
                 let client = context.client_from_config();
 
                 let query = client.query(FindAssetsDefinitions::new());
@@ -873,112 +904,87 @@ mod asset {
         }
     }
 
-    /// Command for minting asset in existing Iroha account
     #[derive(clap::Args, Debug)]
     pub struct Mint {
-        /// Asset id for the asset (in form of `asset##account@domain_name`)
-        #[arg(long)]
+        /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
+        #[arg(short, long)]
         pub id: AssetId,
         /// Quantity to mint
         #[arg(short, long)]
         pub quantity: Numeric,
-        #[command(flatten)]
-        pub metadata: MetadataArgs,
     }
 
-    impl RunArgs for Mint {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            let Self {
-                id: asset_id,
-                quantity,
-                metadata,
-            } = self;
-            let mint_asset = iroha::data_model::isi::Mint::asset_numeric(quantity, asset_id);
-            submit([mint_asset], metadata.load()?, context)
-                .wrap_err("Failed to mint asset of type `Numeric`")
+    impl RunCommand for Mint {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let instruction = iroha::data_model::isi::Mint::asset_numeric(self.quantity, self.id);
+            context
+                .submit([instruction])
+                .wrap_err("Failed to mint numeric asset")
         }
     }
 
-    /// Command for minting asset in existing Iroha account
     #[derive(clap::Args, Debug)]
     pub struct Burn {
-        /// Asset id for the asset (in form of `asset##account@domain_name`)
-        #[arg(long)]
+        /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
+        #[arg(short, long)]
         pub id: AssetId,
         /// Quantity to mint
         #[arg(short, long)]
         pub quantity: Numeric,
-        #[command(flatten)]
-        pub metadata: MetadataArgs,
     }
 
-    impl RunArgs for Burn {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            let Self {
-                id: asset_id,
-                quantity,
-                metadata,
-            } = self;
-            let burn_asset = iroha::data_model::isi::Burn::asset_numeric(quantity, asset_id);
-            submit([burn_asset], metadata.load()?, context)
-                .wrap_err("Failed to burn asset of type `Numeric`")
+    impl RunCommand for Burn {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let instruction = iroha::data_model::isi::Burn::asset_numeric(self.quantity, self.id);
+            context
+                .submit([instruction])
+                .wrap_err("Failed to burn numeric asset")
         }
     }
 
-    /// Transfer asset between accounts
     #[derive(clap::Args, Debug)]
     pub struct Transfer {
-        /// Account to which to transfer (in form `name@domain_name`)
-        #[arg(long)]
-        pub to: AccountId,
-        /// Asset id to transfer (in form like `asset##account@domain_name`)
-        #[arg(long)]
+        /// Asset to transfer, in form "asset##account@domain" or "asset#another_domain#account@domain"
+        #[arg(short, long)]
         pub id: AssetId,
-        /// Quantity of asset as number
+        /// Account to which to transfer, in form "multihash@domain"
+        #[arg(short, long)]
+        pub to: AccountId,
+        /// How much to transfer, in an integer or decimal
         #[arg(short, long)]
         pub quantity: Numeric,
-        #[command(flatten)]
-        pub metadata: MetadataArgs,
     }
 
-    impl RunArgs for Transfer {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            let Self {
-                to,
-                id: asset_id,
-                quantity,
-                metadata,
-            } = self;
-            let transfer_asset =
-                iroha::data_model::isi::Transfer::asset_numeric(asset_id, quantity, to);
-            submit([transfer_asset], metadata.load()?, context).wrap_err("Failed to transfer asset")
+    impl RunCommand for Transfer {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let instruction =
+                iroha::data_model::isi::Transfer::asset_numeric(self.id, self.quantity, self.to);
+            context
+                .submit([instruction])
+                .wrap_err("Failed to transfer numeric asset")
         }
     }
 
-    /// Get info of asset
     #[derive(clap::Args, Debug)]
     pub struct Get {
-        /// Asset id for the asset (in form of `asset##account@domain_name`)
-        #[arg(long)]
+        /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
+        #[arg(short, long)]
         pub id: AssetId,
     }
 
-    impl RunArgs for Get {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            let Self { id: asset_id } = self;
+    impl RunCommand for Get {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
             let client = context.client_from_config();
             let asset = client
                 .query(FindAssets::new())
-                .filter_with(|asset| asset.id.eq(asset_id))
+                .filter_with(|asset| asset.id.eq(self.id))
                 .execute_single()
                 .wrap_err("Failed to get asset.")?;
-            context.print_data(&asset)?;
-            Ok(())
+            context.print_data(&asset)
         }
     }
 
-    /// List assets with this command
-    #[derive(clap::Subcommand, Debug, Clone)]
+    #[derive(clap::Subcommand, Debug)]
     pub enum List {
         /// All assets
         All,
@@ -986,8 +992,8 @@ mod asset {
         Filter(filter::AssetFilter),
     }
 
-    impl RunArgs for List {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
+    impl RunCommand for List {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
             let client = context.client_from_config();
 
             let query = client.query(FindAssets::new());
@@ -1006,71 +1012,58 @@ mod asset {
 
     #[derive(clap::Args, Debug)]
     pub struct SetKeyValue {
-        /// Asset id for the Store asset (in form of `asset##account@domain_name`)
-        #[clap(long)]
+        /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
+        #[arg(short, long)]
         pub id: AssetId,
-        /// The key for the store value
-        #[clap(long)]
+        /// Key for the value
+        #[arg(short, long)]
         pub key: Name,
-        #[command(flatten)]
-        pub value: MetadataValueArg,
     }
 
-    impl RunArgs for SetKeyValue {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            let Self {
-                id: asset_id,
-                key,
-                value: MetadataValueArg { value },
-            } = self;
-
-            let set = iroha::data_model::isi::SetKeyValue::asset(asset_id, key, value);
-            submit([set], Metadata::default(), context)?;
-            Ok(())
+    impl RunCommand for SetKeyValue {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let value: Json = parse_json5_stdin()?;
+            let instruction = iroha::data_model::isi::SetKeyValue::asset(self.id, self.key, value);
+            context.submit([instruction])
         }
     }
     #[derive(clap::Args, Debug)]
     pub struct RemoveKeyValue {
-        /// Asset id for the Store asset (in form of `asset##account@domain_name`)
-        #[clap(long)]
+        /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
+        #[arg(short, long)]
         pub id: AssetId,
-        /// The key for the store value
-        #[clap(long)]
+        /// Key for the value
+        #[arg(short, long)]
         pub key: Name,
     }
 
-    impl RunArgs for RemoveKeyValue {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            let Self { id: asset_id, key } = self;
-            let remove = iroha::data_model::isi::RemoveKeyValue::asset(asset_id, key);
-            submit([remove], Metadata::default(), context)?;
-            Ok(())
+    impl RunCommand for RemoveKeyValue {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let instruction = iroha::data_model::isi::RemoveKeyValue::asset(self.id, self.key);
+            context.submit([instruction])
         }
     }
 
     #[derive(clap::Args, Debug)]
     pub struct GetKeyValue {
-        /// Asset id for the Store asset (in form of `asset##account@domain_name`)
-        #[clap(long)]
+        /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
+        #[arg(short, long)]
         pub id: AssetId,
-        /// The key for the store value
-        #[clap(long)]
+        /// Key for the value
+        #[arg(short, long)]
         pub key: Name,
     }
 
-    impl RunArgs for GetKeyValue {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            let Self { id: asset_id, key } = self;
+    impl RunCommand for GetKeyValue {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
             let client = context.client_from_config();
-            let asset = client
+            let value = client
                 .query(FindAssets)
-                .filter_with(|asset| asset.id.eq(asset_id))
-                .select_with(|asset| asset.value.store.key(key))
+                .filter_with(|asset| asset.id.eq(self.id))
+                .select_with(|asset| asset.value.store.key(self.key))
                 .execute_single()
-                .wrap_err("Failed to get key-value")?;
-
-            context.print_data(&asset)?;
-            Ok(())
+                .wrap_err("Failed to get value")?;
+            context.print_data(&value)
         }
     }
 }
@@ -1078,188 +1071,67 @@ mod asset {
 mod peer {
     use super::*;
 
-    /// Subcommand for dealing with peer
     #[derive(clap::Subcommand, Debug)]
-    pub enum Args {
-        /// Register subcommand of peer
-        Register(Box<Register>),
-        /// Unregister subcommand of peer
-        Unregister(Box<Unregister>),
+    pub enum Command {
+        /// List peers in world state that are expected to connect with each other
+        #[command(subcommand)]
+        List(List),
+        /// Register peer
+        Register(Register),
+        /// Unregister peer
+        Unregister(Unregister),
     }
 
-    impl RunArgs for Args {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            match self {
-                Args::Register(register) => RunArgs::run(*register, context),
-                Args::Unregister(unregister) => RunArgs::run(*unregister, context),
-            }
+    impl RunCommand for Command {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            use self::Command::*;
+            match_all!((self, context), { List, Register, Unregister })
         }
     }
 
-    /// Register subcommand of peer
+    #[derive(clap::Subcommand, Debug)]
+    pub enum List {
+        /// List all registered peers
+        All,
+    }
+
+    impl RunCommand for List {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let client = context.client_from_config();
+            let entities = client.query(FindPeers).execute_all()?;
+            context.print_data(&entities)
+        }
+    }
+
     #[derive(clap::Args, Debug)]
     pub struct Register {
-        /// Public key of the peer
+        /// Peer's public key in multihash
         #[arg(short, long)]
         pub key: PublicKey,
-        #[command(flatten)]
-        pub metadata: MetadataArgs,
     }
 
-    impl RunArgs for Register {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            let Self { key, metadata } = self;
-            let register_peer = iroha::data_model::isi::Register::peer(key.into());
-            submit([register_peer], metadata.load()?, context).wrap_err("Failed to register peer")
+    impl RunCommand for Register {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let instruction = iroha::data_model::isi::Register::peer(self.key.into());
+            context
+                .submit([instruction])
+                .wrap_err("Failed to register peer")
         }
     }
 
-    /// Unregister subcommand of peer
     #[derive(clap::Args, Debug)]
     pub struct Unregister {
-        /// Public key of the peer
+        /// Peer's public key in multihash
         #[arg(short, long)]
         pub key: PublicKey,
-        #[command(flatten)]
-        pub metadata: MetadataArgs,
     }
 
-    impl RunArgs for Unregister {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            let Self { key, metadata } = self;
-            let unregister_peer = iroha::data_model::isi::Unregister::peer(key.into());
-            submit([unregister_peer], metadata.load()?, context)
+    impl RunCommand for Unregister {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let instruction = iroha::data_model::isi::Unregister::peer(self.key.into());
+            context
+                .submit([instruction])
                 .wrap_err("Failed to unregister peer")
-        }
-    }
-}
-
-mod wasm {
-    use std::{io::Read, path::PathBuf};
-
-    use super::*;
-
-    /// Subcommand for dealing with Wasm
-    #[derive(Debug, clap::Args)]
-    pub struct Args {
-        /// Specify a path to the Wasm file or skip this flag to read from stdin
-        #[arg(short, long)]
-        path: Option<PathBuf>,
-    }
-
-    impl RunArgs for Args {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            let raw_data = if let Some(path) = self.path {
-                read_file(path).wrap_err("Failed to read a Wasm from the file into the buffer")?
-            } else {
-                let mut buf = Vec::<u8>::new();
-                stdin()
-                    .read_to_end(&mut buf)
-                    .wrap_err("Failed to read a Wasm from stdin into the buffer")?;
-                buf
-            };
-
-            submit(
-                WasmSmartContract::from_compiled(raw_data),
-                Metadata::default(),
-                context,
-            )
-            .wrap_err("Failed to submit a Wasm smart contract")
-        }
-    }
-}
-
-mod json {
-    use std::io::{BufReader, Read as _};
-
-    use clap::Subcommand;
-    use iroha::data_model::query::AnyQueryBox;
-
-    use super::*;
-
-    /// Subcommand for submitting multi-instructions
-    #[derive(Clone, Copy, Debug, clap::Args)]
-    pub struct Args {
-        #[clap(subcommand)]
-        variant: Variant,
-    }
-
-    #[derive(Clone, Copy, Debug, Subcommand)]
-    enum Variant {
-        Transaction,
-        Query,
-    }
-
-    impl RunArgs for Args {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            let mut reader = BufReader::new(stdin());
-            let mut raw_content = Vec::new();
-            reader.read_to_end(&mut raw_content)?;
-
-            let string_content = String::from_utf8(raw_content)?;
-
-            match self.variant {
-                Variant::Transaction => {
-                    let instructions: Vec<InstructionBox> = json5::from_str(&string_content)?;
-                    submit(instructions, Metadata::default(), context)
-                        .wrap_err("Failed to submit parsed instructions")
-                }
-                Variant::Query => {
-                    let client = Client::new(context.configuration().clone());
-                    let query: AnyQueryBox = json5::from_str(&string_content)?;
-
-                    match query {
-                        AnyQueryBox::Singular(query) => {
-                            let result = client
-                                .query_single(query)
-                                .wrap_err("Failed to query response")?;
-
-                            context.print_data(&result)?;
-                        }
-                        AnyQueryBox::Iterable(query) => {
-                            // we can't really do type-erased iterable queries in a nice way right now...
-                            use iroha::data_model::query::builder::QueryExecutor;
-
-                            let (mut accumulated_batch, _remaining_items, mut continue_cursor) =
-                                client.start_query(query)?;
-
-                            while let Some(cursor) = continue_cursor {
-                                let (next_batch, _remaining_items, next_continue_cursor) =
-                                    <Client as QueryExecutor>::continue_query(cursor)?;
-
-                                accumulated_batch.extend(next_batch);
-                                continue_cursor = next_continue_cursor;
-                            }
-
-                            // for efficiency reasons iroha encodes query results in a columnar format,
-                            // so we need to transpose the batch to get the format that is more natural for humans
-                            let mut batches = vec![Vec::new(); accumulated_batch.len()];
-                            for batch in accumulated_batch {
-                                // downcast to json and extract the actual array
-                                // dynamic typing is just easier to use here than introducing a bunch of new types only for iroha_cli
-                                let batch = serde_json::to_value(batch)?;
-                                let serde_json::Value::Object(batch) = batch else {
-                                    panic!("Expected the batch serialization to be a JSON object");
-                                };
-                                let (_ty, batch) = batch
-                                    .into_iter()
-                                    .next()
-                                    .expect("Expected the batch to have exactly one key");
-                                let serde_json::Value::Array(batch_vec) = batch else {
-                                    panic!("Expected the batch payload to be a JSON array");
-                                };
-                                for (target, value) in batches.iter_mut().zip(batch_vec) {
-                                    target.push(value);
-                                }
-                            }
-
-                            context.print_data(&batches)?;
-                        }
-                    }
-
-                    Ok(())
-                }
-            }
         }
     }
 }
@@ -1279,27 +1151,26 @@ mod multisig {
 
     use super::*;
 
-    /// Arguments for multisig subcommand
-    #[derive(Debug, clap::Subcommand)]
-    pub enum Args {
+    #[derive(clap::Subcommand, Debug)]
+    pub enum Command {
+        /// List pending multisig transactions relevant to you
+        #[command(subcommand)]
+        List(List),
         /// Register a multisig account
         Register(Register),
         /// Propose a multisig transaction, with `Vec<InstructionBox>` stdin
         Propose(Propose),
         /// Approve a multisig transaction
         Approve(Approve),
-        /// List pending multisig transactions relevant to you
-        #[clap(subcommand)]
-        List(List),
     }
 
-    impl RunArgs for Args {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            match_all!((self, context), { Args::Register, Args::Propose, Args::Approve, Args::List })
+    impl RunCommand for Command {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            use self::Command::*;
+            match_all!((self, context), { List, Register, Propose, Approve })
         }
     }
-    /// Args to register a multisig account
-    #[derive(Debug, clap::Args)]
+    #[derive(clap::Args, Debug)]
     pub struct Register {
         /// ID of the multisig account to be registered
         #[arg(short, long)]
@@ -1322,12 +1193,12 @@ mod multisig {
         std::time::Duration::from_millis(DEFAULT_MULTISIG_TTL_MS).into()
     }
 
-    impl RunArgs for Register {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
+    impl RunCommand for Register {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
             if self.signatories.len() != self.weights.len() {
                 return Err(eyre!("signatories and weights must be equal in length"));
             }
-            let register_multisig_account = MultisigRegister::new(
+            let instruction = MultisigRegister::new(
                 self.account,
                 MultisigSpec::new(
                     self.signatories.into_iter().zip(self.weights).collect(),
@@ -1341,13 +1212,13 @@ mod multisig {
                 ),
             );
 
-            submit([register_multisig_account], Metadata::default(), context)
+            context
+                .submit([instruction])
                 .wrap_err("Failed to register multisig account")
         }
     }
 
-    /// Args to propose a multisig transaction
-    #[derive(Debug, clap::Args)]
+    #[derive(clap::Args, Debug)]
     pub struct Propose {
         /// Multisig authority of the multisig transaction
         #[arg(short, long)]
@@ -1357,10 +1228,10 @@ mod multisig {
         pub transaction_ttl: Option<humantime::Duration>,
     }
 
-    impl RunArgs for Propose {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
+    impl RunCommand for Propose {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
             let instructions: Vec<InstructionBox> = {
-                let mut reader = BufReader::new(stdin());
+                let mut reader = BufReader::new(io::stdin());
                 let mut raw_content = Vec::new();
                 reader.read_to_end(&mut raw_content)?;
                 let string_content = String::from_utf8(raw_content)?;
@@ -1381,13 +1252,13 @@ mod multisig {
             let propose_multisig_transaction =
                 MultisigPropose::new(self.account, instructions, transaction_ttl_ms);
 
-            submit([propose_multisig_transaction], Metadata::default(), context)
+            context
+                .submit([propose_multisig_transaction])
                 .wrap_err("Failed to propose transaction")
         }
     }
 
-    /// Args to approve a multisig transaction
-    #[derive(Debug, clap::Args)]
+    #[derive(clap::Args, Debug)]
     pub struct Approve {
         /// Multisig authority of the multisig transaction
         #[arg(short, long)]
@@ -1397,25 +1268,25 @@ mod multisig {
         pub instructions_hash: ProposalKey,
     }
 
-    impl RunArgs for Approve {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
+    impl RunCommand for Approve {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
             let approve_multisig_transaction =
                 MultisigApprove::new(self.account, self.instructions_hash);
 
-            submit([approve_multisig_transaction], Metadata::default(), context)
+            context
+                .submit([approve_multisig_transaction])
                 .wrap_err("Failed to approve transaction")
         }
     }
 
-    /// List pending multisig transactions relevant to you
-    #[derive(clap::Subcommand, Debug, Clone)]
+    #[derive(clap::Subcommand, Debug)]
     pub enum List {
-        /// All pending multisig transactions relevant to you
+        /// List all pending multisig transactions relevant to you
         All,
     }
 
-    impl RunArgs for List {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
+    impl RunCommand for List {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
             let client = context.client_from_config();
             let me = client.account.clone();
             let Ok(my_multisig_roles) = client
@@ -1433,9 +1304,7 @@ mod multisig {
             let mut proposals = BTreeMap::new();
 
             fold_proposals(&mut proposals, &mut stack, &client)?;
-            context.print_data(&proposals)?;
-
-            Ok(())
+            context.print_data(&proposals)
         }
     }
 
@@ -1604,36 +1473,117 @@ mod multisig {
     }
 }
 
+mod query {
+    use iroha::data_model::query::AnyQueryBox;
+
+    use super::*;
+
+    #[derive(clap::Subcommand, Debug)]
+    pub enum Command {
+        /// Read by a serialized JSON5 stdin
+        Json(Json),
+    }
+
+    impl RunCommand for Command {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            use self::Command::*;
+            match_all!((self, context), { Json })
+        }
+    }
+
+    #[derive(clap::Args, Debug)]
+    pub struct Json;
+
+    impl RunCommand for Json {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let client = Client::new(context.configuration().clone());
+            let query: AnyQueryBox = parse_json5_stdin()?;
+
+            match query {
+                AnyQueryBox::Singular(query) => {
+                    let result = client
+                        .query_single(query)
+                        .wrap_err("Failed to query response")?;
+
+                    context.print_data(&result)
+                }
+                AnyQueryBox::Iterable(query) => {
+                    // we can't really do type-erased iterable queries in a nice way right now...
+                    use iroha::data_model::query::builder::QueryExecutor;
+
+                    let (mut accumulated_batch, _remaining_items, mut continue_cursor) =
+                        client.start_query(query)?;
+
+                    while let Some(cursor) = continue_cursor {
+                        let (next_batch, _remaining_items, next_continue_cursor) =
+                            <Client as QueryExecutor>::continue_query(cursor)?;
+
+                        accumulated_batch.extend(next_batch);
+                        continue_cursor = next_continue_cursor;
+                    }
+
+                    // for efficiency reasons iroha encodes query results in a columnar format,
+                    // so we need to transpose the batch to get the format that is more natural for humans
+                    let mut batches = vec![Vec::new(); accumulated_batch.len()];
+                    for batch in accumulated_batch {
+                        // downcast to json and extract the actual array
+                        // dynamic typing is just easier to use here than introducing a bunch of new types only for iroha_cli
+                        let batch = serde_json::to_value(batch)?;
+                        let serde_json::Value::Object(batch) = batch else {
+                            panic!("Expected the batch serialization to be a JSON object");
+                        };
+                        let (_ty, batch) = batch
+                            .into_iter()
+                            .next()
+                            .expect("Expected the batch to have exactly one key");
+                        let serde_json::Value::Array(batch_vec) = batch else {
+                            panic!("Expected the batch payload to be a JSON array");
+                        };
+                        for (target, value) in batches.iter_mut().zip(batch_vec) {
+                            target.push(value);
+                        }
+                    }
+
+                    context.print_data(&batches)
+                }
+            }
+        }
+    }
+}
+
 mod transaction {
     use iroha::data_model::{isi::Log, Level as LogLevel};
 
     use super::*;
 
-    /// Arguments for multisig subcommand
-    #[derive(Debug, clap::Subcommand)]
-    pub enum Args {
-        /// Query transaction details by its hash
+    #[derive(clap::Subcommand, Debug)]
+    pub enum Command {
+        /// Read transaction details by its hash
         Get(Get),
-        /// Make an empty transaction that just leaves a log message
+        /// Write nothing but a log message
         Ping(Ping),
+        /// Write by a Wasm executable input
+        Wasm(Wasm),
+        /// Write by a serialized JSON5 stdin
+        Json(Json),
     }
 
-    impl RunArgs for Args {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
-            match_all!((self, context), { Args::Get, Args::Ping })
+    impl RunCommand for Command {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            use self::Command::*;
+            match_all!((self, context), { Get, Ping, Wasm, Json })
         }
     }
 
-    /// Query transaction details by its hash
-    #[derive(Debug, clap::Args)]
+    #[derive(clap::Args, Debug)]
     pub struct Get {
         /// Transaction hash
         #[arg(short, long)]
         pub hash: HashOf<SignedTransaction>,
     }
 
-    impl RunArgs for Get {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
+    impl RunCommand for Get {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
             let client = context.client_from_config();
             let transaction = client
                 .query(FindTransactions::new())
@@ -1643,8 +1593,7 @@ mod transaction {
         }
     }
 
-    /// Make an empty transaction that just leaves a log message
-    #[derive(Debug, clap::Args)]
+    #[derive(clap::Args, Debug)]
     pub struct Ping {
         /// TRACE, DEBUG, INFO, WARN, ERROR: more noticeable in this order
         #[arg(short, long, default_value = "INFO")]
@@ -1654,38 +1603,307 @@ mod transaction {
         pub msg: String,
     }
 
-    impl RunArgs for Ping {
-        fn run(self, context: &mut dyn RunContext) -> Result<()> {
+    impl RunCommand for Ping {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
             let ping = Log::new(self.log_level, self.msg);
-            submit([ping], Metadata::default(), context)
+            context.submit([ping])
+        }
+    }
+
+    #[derive(clap::Args, Debug)]
+    pub struct Wasm {
+        /// Specify a path to the Wasm file or skip this arg to read from stdin
+        #[arg(short, long)]
+        path: Option<PathBuf>,
+    }
+
+    impl RunCommand for Wasm {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let blob = if let Some(path) = self.path {
+                fs::read(path).wrap_err("Failed to read a Wasm from the file into the buffer")?
+            } else {
+                bytes_from_stdin().wrap_err("Failed to read a Wasm from stdin into the buffer")?
+            };
+
+            context
+                .submit(WasmSmartContract::from_compiled(blob))
+                .wrap_err("Failed to submit a Wasm transaction")
+        }
+    }
+
+    #[derive(clap::Args, Debug)]
+    pub struct Json;
+
+    impl RunCommand for Json {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let instructions: Vec<InstructionBox> = parse_json5_stdin()?;
+            context
+                .submit(instructions)
+                .wrap_err("Failed to submit parsed instructions")
         }
     }
 }
 
-#[cfg(test)]
-mod tests {
+mod role {
     use super::*;
 
-    #[test]
-    fn parse_value_arg_cases() {
-        macro_rules! case {
-            ($input:expr, $expected:expr) => {
-                let MetadataValueArg { value } =
-                    $input.parse().expect("should not fail with valid input");
-                assert_eq!(value, $expected);
-            };
-        }
-
-        // Boolean values
-        case!("true", Json::new(true));
-        case!("false", Json::new(false));
-
-        // Numeric values
-        case!("\"123\"", Json::new(numeric!(123)));
-        case!("\"123.0\"", Json::new(numeric!(123.0)));
-
-        // JSON Value
-        let json_str = r#"{"Vec":[{"String":"a"},{"String":"b"}]}"#;
-        case!(json_str, serde_json::from_str(json_str).unwrap());
+    #[derive(clap::Subcommand, Debug)]
+    pub enum Command {
+        /// Read/Write role permissions
+        #[command(subcommand)]
+        Permission(Permission),
+        /// List roles
+        #[command(subcommand)]
+        List(List),
+        /// Register role
+        Register(Register),
+        /// Unregister role
+        Unregister(Unregister),
     }
+
+    impl RunCommand for Command {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            use self::Command::*;
+            match_all!((self, context), { Permission, List, Register, Unregister })
+        }
+    }
+
+    #[derive(clap::Subcommand, Debug)]
+    pub enum Permission {
+        /// List role permissions
+        #[command(subcommand)]
+        List(PermissionList),
+        /// Grant role permission
+        Grant(PermissionGrant),
+        /// Revoke role permission
+        Revoke(PermissionRevoke),
+    }
+
+    impl RunCommand for Permission {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            use self::Permission::*;
+            match_all!(
+                (self, context),
+                { List, Grant, Revoke }
+            )
+        }
+    }
+
+    #[derive(clap::Subcommand, Debug)]
+    pub enum PermissionList {
+        /// TODO to be implemented
+        EmptyCommand,
+    }
+
+    impl RunCommand for PermissionList {
+        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+            unimplemented!("coming soon")
+        }
+    }
+
+    #[derive(clap::Args, Debug)]
+    pub struct PermissionGrant;
+
+    impl RunCommand for PermissionGrant {
+        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+            unimplemented!("coming soon")
+        }
+    }
+
+    #[derive(clap::Args, Debug)]
+    pub struct PermissionRevoke;
+
+    impl RunCommand for PermissionRevoke {
+        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+            unimplemented!("coming soon")
+        }
+    }
+
+    #[derive(clap::Subcommand, Debug)]
+    pub enum List {
+        /// List all registered roles
+        All,
+    }
+
+    impl RunCommand for List {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let client = context.client_from_config();
+            let entities = client.query(FindRoles).execute_all()?;
+            context.print_data(&entities)
+        }
+    }
+
+    #[derive(clap::Args, Debug)]
+    pub struct Register;
+
+    impl RunCommand for Register {
+        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+            unimplemented!("coming soon")
+        }
+    }
+
+    #[derive(clap::Args, Debug)]
+    pub struct Unregister;
+
+    impl RunCommand for Unregister {
+        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+            unimplemented!("coming soon")
+        }
+    }
+}
+
+mod parameter {
+    use super::*;
+
+    #[derive(clap::Subcommand, Debug)]
+    pub enum Command {
+        /// List parameters
+        #[command(subcommand)]
+        List(List),
+        /// Set parameter
+        Set(Set),
+    }
+
+    impl RunCommand for Command {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            use self::Command::*;
+            match_all!((self, context), { List, Set })
+        }
+    }
+
+    #[derive(clap::Subcommand, Debug)]
+    pub enum List {
+        /// List all parameters
+        All,
+    }
+
+    impl RunCommand for List {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let client = context.client_from_config();
+            let params = client.query_single(FindParameters)?;
+            context.print_data(&params)
+        }
+    }
+
+    #[derive(clap::Args, Debug)]
+    pub struct Set;
+
+    impl RunCommand for Set {
+        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+            unimplemented!("coming soon")
+        }
+    }
+}
+
+mod trigger {
+    use super::*;
+
+    #[derive(clap::Subcommand, Debug)]
+    pub enum Command {
+        /// List triggers
+        #[command(subcommand)]
+        List(List),
+        /// Register trigger
+        Register(Register),
+        /// Unregister trigger
+        Unregister(Unregister),
+        /// Read/Write metadata
+        #[command(subcommand)]
+        Meta(metadata::MetadataCommand),
+    }
+
+    impl RunCommand for Command {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            use self::Command::*;
+            match_all!((self, context), { List, Register, Unregister, Meta })
+        }
+    }
+
+    #[derive(clap::Subcommand, Debug)]
+    pub enum List {
+        /// List all registered triggers
+        All,
+    }
+
+    impl RunCommand for List {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            let client = context.client_from_config();
+            let entities = client.query(FindTriggers).execute_all()?;
+            context.print_data(&entities)
+        }
+    }
+
+    #[derive(clap::Args, Debug)]
+    pub struct Register;
+
+    impl RunCommand for Register {
+        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+            unimplemented!("coming soon")
+        }
+    }
+
+    #[derive(clap::Args, Debug)]
+    pub struct Unregister;
+
+    impl RunCommand for Unregister {
+        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+            unimplemented!("coming soon")
+        }
+    }
+}
+
+mod executor {
+    use super::*;
+
+    #[derive(clap::Subcommand, Debug)]
+    pub enum Command {
+        /// Upgrade executor
+        Upgrade(Upgrade),
+    }
+
+    impl RunCommand for Command {
+        fn run(self, context: &mut impl RunContext) -> Result<()> {
+            use self::Command::*;
+            match_all!((self, context), { Upgrade })
+        }
+    }
+
+    #[derive(clap::Args, Debug)]
+    pub struct Upgrade {
+        /// Path to the compiled Wasm file
+        #[arg(short, long)]
+        path: PathBuf,
+    }
+
+    impl RunCommand for Upgrade {
+        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+            unimplemented!("coming soon")
+        }
+    }
+}
+
+fn parse_json5_stdin<T>() -> Result<T>
+where
+    T: for<'a> serde::Deserialize<'a>,
+{
+    parse_json5(&string_from_stdin()?)
+}
+
+fn parse_json5<T>(s: &str) -> Result<T>
+where
+    T: for<'a> serde::Deserialize<'a>,
+{
+    Ok(json5::from_str(s)?)
+}
+
+fn string_from_stdin() -> Result<String> {
+    let mut buf = String::new();
+    io::stdin().read_to_string(&mut buf)?;
+    Ok(buf)
+}
+
+fn bytes_from_stdin() -> Result<Vec<u8>> {
+    let mut buf = Vec::new();
+    io::stdin().read_to_end(&mut buf)?;
+    Ok(buf)
 }
