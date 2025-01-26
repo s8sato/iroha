@@ -1,4 +1,5 @@
 //! Iroha client CLI
+
 #![expect(clippy::doc_markdown)]
 
 use std::{
@@ -1509,7 +1510,6 @@ mod transaction {
     #[derive(clap::Args, Debug)]
     pub struct Ping {
         /// TRACE, DEBUG, INFO, WARN, ERROR: grows more noticeable in this order
-        // TODO ValueEnum ?
         #[arg(short, long, default_value = "INFO")]
         pub log_level: LogLevel,
         /// Log message
@@ -1721,9 +1721,9 @@ mod trigger {
         #[command(subcommand)]
         List(List),
         /// Read a single trigger details
-        // TODO For readability and reusability, trigger should hold a reference to a Wasm executable instead of the blob itself
+        // TODO for readability and reusability, trigger should hold a reference to a Wasm executable instead of the blob itself
         Get(Id),
-        /// Register trigger
+        /// TODO Register trigger
         Register(Register),
         /// Unregister trigger
         Unregister(Id),
@@ -1784,7 +1784,7 @@ mod trigger {
 
     impl Run for Register {
         fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
-            unimplemented!("coming soon")
+            todo!()
         }
     }
 }

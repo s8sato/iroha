@@ -1280,7 +1280,7 @@ TODO Read/Write triggers
 
 * `list` — List trigger ids
 * `get` — Read a single trigger details
-* `register` — Register trigger
+* `register` — TODO Register trigger
 * `unregister` — Unregister trigger
 * `meta` — Read/Write metadata
 
@@ -1320,7 +1320,7 @@ Read a single trigger details
 
 ## `iroha trigger register`
 
-Register trigger
+TODO Register trigger
 
 **Usage:** `iroha trigger register`
 
