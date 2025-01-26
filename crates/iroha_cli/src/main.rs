@@ -3,7 +3,7 @@
 
 use std::{
     fs,
-    io::{self, Read},
+    io::{self, Read, Write},
     path::PathBuf,
     time::Duration,
 };
@@ -26,12 +26,22 @@ struct Args {
     /// More verbose output
     #[arg(short, long)]
     verbose: bool,
+    /// Optional path to read a JSON5 file to attach transaction metadata
+    #[arg(short, long)]
+    metadata: Option<PathBuf>,
+    /// Whether to accumulate instructions into a single transaction:
+    /// If specified, loads instructions from stdin, appends some, and returns them to stdout
+    ///
+    /// # Usage
+    ///
+    /// ```bash
+    /// iroha -a domain register -i "domain" | iroha -a asset definition register -i "asset#domain" | iroha transaction stdin
+    /// ```
+    #[arg(short, long)]
+    accumulate: bool,
     /// Commands
     #[command(subcommand)]
     command: Command,
-    /// Optional path to read JSON5 file and attach transaction metadata
-    #[arg(short, long)]
-    metadata: Option<PathBuf>,
 }
 
 #[derive(clap::Subcommand, Debug)]
@@ -75,9 +85,8 @@ enum Command {
     Executor(executor::Command),
 }
 
-/// Context inside which command is executed
+/// Context inside which commands run
 trait RunContext {
-    /// Get access to configuration
     fn configuration(&self) -> &Config;
 
     fn client_from_config(&self) -> Client {
@@ -87,18 +96,36 @@ trait RunContext {
     /// Serialize and print data
     ///
     /// # Errors
+    ///
     /// - if serialization fails
     /// - if printing fails
     fn print_data(&mut self, data: &dyn Serialize) -> Result<()>;
 
     fn transaction_metadata(&self) -> Option<&Metadata>;
 
-    /// Submit instruction with metadata to network.
+    fn accumulate_instructions(&self) -> bool;
+
+    /// Submit instructions or dump them to stdout depending on the flag
+    fn finish(&mut self, instructions: impl Into<Executable>) -> Result<()> {
+        if !self.accumulate_instructions() {
+            return self._submit(instructions);
+        }
+        let instructions = match instructions.into() {
+            Executable::Wasm(wasm) => return self._submit(wasm),
+            Executable::Instructions(instructions) => instructions,
+        };
+        let mut acc: Vec<InstructionBox> = parse_json5_stdin()?;
+        acc.append(&mut instructions.into_vec());
+        dump_json5_stdout(&acc)
+    }
+
+    /// Combine instructions into a single transaction and submit it
     ///
     /// # Errors
+    ///
     /// Fails if submitting over network fails
     #[expect(clippy::shadow_unrelated)]
-    fn submit(&mut self, instructions: impl Into<Executable>) -> Result<()> {
+    fn _submit(&mut self, instructions: impl Into<Executable>) -> Result<()> {
         let client = self.client_from_config();
         let transaction = client.build_transaction(
             instructions,
@@ -113,7 +140,13 @@ trait RunContext {
         let hash = client
             .submit_transaction_blocking(&transaction)
             .wrap_err(err_msg)?;
-        self.print_data(&hash)
+        // TODO
+        // self.println("Transaction Submitted. Details:")?;
+        self.print_data(&transaction)?;
+        // self.println("Hash:")?;
+        self.print_data(&hash)?;
+
+        Ok(())
     }
 }
 
@@ -121,6 +154,7 @@ struct PrintJsonContext<W> {
     write: W,
     config: Config,
     transaction_metadata: Option<Metadata>,
+    accumulate_instructions: bool,
 }
 
 impl<W: std::io::Write> RunContext for PrintJsonContext<W> {
@@ -135,6 +169,10 @@ impl<W: std::io::Write> RunContext for PrintJsonContext<W> {
 
     fn transaction_metadata(&self) -> Option<&Metadata> {
         self.transaction_metadata.as_ref()
+    }
+
+    fn accumulate_instructions(&self) -> bool {
+        self.accumulate_instructions
     }
 }
 
@@ -197,6 +235,7 @@ fn main() -> error_stack::Result<(), MainError> {
         write: io::stdout(),
         config,
         transaction_metadata: None,
+        accumulate_instructions: args.accumulate,
     };
     if let Some(path) = args.metadata {
         let str = fs::read_to_string(&path)
@@ -423,13 +462,13 @@ mod domain {
                     let create_domain =
                         iroha::data_model::isi::Register::domain(Domain::new(args.id));
                     context
-                        .submit([create_domain])
+                        .finish([create_domain])
                         .wrap_err("Failed to register domain")
                 }
                 Unregister(args) => {
                     let instruction = iroha::data_model::isi::Unregister::domain(args.id);
                     context
-                        .submit([instruction])
+                        .finish([instruction])
                         .wrap_err("Failed to unregister domain")
                 }
                 Transfer(args) => args.run(context),
@@ -489,7 +528,7 @@ mod domain {
             let transfer_domain =
                 iroha::data_model::isi::Transfer::domain(self.from, self.id, self.to);
             context
-                .submit([transfer_domain])
+                .finish([transfer_domain])
                 .wrap_err("Failed to transfer domain")
         }
     }
@@ -531,7 +570,7 @@ mod _metadata {
             let value: Json = parse_json5_stdin()?;
             let set_key_value = SetKeyValue::domain(id, key, value);
             context
-                .submit([set_key_value])
+                .finish([set_key_value])
                 .wrap_err("Failed to submit Set instruction")
         }
     }
@@ -551,7 +590,7 @@ mod _metadata {
             let Self { id, key } = self;
             let remove_key_value = RemoveKeyValue::domain(id, key);
             context
-                .submit([remove_key_value])
+                .finish([remove_key_value])
                 .wrap_err("Failed to submit Remove instruction")
         }
     }
@@ -626,13 +665,13 @@ mod account {
                     let instruction =
                         iroha::data_model::isi::Register::account(Account::new(args.id));
                     context
-                        .submit([instruction])
+                        .finish([instruction])
                         .wrap_err("Failed to register account")
                 }
                 Unregister(args) => {
                     let instruction = iroha::data_model::isi::Unregister::account(args.id);
                     context
-                        .submit([instruction])
+                        .finish([instruction])
                         .wrap_err("Failed to unregister account")
                 }
                 Meta(cmd) => cmd.run(context),
@@ -665,14 +704,14 @@ mod account {
                     let instruction =
                         iroha::data_model::isi::Grant::account_role(args.role, args.id);
                     context
-                        .submit([instruction])
+                        .finish([instruction])
                         .wrap_err("Failed to grant the role to the account")
                 }
                 Revoke(args) => {
                     let instruction =
                         iroha::data_model::isi::Revoke::account_role(args.role, args.id);
                     context
-                        .submit([instruction])
+                        .finish([instruction])
                         .wrap_err("Failed to revoke the role from the account")
                 }
             }
@@ -705,7 +744,7 @@ mod account {
                     let instruction =
                         iroha::data_model::isi::Grant::account_permission(permission, args.id);
                     context
-                        .submit([instruction])
+                        .finish([instruction])
                         .wrap_err("Failed to grant the permission to the account")
                 }
                 Revoke(args) => {
@@ -713,7 +752,7 @@ mod account {
                     let instruction =
                         iroha::data_model::isi::Revoke::account_permission(permission, args.id);
                     context
-                        .submit([instruction])
+                        .finish([instruction])
                         .wrap_err("Failed to revoke the permission from the account")
                 }
             }
@@ -815,14 +854,14 @@ mod asset {
                     let instruction =
                         iroha::data_model::isi::Mint::asset_numeric(args.quantity, args.id);
                     context
-                        .submit([instruction])
+                        .finish([instruction])
                         .wrap_err("Failed to mint numeric asset")
                 }
                 Burn(args) => {
                     let instruction =
                         iroha::data_model::isi::Burn::asset_numeric(args.quantity, args.id);
                     context
-                        .submit([instruction])
+                        .finish([instruction])
                         .wrap_err("Failed to burn numeric asset")
                 }
                 Transfer(args) => args.run(context),
@@ -840,12 +879,12 @@ mod asset {
                     let value: Json = parse_json5_stdin()?;
                     let instruction =
                         iroha::data_model::isi::SetKeyValue::asset(args.id, args.key, value);
-                    context.submit([instruction])
+                    context.finish([instruction])
                 }
                 RemoveKeyValue(args) => {
                     let instruction =
                         iroha::data_model::isi::RemoveKeyValue::asset(args.id, args.key);
-                    context.submit([instruction])
+                    context.finish([instruction])
                 }
             }
         }
@@ -902,7 +941,7 @@ mod asset {
                 let instruction =
                     iroha::data_model::isi::Register::asset_definition(asset_definition);
                 context
-                    .submit([instruction])
+                    .finish([instruction])
                     .wrap_err("Failed to register asset")
             }
         }
@@ -918,7 +957,7 @@ mod asset {
             fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
                 let instruction = iroha::data_model::isi::Unregister::asset_definition(self.id);
                 context
-                    .submit([instruction])
+                    .finish([instruction])
                     .wrap_err("Failed to unregister asset")
             }
         }
@@ -980,7 +1019,7 @@ mod asset {
             let instruction =
                 iroha::data_model::isi::Transfer::asset_numeric(self.id, self.quantity, self.to);
             context
-                .submit([instruction])
+                .finish([instruction])
                 .wrap_err("Failed to transfer numeric asset")
         }
     }
@@ -1050,13 +1089,13 @@ mod peer {
                 Register(args) => {
                     let instruction = iroha::data_model::isi::Register::peer(args.key.into());
                     context
-                        .submit([instruction])
+                        .finish([instruction])
                         .wrap_err("Failed to register peer")
                 }
                 Unregister(args) => {
                     let instruction = iroha::data_model::isi::Unregister::peer(args.key.into());
                     context
-                        .submit([instruction])
+                        .finish([instruction])
                         .wrap_err("Failed to unregister peer")
                 }
             }
@@ -1088,7 +1127,6 @@ mod peer {
 mod multisig {
     use std::{
         collections::BTreeMap,
-        io::{BufReader, Read as _},
         num::{NonZeroU16, NonZeroU64},
         time::{Duration, SystemTime},
     };
@@ -1107,7 +1145,7 @@ mod multisig {
         List(List),
         /// Register a multisig account
         Register(Register),
-        /// Propose a multisig transaction, with `Vec<InstructionBox>` stdin
+        /// Propose a multisig transaction, constructed from instructions as a JSON5 stdin
         Propose(Propose),
         /// Approve a multisig transaction
         Approve(Approve),
@@ -1162,7 +1200,7 @@ mod multisig {
             );
 
             context
-                .submit([instruction])
+                .finish([instruction])
                 .wrap_err("Failed to register multisig account")
         }
     }
@@ -1179,13 +1217,7 @@ mod multisig {
 
     impl Run for Propose {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
-            let instructions: Vec<InstructionBox> = {
-                let mut reader = BufReader::new(io::stdin());
-                let mut raw_content = Vec::new();
-                reader.read_to_end(&mut raw_content)?;
-                let string_content = String::from_utf8(raw_content)?;
-                json5::from_str(&string_content)?
-            };
+            let instructions: Vec<InstructionBox> = parse_json5_stdin()?;
             let transaction_ttl_ms = self.transaction_ttl.map(|duration| {
                 duration
                     .as_millis()
@@ -1202,7 +1234,7 @@ mod multisig {
                 MultisigPropose::new(self.account, instructions, transaction_ttl_ms);
 
             context
-                .submit([propose_multisig_transaction])
+                .finish([propose_multisig_transaction])
                 .wrap_err("Failed to propose transaction")
         }
     }
@@ -1223,7 +1255,7 @@ mod multisig {
                 MultisigApprove::new(self.account, self.instructions_hash);
 
             context
-                .submit([approve_multisig_transaction])
+                .finish([approve_multisig_transaction])
                 .wrap_err("Failed to approve transaction")
         }
     }
@@ -1556,7 +1588,7 @@ mod transaction {
     impl Run for Ping {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let ping = Log::new(self.log_level, self.msg);
-            context.submit([ping])
+            context.finish([ping])
         }
     }
 
@@ -1576,7 +1608,7 @@ mod transaction {
             };
 
             context
-                .submit(WasmSmartContract::from_compiled(blob))
+                .finish(WasmSmartContract::from_compiled(blob))
                 .wrap_err("Failed to submit a Wasm transaction")
         }
     }
@@ -1588,7 +1620,7 @@ mod transaction {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let instructions: Vec<InstructionBox> = parse_json5_stdin()?;
             context
-                .submit(instructions)
+                .finish(instructions)
                 .wrap_err("Failed to submit parsed instructions")
         }
     }
@@ -1830,6 +1862,15 @@ mod executor {
             unimplemented!("coming soon")
         }
     }
+}
+
+fn dump_json5_stdout<T>(value: &T) -> Result<()>
+where
+    T: serde::Serialize,
+{
+    let s = json5::to_string(value)?;
+    io::stdout().write_all(s.as_bytes())?;
+    Ok(())
 }
 
 fn parse_json5_stdin<T>() -> Result<T>
