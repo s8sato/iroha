@@ -683,9 +683,9 @@ mod account {
     pub enum PermissionCommand {
         /// List account permissions
         List(Id),
-        /// Grant account permission by a serialized JSON5 stdin
+        /// Grant account permission constructed from a JSON5 stdin
         Grant(Id),
-        /// Revoke account permission by a serialized JSON5 stdin
+        /// Revoke account permission constructed from a JSON5 stdin
         Revoke(Id),
     }
 
@@ -788,7 +788,7 @@ mod asset {
         /// Read a value from a key-value store
         #[command(name = "getkv")]
         GetKeyValue(IdKey),
-        /// Create or update an entry in a key-value store, by a serialized JSON5 stdin
+        /// Create or update an entry in a key-value store, with a value constructed from a JSON5 stdin
         #[command(name = "setkv")]
         SetKeyValue(IdKey),
         /// Delete an entry from a key-value store
@@ -1429,21 +1429,21 @@ mod query {
 
     #[derive(clap::Subcommand, Debug)]
     pub enum Command {
-        /// Read by a serialized JSON5 stdin
-        Json(Json),
+        /// Query constructed from a JSON5 stdin
+        Stdin(Stdin),
     }
 
     impl Run for Command {
         fn run(self, context: &mut impl RunContext) -> Result<()> {
             use self::Command::*;
-            match_all!((self, context), { Json })
+            match_all!((self, context), { Stdin })
         }
     }
 
     #[derive(clap::Args, Debug)]
-    pub struct Json;
+    pub struct Stdin;
 
-    impl Run for Json {
+    impl Run for Stdin {
         fn run(self, context: &mut impl RunContext) -> Result<()> {
             let client = Client::new(context.configuration().clone());
             let query: AnyQueryBox = parse_json5_stdin()?;
@@ -1507,20 +1507,20 @@ mod transaction {
 
     #[derive(clap::Subcommand, Debug)]
     pub enum Command {
-        /// Read transaction details by its hash
+        /// Read a single transaction details
         Get(Get),
-        /// Write nothing but a log message
+        /// Empty transaction that just leaves a log message
         Ping(Ping),
-        /// Write by a Wasm executable input
+        /// Transaction constructed from a Wasm executable input
         Wasm(Wasm),
-        /// Write by a serialized JSON5 stdin
-        Json(Json),
+        /// Transaction constructed from instructions as a JSON5 stdin
+        Stdin(Stdin),
     }
 
     impl Run for Command {
         fn run(self, context: &mut impl RunContext) -> Result<()> {
             use self::Command::*;
-            match_all!((self, context), { Get, Ping, Wasm, Json })
+            match_all!((self, context), { Get, Ping, Wasm, Stdin })
         }
     }
 
@@ -1582,9 +1582,9 @@ mod transaction {
     }
 
     #[derive(clap::Args, Debug)]
-    pub struct Json;
+    pub struct Stdin;
 
-    impl Run for Json {
+    impl Run for Stdin {
         fn run(self, context: &mut impl RunContext) -> Result<()> {
             let instructions: Vec<InstructionBox> = parse_json5_stdin()?;
             context
