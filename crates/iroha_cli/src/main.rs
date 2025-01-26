@@ -404,9 +404,9 @@ mod domain {
         #[command(subcommand)]
         List(List),
         /// Register domain
-        Register(Register),
+        Register(Id),
         /// Unregister domain
-        Unregister(Unregister),
+        Unregister(Id),
         /// Transfer domain
         Transfer(Transfer),
         /// Read/Write metadata
@@ -417,40 +417,32 @@ mod domain {
     impl RunCommand for Command {
         fn run(self, context: &mut impl RunContext) -> Result<()> {
             use self::Command::*;
-            match_all!((self, context), { List, Register, Unregister, Transfer, Meta })
+            match self {
+                List(cmd) => cmd.run(context),
+                Register(args) => {
+                    let create_domain =
+                        iroha::data_model::isi::Register::domain(Domain::new(args.id));
+                    context
+                        .submit([create_domain])
+                        .wrap_err("Failed to register domain")
+                }
+                Unregister(args) => {
+                    let instruction = iroha::data_model::isi::Unregister::domain(args.id);
+                    context
+                        .submit([instruction])
+                        .wrap_err("Failed to unregister domain")
+                }
+                Transfer(args) => args.run(context),
+                Meta(cmd) => cmd.run(context),
+            }
         }
     }
 
     #[derive(clap::Args, Debug)]
-    pub struct Register {
+    pub struct Id {
         /// Domain name as double-quoted string
         #[arg(short, long)]
         pub id: DomainId,
-    }
-
-    impl RunCommand for Register {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
-            let create_domain = iroha::data_model::isi::Register::domain(Domain::new(self.id));
-            context
-                .submit([create_domain])
-                .wrap_err("Failed to register domain")
-        }
-    }
-
-    #[derive(clap::Args, Debug)]
-    pub struct Unregister {
-        /// Domain name as double-quoted string
-        #[arg(short, long)]
-        pub id: DomainId,
-    }
-
-    impl RunCommand for Unregister {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
-            let instruction = iroha::data_model::isi::Unregister::domain(self.id);
-            context
-                .submit([instruction])
-                .wrap_err("Failed to unregister domain")
-        }
     }
 
     #[derive(clap::Subcommand, Debug)]
@@ -566,13 +558,30 @@ mod _metadata {
 }
 
 mod metadata {
+
     use super::*;
+
+    // trait MetadataRoot {
+    //     type Id: Send + Sync + 'static + clap::ValueEnum + std::fmt::Debug;
+    // }
 
     #[derive(clap::Subcommand, Debug)]
     pub enum MetadataCommand {
-        /// TODO to be implemented
-        EmptyCommand,
+        /// metadata
+        Get,
+        Set,
+        Remove,
     }
+
+    // #[derive(clap::Args, Debug)]
+    // pub struct IdKey<T: MetadataRoot> {
+    //     /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
+    //     #[arg(short, long)]
+    //     pub id: T::Id,
+    //     /// Key for the value
+    //     #[arg(short, long)]
+    //     pub key: Name,
+    // }
 
     impl RunCommand for MetadataCommand {
         fn run(self, _context: &mut impl RunContext) -> Result<()> {
@@ -598,7 +607,7 @@ mod account {
         #[command(subcommand)]
         List(List),
         /// Register account
-        Register(IdMeta),
+        Register(Id),
         /// Unregister account
         Unregister(Id),
         /// Read/Write metadata
@@ -636,9 +645,9 @@ mod account {
         /// List account roles
         List(Id),
         /// Grant account role
-        Grant(IdRoleMeta),
+        Grant(IdRole),
         /// Revoke account role
-        Revoke(IdRoleMeta),
+        Revoke(IdRole),
     }
 
     impl RunCommand for RoleCommand {
@@ -675,9 +684,9 @@ mod account {
         /// List account permissions
         List(Id),
         /// Grant account permission by a serialized JSON5 stdin
-        Grant(IdMeta),
+        Grant(Id),
         /// Revoke account permission by a serialized JSON5 stdin
-        Revoke(IdMeta),
+        Revoke(Id),
     }
 
     impl RunCommand for PermissionCommand {
@@ -717,15 +726,9 @@ mod account {
         #[arg(short, long)]
         id: AccountId,
     }
-    #[derive(clap::Args, Debug)]
-    pub struct IdMeta {
-        /// Account in form "multihash@domain"
-        #[arg(short, long)]
-        pub id: AccountId,
-    }
 
     #[derive(clap::Args, Debug)]
-    pub struct IdRoleMeta {
+    pub struct IdRole {
         /// Account in form "multihash@domain"
         #[arg(short, long)]
         pub id: AccountId,
@@ -772,34 +775,79 @@ mod asset {
         #[command(subcommand)]
         Definition(definition::Command),
         /// Read a single asset
-        Get(Get),
+        Get(Id),
         /// List assets
         #[command(subcommand)]
         List(List),
         /// Increase an amount of asset
-        Mint(Mint),
+        Mint(IdQuantity),
         /// Decrease an amount of asset
-        Burn(Burn),
+        Burn(IdQuantity),
         /// Transfer an amount of asset between accounts
         Transfer(Transfer),
         /// Read a value from a key-value store
         #[command(name = "getkv")]
-        GetKeyValue(GetKeyValue),
+        GetKeyValue(IdKey),
         /// Create or update an entry in a key-value store, by a serialized JSON5 stdin
         #[command(name = "setkv")]
-        SetKeyValue(SetKeyValue),
+        SetKeyValue(IdKey),
         /// Delete an entry from a key-value store
         #[command(name = "removekv")]
-        RemoveKeyValue(RemoveKeyValue),
+        RemoveKeyValue(IdKey),
     }
 
     impl RunCommand for Command {
         fn run(self, context: &mut impl RunContext) -> Result<()> {
             use self::Command::*;
-            match_all!(
-                (self, context),
-                { Definition, Get, List, Mint, Burn, Transfer, GetKeyValue, SetKeyValue, RemoveKeyValue }
-            )
+            match self {
+                Definition(cmd) => cmd.run(context),
+                Get(args) => {
+                    let client = context.client_from_config();
+                    let asset = client
+                        .query(FindAssets::new())
+                        .filter_with(|asset| asset.id.eq(args.id))
+                        .execute_single()
+                        .wrap_err("Failed to get asset.")?;
+                    context.print_data(&asset)
+                }
+                List(cmd) => cmd.run(context),
+                Mint(args) => {
+                    let instruction =
+                        iroha::data_model::isi::Mint::asset_numeric(args.quantity, args.id);
+                    context
+                        .submit([instruction])
+                        .wrap_err("Failed to mint numeric asset")
+                }
+                Burn(args) => {
+                    let instruction =
+                        iroha::data_model::isi::Burn::asset_numeric(args.quantity, args.id);
+                    context
+                        .submit([instruction])
+                        .wrap_err("Failed to burn numeric asset")
+                }
+                Transfer(args) => args.run(context),
+                GetKeyValue(args) => {
+                    let client = context.client_from_config();
+                    let value = client
+                        .query(FindAssets)
+                        .filter_with(|asset| asset.id.eq(args.id))
+                        .select_with(|asset| asset.value.store.key(args.key))
+                        .execute_single()
+                        .wrap_err("Failed to get value")?;
+                    context.print_data(&value)
+                }
+                SetKeyValue(args) => {
+                    let value: Json = parse_json5_stdin()?;
+                    let instruction =
+                        iroha::data_model::isi::SetKeyValue::asset(args.id, args.key, value);
+                    context.submit([instruction])
+                }
+                RemoveKeyValue(args) => {
+                    let instruction =
+                        iroha::data_model::isi::RemoveKeyValue::asset(args.id, args.key);
+                    context.submit([instruction])
+                }
+            }
         }
     }
 
@@ -905,41 +953,13 @@ mod asset {
     }
 
     #[derive(clap::Args, Debug)]
-    pub struct Mint {
+    pub struct IdQuantity {
         /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
         #[arg(short, long)]
         pub id: AssetId,
         /// Quantity to mint
         #[arg(short, long)]
         pub quantity: Numeric,
-    }
-
-    impl RunCommand for Mint {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
-            let instruction = iroha::data_model::isi::Mint::asset_numeric(self.quantity, self.id);
-            context
-                .submit([instruction])
-                .wrap_err("Failed to mint numeric asset")
-        }
-    }
-
-    #[derive(clap::Args, Debug)]
-    pub struct Burn {
-        /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
-        #[arg(short, long)]
-        pub id: AssetId,
-        /// Quantity to mint
-        #[arg(short, long)]
-        pub quantity: Numeric,
-    }
-
-    impl RunCommand for Burn {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
-            let instruction = iroha::data_model::isi::Burn::asset_numeric(self.quantity, self.id);
-            context
-                .submit([instruction])
-                .wrap_err("Failed to burn numeric asset")
-        }
     }
 
     #[derive(clap::Args, Debug)]
@@ -966,22 +986,10 @@ mod asset {
     }
 
     #[derive(clap::Args, Debug)]
-    pub struct Get {
+    pub struct Id {
         /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
         #[arg(short, long)]
         pub id: AssetId,
-    }
-
-    impl RunCommand for Get {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
-            let client = context.client_from_config();
-            let asset = client
-                .query(FindAssets::new())
-                .filter_with(|asset| asset.id.eq(self.id))
-                .execute_single()
-                .wrap_err("Failed to get asset.")?;
-            context.print_data(&asset)
-        }
     }
 
     #[derive(clap::Subcommand, Debug)]
@@ -1009,62 +1017,14 @@ mod asset {
             Ok(())
         }
     }
-
     #[derive(clap::Args, Debug)]
-    pub struct SetKeyValue {
+    pub struct IdKey {
         /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
         #[arg(short, long)]
         pub id: AssetId,
         /// Key for the value
         #[arg(short, long)]
         pub key: Name,
-    }
-
-    impl RunCommand for SetKeyValue {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
-            let value: Json = parse_json5_stdin()?;
-            let instruction = iroha::data_model::isi::SetKeyValue::asset(self.id, self.key, value);
-            context.submit([instruction])
-        }
-    }
-    #[derive(clap::Args, Debug)]
-    pub struct RemoveKeyValue {
-        /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
-        #[arg(short, long)]
-        pub id: AssetId,
-        /// Key for the value
-        #[arg(short, long)]
-        pub key: Name,
-    }
-
-    impl RunCommand for RemoveKeyValue {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
-            let instruction = iroha::data_model::isi::RemoveKeyValue::asset(self.id, self.key);
-            context.submit([instruction])
-        }
-    }
-
-    #[derive(clap::Args, Debug)]
-    pub struct GetKeyValue {
-        /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
-        #[arg(short, long)]
-        pub id: AssetId,
-        /// Key for the value
-        #[arg(short, long)]
-        pub key: Name,
-    }
-
-    impl RunCommand for GetKeyValue {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
-            let client = context.client_from_config();
-            let value = client
-                .query(FindAssets)
-                .filter_with(|asset| asset.id.eq(self.id))
-                .select_with(|asset| asset.value.store.key(self.key))
-                .execute_single()
-                .wrap_err("Failed to get value")?;
-            context.print_data(&value)
-        }
     }
 }
 
@@ -1077,15 +1037,29 @@ mod peer {
         #[command(subcommand)]
         List(List),
         /// Register peer
-        Register(Register),
+        Register(Id),
         /// Unregister peer
-        Unregister(Unregister),
+        Unregister(Id),
     }
 
     impl RunCommand for Command {
         fn run(self, context: &mut impl RunContext) -> Result<()> {
             use self::Command::*;
-            match_all!((self, context), { List, Register, Unregister })
+            match self {
+                List(cmd) => cmd.run(context),
+                Register(args) => {
+                    let instruction = iroha::data_model::isi::Register::peer(args.key.into());
+                    context
+                        .submit([instruction])
+                        .wrap_err("Failed to register peer")
+                }
+                Unregister(args) => {
+                    let instruction = iroha::data_model::isi::Unregister::peer(args.key.into());
+                    context
+                        .submit([instruction])
+                        .wrap_err("Failed to unregister peer")
+                }
+            }
         }
     }
 
@@ -1104,35 +1078,10 @@ mod peer {
     }
 
     #[derive(clap::Args, Debug)]
-    pub struct Register {
+    pub struct Id {
         /// Peer's public key in multihash
         #[arg(short, long)]
         pub key: PublicKey,
-    }
-
-    impl RunCommand for Register {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
-            let instruction = iroha::data_model::isi::Register::peer(self.key.into());
-            context
-                .submit([instruction])
-                .wrap_err("Failed to register peer")
-        }
-    }
-
-    #[derive(clap::Args, Debug)]
-    pub struct Unregister {
-        /// Peer's public key in multihash
-        #[arg(short, long)]
-        pub key: PublicKey,
-    }
-
-    impl RunCommand for Unregister {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
-            let instruction = iroha::data_model::isi::Unregister::peer(self.key.into());
-            context
-                .submit([instruction])
-                .wrap_err("Failed to unregister peer")
-        }
     }
 }
 
@@ -1595,7 +1544,8 @@ mod transaction {
 
     #[derive(clap::Args, Debug)]
     pub struct Ping {
-        /// TRACE, DEBUG, INFO, WARN, ERROR: more noticeable in this order
+        /// TRACE, DEBUG, INFO, WARN, ERROR: grows more noticeable in this order
+        // TODO ValueEnum
         #[arg(short, long, default_value = "INFO")]
         pub log_level: LogLevel,
         /// Log message
