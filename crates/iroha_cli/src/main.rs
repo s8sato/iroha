@@ -72,7 +72,7 @@ enum Command {
     /// Read/Write roles
     #[command(subcommand)]
     Role(role::Command),
-    /// TODO Read/Write parameters
+    /// Read/Write parameters
     #[command(subcommand)]
     Parameter(parameter::Command),
     /// TODO Read/Write triggers
@@ -1854,7 +1854,7 @@ mod parameter {
         /// List parameters
         #[command(subcommand)]
         List(List),
-        /// Set parameter
+        /// Set parameter constructed from a JSON5 stdin
         Set(Set),
     }
 
@@ -1883,8 +1883,10 @@ mod parameter {
     pub struct Set;
 
     impl Run for Set {
-        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
-            unimplemented!("coming soon")
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
+            let parameter: Parameter = parse_json5_stdin()?;
+            let instruction = SetParameter::new(parameter);
+            context.finish([instruction])
         }
     }
 }

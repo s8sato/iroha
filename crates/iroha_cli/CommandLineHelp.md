@@ -125,7 +125,7 @@ Iroha CLI Client provides an ability to interact with Iroha Peers Web API withou
 * `query` — Read in general
 * `transaction` — Read transactions, Write in general
 * `role` — Read/Write roles
-* `parameter` — TODO Read/Write parameters
+* `parameter` — Read/Write parameters
 * `trigger` — TODO Read/Write triggers
 * `executor` — TODO Update executor
 * `markdown-help` — Dump a markdown help of this CLI to stdout
@@ -1189,14 +1189,14 @@ Unregister role
 
 ## `iroha parameter`
 
-TODO Read/Write parameters
+Read/Write parameters
 
 **Usage:** `iroha parameter <COMMAND>`
 
 ###### **Subcommands:**
 
 * `list` — List parameters
-* `set` — Set parameter
+* `set` — Set parameter constructed from a JSON5 stdin
 
 
 
@@ -1222,7 +1222,7 @@ List all parameters
 
 ## `iroha parameter set`
 
-Set parameter
+Set parameter constructed from a JSON5 stdin
 
 **Usage:** `iroha parameter set`
 
