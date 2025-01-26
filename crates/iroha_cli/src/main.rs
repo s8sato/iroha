@@ -2,6 +2,7 @@
 #![expect(clippy::doc_markdown)]
 
 use std::{
+    fmt::Display,
     fs,
     io::{self, Read, Write},
     path::PathBuf,
@@ -27,16 +28,14 @@ struct Args {
     #[arg(short, long)]
     verbose: bool,
     /// Optional path to read a JSON5 file to attach transaction metadata
-    #[arg(short, long)]
+    #[arg(short, long, value_name("PATH"))]
     metadata: Option<PathBuf>,
     /// Whether to accumulate instructions into a single transaction:
     /// If specified, loads instructions from stdin, appends some, and returns them to stdout
     ///
     /// # Usage
     ///
-    /// ```bash
     /// iroha -a domain register -i "domain" | iroha -a asset definition register -i "asset#domain" | iroha transaction stdin
-    /// ```
     #[arg(short, long)]
     accumulate: bool,
     /// Commands
@@ -87,23 +86,19 @@ enum Command {
 
 /// Context inside which commands run
 trait RunContext {
-    fn configuration(&self) -> &Config;
-
-    fn client_from_config(&self) -> Client {
-        Client::new(self.configuration().clone())
-    }
-
-    /// Serialize and print data
-    ///
-    /// # Errors
-    ///
-    /// - if serialization fails
-    /// - if printing fails
-    fn print_data(&mut self, data: &dyn Serialize) -> Result<()>;
+    fn config(&self) -> &Config;
 
     fn transaction_metadata(&self) -> Option<&Metadata>;
 
     fn accumulate_instructions(&self) -> bool;
+
+    fn print_data(&mut self, data: &dyn Serialize) -> Result<()>;
+
+    fn println(&mut self, data: impl Display) -> Result<()>;
+
+    fn client_from_config(&self) -> Client {
+        Client::new(self.config().clone())
+    }
 
     /// Submit instructions or dump them to stdout depending on the flag
     fn finish(&mut self, instructions: impl Into<Executable>) -> Result<()> {
@@ -140,10 +135,10 @@ trait RunContext {
         let hash = client
             .submit_transaction_blocking(&transaction)
             .wrap_err(err_msg)?;
-        // TODO
-        // self.println("Transaction Submitted. Details:")?;
+
+        self.println("Transaction Submitted. Details:")?;
         self.print_data(&transaction)?;
-        // self.println("Hash:")?;
+        self.println("Hash:")?;
         self.print_data(&hash)?;
 
         Ok(())
@@ -158,13 +153,8 @@ struct PrintJsonContext<W> {
 }
 
 impl<W: std::io::Write> RunContext for PrintJsonContext<W> {
-    fn configuration(&self) -> &Config {
+    fn config(&self) -> &Config {
         &self.config
-    }
-
-    fn print_data(&mut self, data: &dyn Serialize) -> Result<()> {
-        writeln!(&mut self.write, "{}", serde_json::to_string_pretty(data)?)?;
-        Ok(())
     }
 
     fn transaction_metadata(&self) -> Option<&Metadata> {
@@ -173,6 +163,22 @@ impl<W: std::io::Write> RunContext for PrintJsonContext<W> {
 
     fn accumulate_instructions(&self) -> bool {
         self.accumulate_instructions
+    }
+
+    /// Serialize and print data
+    ///
+    /// # Errors
+    ///
+    /// - if serialization fails
+    /// - if printing fails
+    fn print_data(&mut self, data: &dyn Serialize) -> Result<()> {
+        writeln!(&mut self.write, "{}", serde_json::to_string_pretty(data)?)?;
+        Ok(())
+    }
+
+    fn println(&mut self, data: impl Display) -> Result<()> {
+        writeln!(&mut self.write, "{data}")?;
+        Ok(())
     }
 }
 
@@ -1477,7 +1483,7 @@ mod query {
 
     impl Run for Stdin {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
-            let client = Client::new(context.configuration().clone());
+            let client = Client::new(context.config().clone());
             let query: AnyQueryBox = parse_json5_stdin()?;
 
             match query {
