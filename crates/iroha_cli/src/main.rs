@@ -33,9 +33,8 @@ struct Args {
     /// Whether to accumulate instructions into a single transaction:
     /// If specified, loads instructions from stdin, appends some, and returns them to stdout
     ///
-    /// # Usage
-    ///
-    /// echo "[]" | iroha -a domain register -i "domain" | iroha -a asset definition register -i "asset#domain" -t Numeric | iroha transaction stdin
+    /// Usage:
+    /// `echo "[]" | iroha -a domain register -i "domain" | iroha -a asset definition register -i "asset#domain" -t Numeric | iroha transaction stdin`
     #[arg(short, long)]
     accumulate: bool,
     /// Commands
@@ -82,6 +81,8 @@ enum Command {
     /// TODO Update executor
     #[command(subcommand)]
     Executor(executor::Command),
+    /// Dump a markdown help of this CLI to stdout
+    MarkdownHelp(MarkdownHelp),
 }
 
 /// Context inside which commands run
@@ -202,7 +203,7 @@ macro_rules! match_all {
 impl Run for Command {
     fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
         use Command::*;
-        match_all!((self, context), { Domain, Account, Asset, Peer, Events, Blocks, Multisig, Query, Transaction, Role, Parameter, Trigger, Executor })
+        match_all!((self, context), { Domain, Account, Asset, Peer, Events, Blocks, Multisig, Query, Transaction, Role, Parameter, Trigger, Executor, MarkdownHelp })
     }
 }
 
@@ -218,8 +219,22 @@ enum MainError {
     Command,
 }
 
+#[derive(clap::Args, Debug)]
+struct MarkdownHelp;
+
+impl Run for MarkdownHelp {
+    fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
+        Ok(())
+    }
+}
+
 fn main() -> error_stack::Result<(), MainError> {
     let args: Args = clap::Parser::parse();
+
+    if let Command::MarkdownHelp(_md) = args.command {
+        clap_markdown::print_help_markdown::<Args>();
+        return Ok(());
+    }
 
     error_stack::Report::set_color_mode(color_mode());
 
@@ -1565,7 +1580,7 @@ mod transaction {
     #[derive(clap::Args, Debug)]
     pub struct Get {
         /// Transaction hash
-        #[arg(short, long)]
+        #[arg(short('H'), long)]
         pub hash: HashOf<SignedTransaction>,
     }
 
@@ -1583,7 +1598,7 @@ mod transaction {
     #[derive(clap::Args, Debug)]
     pub struct Ping {
         /// TRACE, DEBUG, INFO, WARN, ERROR: grows more noticeable in this order
-        // TODO ValueEnum
+        // TODO ValueEnum ?
         #[arg(short, long, default_value = "INFO")]
         pub log_level: LogLevel,
         /// Log message
@@ -1788,9 +1803,11 @@ mod trigger {
 
     #[derive(clap::Subcommand, Debug)]
     pub enum Command {
-        /// List triggers
+        /// List trigger names
         #[command(subcommand)]
         List(List),
+        /// Read a single trigger details
+        Get(Get),
         /// Register trigger
         Register(Register),
         /// Unregister trigger
@@ -1803,21 +1820,30 @@ mod trigger {
     impl Run for Command {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
-            match_all!((self, context), { List, Register, Unregister, Meta })
+            match_all!((self, context), { List, Get, Register, Unregister, Meta })
         }
     }
 
     #[derive(clap::Subcommand, Debug)]
     pub enum List {
-        /// List all registered triggers
+        /// List all active trigger names
         All,
     }
 
     impl Run for List {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
-            let entities = client.query(FindTriggers).execute_all()?;
+            let entities = client.query(FindActiveTriggerIds).execute_all()?;
             context.print_data(&entities)
+        }
+    }
+
+    #[derive(clap::Args, Debug)]
+    pub struct Get;
+
+    impl Run for Get {
+        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
+            unimplemented!("coming soon")
         }
     }
 
