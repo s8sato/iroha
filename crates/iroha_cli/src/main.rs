@@ -144,7 +144,7 @@ trait Run {
     ///
     /// # Errors
     /// if inner command errors
-    fn run(self, context: &mut impl RunContext) -> Result<()>;
+    fn run<C: RunContext>(self, context: &mut C) -> Result<()>;
 }
 
 macro_rules! match_all {
@@ -156,7 +156,7 @@ macro_rules! match_all {
 }
 
 impl Run for Command {
-    fn run(self, context: &mut impl RunContext) -> Result<()> {
+    fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
         use Command::*;
         match_all!((self, context), { Domain, Account, Asset, Peer, Events, Blocks, Multisig, Query, Transaction, Role, Parameter, Trigger, Executor })
     }
@@ -294,7 +294,7 @@ mod events {
     }
 
     impl Run for Args {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
             let timeout: Option<Duration> = self.timeout.map(Into::into);
 
@@ -357,7 +357,7 @@ mod blocks {
     }
 
     impl Run for Args {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let Args { height, timeout } = self;
             let timeout: Option<Duration> = timeout.map(Into::into);
             listen(height, context, timeout)
@@ -415,7 +415,7 @@ mod domain {
     }
 
     impl Run for Command {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
             match self {
                 List(cmd) => cmd.run(context),
@@ -454,7 +454,7 @@ mod domain {
     }
 
     impl Run for List {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
 
             let query = client.query(FindDomains::new());
@@ -485,7 +485,7 @@ mod domain {
     }
 
     impl Run for Transfer {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let transfer_domain =
                 iroha::data_model::isi::Transfer::domain(self.from, self.id, self.to);
             context
@@ -509,7 +509,7 @@ mod _metadata {
     }
 
     impl Run for Command {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
             match_all!((self, context), { Set, Remove })
         }
@@ -526,7 +526,7 @@ mod _metadata {
     }
 
     impl Run for Set {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let Self { id, key } = self;
             let value: Json = parse_json5_stdin()?;
             let set_key_value = SetKeyValue::domain(id, key, value);
@@ -547,7 +547,7 @@ mod _metadata {
     }
 
     impl Run for Remove {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let Self { id, key } = self;
             let remove_key_value = RemoveKeyValue::domain(id, key);
             context
@@ -584,7 +584,7 @@ mod metadata {
     // }
 
     impl Run for MetadataCommand {
-        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
             todo!()
         }
     }
@@ -616,7 +616,7 @@ mod account {
     }
 
     impl Run for Command {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
             match self {
                 Role(cmd) => cmd.run(context),
@@ -651,7 +651,7 @@ mod account {
     }
 
     impl Run for RoleCommand {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::RoleCommand::*;
             match self {
                 List(args) => {
@@ -690,7 +690,7 @@ mod account {
     }
 
     impl Run for PermissionCommand {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::PermissionCommand::*;
             match self {
                 List(args) => {
@@ -746,7 +746,7 @@ mod account {
     }
 
     impl Run for List {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
 
             let query = client.query(FindAccounts::new());
@@ -797,7 +797,7 @@ mod asset {
     }
 
     impl Run for Command {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
             match self {
                 Definition(cmd) => cmd.run(context),
@@ -871,7 +871,7 @@ mod asset {
         }
 
         impl Run for Command {
-            fn run(self, context: &mut impl RunContext) -> Result<()> {
+            fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
                 use self::Command::*;
                 match_all!(
                     (self, context),
@@ -894,7 +894,7 @@ mod asset {
         }
 
         impl Run for Register {
-            fn run(self, context: &mut impl RunContext) -> Result<()> {
+            fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
                 let mut asset_definition = AssetDefinition::new(self.id, self.r#type);
                 if self.unmintable {
                     asset_definition = asset_definition.mintable_once();
@@ -915,7 +915,7 @@ mod asset {
         }
 
         impl Run for Unregister {
-            fn run(self, context: &mut impl RunContext) -> Result<()> {
+            fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
                 let instruction = iroha::data_model::isi::Unregister::asset_definition(self.id);
                 context
                     .submit([instruction])
@@ -932,7 +932,7 @@ mod asset {
         }
 
         impl Run for List {
-            fn run(self, context: &mut impl RunContext) -> Result<()> {
+            fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
                 let client = context.client_from_config();
 
                 let query = client.query(FindAssetsDefinitions::new());
@@ -976,7 +976,7 @@ mod asset {
     }
 
     impl Run for Transfer {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let instruction =
                 iroha::data_model::isi::Transfer::asset_numeric(self.id, self.quantity, self.to);
             context
@@ -1001,7 +1001,7 @@ mod asset {
     }
 
     impl Run for List {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
 
             let query = client.query(FindAssets::new());
@@ -1043,7 +1043,7 @@ mod peer {
     }
 
     impl Run for Command {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
             match self {
                 List(cmd) => cmd.run(context),
@@ -1070,7 +1070,7 @@ mod peer {
     }
 
     impl Run for List {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
             let entities = client.query(FindPeers).execute_all()?;
             context.print_data(&entities)
@@ -1114,7 +1114,7 @@ mod multisig {
     }
 
     impl Run for Command {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
             match_all!((self, context), { List, Register, Propose, Approve })
         }
@@ -1143,7 +1143,7 @@ mod multisig {
     }
 
     impl Run for Register {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             if self.signatories.len() != self.weights.len() {
                 return Err(eyre!("signatories and weights must be equal in length"));
             }
@@ -1178,7 +1178,7 @@ mod multisig {
     }
 
     impl Run for Propose {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let instructions: Vec<InstructionBox> = {
                 let mut reader = BufReader::new(io::stdin());
                 let mut raw_content = Vec::new();
@@ -1218,7 +1218,7 @@ mod multisig {
     }
 
     impl Run for Approve {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let approve_multisig_transaction =
                 MultisigApprove::new(self.account, self.instructions_hash);
 
@@ -1235,7 +1235,7 @@ mod multisig {
     }
 
     impl Run for List {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
             let me = client.account.clone();
             let Ok(my_multisig_roles) = client
@@ -1434,7 +1434,7 @@ mod query {
     }
 
     impl Run for Command {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
             match_all!((self, context), { Stdin })
         }
@@ -1444,7 +1444,7 @@ mod query {
     pub struct Stdin;
 
     impl Run for Stdin {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = Client::new(context.configuration().clone());
             let query: AnyQueryBox = parse_json5_stdin()?;
 
@@ -1518,7 +1518,7 @@ mod transaction {
     }
 
     impl Run for Command {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
             match_all!((self, context), { Get, Ping, Wasm, Stdin })
         }
@@ -1532,7 +1532,7 @@ mod transaction {
     }
 
     impl Run for Get {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
             let transaction = client
                 .query(FindTransactions::new())
@@ -1554,7 +1554,7 @@ mod transaction {
     }
 
     impl Run for Ping {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let ping = Log::new(self.log_level, self.msg);
             context.submit([ping])
         }
@@ -1568,7 +1568,7 @@ mod transaction {
     }
 
     impl Run for Wasm {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let blob = if let Some(path) = self.path {
                 fs::read(path).wrap_err("Failed to read a Wasm from the file into the buffer")?
             } else {
@@ -1585,7 +1585,7 @@ mod transaction {
     pub struct Stdin;
 
     impl Run for Stdin {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let instructions: Vec<InstructionBox> = parse_json5_stdin()?;
             context
                 .submit(instructions)
@@ -1612,7 +1612,7 @@ mod role {
     }
 
     impl Run for Command {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
             match_all!((self, context), { Permission, List, Register, Unregister })
         }
@@ -1630,7 +1630,7 @@ mod role {
     }
 
     impl Run for Permission {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Permission::*;
             match_all!(
                 (self, context),
@@ -1646,7 +1646,7 @@ mod role {
     }
 
     impl Run for PermissionList {
-        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
             unimplemented!("coming soon")
         }
     }
@@ -1655,7 +1655,7 @@ mod role {
     pub struct PermissionGrant;
 
     impl Run for PermissionGrant {
-        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
             unimplemented!("coming soon")
         }
     }
@@ -1664,7 +1664,7 @@ mod role {
     pub struct PermissionRevoke;
 
     impl Run for PermissionRevoke {
-        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
             unimplemented!("coming soon")
         }
     }
@@ -1676,7 +1676,7 @@ mod role {
     }
 
     impl Run for List {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
             let entities = client.query(FindRoles).execute_all()?;
             context.print_data(&entities)
@@ -1687,7 +1687,7 @@ mod role {
     pub struct Register;
 
     impl Run for Register {
-        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
             unimplemented!("coming soon")
         }
     }
@@ -1696,7 +1696,7 @@ mod role {
     pub struct Unregister;
 
     impl Run for Unregister {
-        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
             unimplemented!("coming soon")
         }
     }
@@ -1715,7 +1715,7 @@ mod parameter {
     }
 
     impl Run for Command {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
             match_all!((self, context), { List, Set })
         }
@@ -1728,7 +1728,7 @@ mod parameter {
     }
 
     impl Run for List {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
             let params = client.query_single(FindParameters)?;
             context.print_data(&params)
@@ -1739,7 +1739,7 @@ mod parameter {
     pub struct Set;
 
     impl Run for Set {
-        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
             unimplemented!("coming soon")
         }
     }
@@ -1763,7 +1763,7 @@ mod trigger {
     }
 
     impl Run for Command {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
             match_all!((self, context), { List, Register, Unregister, Meta })
         }
@@ -1776,7 +1776,7 @@ mod trigger {
     }
 
     impl Run for List {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
             let entities = client.query(FindTriggers).execute_all()?;
             context.print_data(&entities)
@@ -1787,7 +1787,7 @@ mod trigger {
     pub struct Register;
 
     impl Run for Register {
-        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
             unimplemented!("coming soon")
         }
     }
@@ -1796,7 +1796,7 @@ mod trigger {
     pub struct Unregister;
 
     impl Run for Unregister {
-        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
             unimplemented!("coming soon")
         }
     }
@@ -1812,7 +1812,7 @@ mod executor {
     }
 
     impl Run for Command {
-        fn run(self, context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
             match_all!((self, context), { Upgrade })
         }
@@ -1826,7 +1826,7 @@ mod executor {
     }
 
     impl Run for Upgrade {
-        fn run(self, _context: &mut impl RunContext) -> Result<()> {
+        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
             unimplemented!("coming soon")
         }
     }
