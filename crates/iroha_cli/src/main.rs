@@ -317,7 +317,7 @@ mod events {
 
     #[derive(clap::Args, Debug)]
     pub struct Args {
-        /// Wait timeout
+        /// How long to listen for events ex. "1y 6M 2w 3d 12h 30m 30s 500ms"
         #[arg(short, long, global = true)]
         timeout: Option<humantime::Duration>,
         #[command(subcommand)]
@@ -396,7 +396,7 @@ mod blocks {
         /// Block height from which to start streaming blocks
         height: NonZeroU64,
 
-        /// Wait timeout
+        /// How long to listen for blocks ex. "1y 6M 2w 3d 12h 30m 30s 500ms"
         #[arg(short, long)]
         timeout: Option<humantime::Duration>,
     }
@@ -1177,7 +1177,7 @@ mod multisig {
         /// Threshold of total weight at which the multisig is considered authenticated
         #[arg(short, long)]
         pub quorum: u16,
-        /// Time-to-live of multisig transactions made by the multisig account
+        /// Time-to-live of multisig transactions made by the multisig account ex. "1y 6M 2w 3d 12h 30m 30s 500ms"
         #[arg(short, long, default_value_t = default_transaction_ttl())]
         pub transaction_ttl: humantime::Duration,
     }
@@ -1216,7 +1216,7 @@ mod multisig {
         /// Multisig authority of the multisig transaction
         #[arg(short, long)]
         pub account: AccountId,
-        /// Time-to-live of multisig transactions that overrides to shorten the account default
+        /// Time-to-live of multisig transactions that overrides to shorten the account default ex. "1y 6M 2w 3d 12h 30m 30s 500ms"
         #[arg(short, long)]
         pub transaction_ttl: Option<humantime::Duration>,
     }
