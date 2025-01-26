@@ -83,7 +83,6 @@ This document contains the help content for the `iroha` command-line program.
 * [`iroha role`↴](#iroha-role)
 * [`iroha role permission`↴](#iroha-role-permission)
 * [`iroha role permission list`↴](#iroha-role-permission-list)
-* [`iroha role permission list empty-command`↴](#iroha-role-permission-list-empty-command)
 * [`iroha role permission grant`↴](#iroha-role-permission-grant)
 * [`iroha role permission revoke`↴](#iroha-role-permission-revoke)
 * [`iroha role list`↴](#iroha-role-list)
@@ -125,7 +124,7 @@ Iroha CLI Client provides an ability to interact with Iroha Peers Web API withou
 * `multisig` — Read/Write multisig accounts and transactions
 * `query` — Read in general
 * `transaction` — Read transactions, Write in general
-* `role` — TODO Read/Write roles
+* `role` — Read/Write roles
 * `parameter` — TODO Read/Write parameters
 * `trigger` — TODO Read/Write triggers
 * `executor` — TODO Update executor
@@ -1081,15 +1080,15 @@ Transaction constructed from instructions as a JSON5 stdin
 
 ## `iroha role`
 
-TODO Read/Write roles
+Read/Write roles
 
 **Usage:** `iroha role <COMMAND>`
 
 ###### **Subcommands:**
 
 * `permission` — Read/Write role permissions
-* `list` — List roles
-* `register` — Register role
+* `list` — List role names
+* `register` — Register role and grant it to you registrant
 * `unregister` — Unregister role
 
 
@@ -1103,8 +1102,8 @@ Read/Write role permissions
 ###### **Subcommands:**
 
 * `list` — List role permissions
-* `grant` — Grant role permission
-* `revoke` — Revoke role permission
+* `grant` — Grant role permission constructed from a JSON5 stdin
+* `revoke` — Revoke role permission constructed from a JSON5 stdin
 
 
 
@@ -1112,53 +1111,53 @@ Read/Write role permissions
 
 List role permissions
 
-**Usage:** `iroha role permission list <COMMAND>`
+**Usage:** `iroha role permission list --id <ID>`
 
-###### **Subcommands:**
+###### **Options:**
 
-* `empty-command` — TODO to be implemented
-
-
-
-## `iroha role permission list empty-command`
-
-TODO to be implemented
-
-**Usage:** `iroha role permission list empty-command`
+* `-i`, `--id <ID>` — Role name as double-quoted string
 
 
 
 ## `iroha role permission grant`
 
-Grant role permission
+Grant role permission constructed from a JSON5 stdin
 
-**Usage:** `iroha role permission grant`
+**Usage:** `iroha role permission grant --id <ID>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>` — Role name as double-quoted string
 
 
 
 ## `iroha role permission revoke`
 
-Revoke role permission
+Revoke role permission constructed from a JSON5 stdin
 
-**Usage:** `iroha role permission revoke`
+**Usage:** `iroha role permission revoke --id <ID>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>` — Role name as double-quoted string
 
 
 
 ## `iroha role list`
 
-List roles
+List role names
 
 **Usage:** `iroha role list <COMMAND>`
 
 ###### **Subcommands:**
 
-* `all` — List all registered roles
+* `all` — List all role names
 
 
 
 ## `iroha role list all`
 
-List all registered roles
+List all role names
 
 **Usage:** `iroha role list all`
 
@@ -1166,9 +1165,13 @@ List all registered roles
 
 ## `iroha role register`
 
-Register role
+Register role and grant it to you registrant
 
-**Usage:** `iroha role register`
+**Usage:** `iroha role register --id <ID>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>` — Role name as double-quoted string
 
 
 
@@ -1176,7 +1179,11 @@ Register role
 
 Unregister role
 
-**Usage:** `iroha role unregister`
+**Usage:** `iroha role unregister --id <ID>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>` — Role name as double-quoted string
 
 
 

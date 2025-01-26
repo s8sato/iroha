@@ -69,7 +69,7 @@ enum Command {
     /// Read transactions, Write in general
     #[command(subcommand)]
     Transaction(transaction::Command),
-    /// TODO Read/Write roles
+    /// Read/Write roles
     #[command(subcommand)]
     Role(role::Command),
     /// TODO Read/Write parameters
@@ -1744,103 +1744,104 @@ mod role {
     pub enum Command {
         /// Read/Write role permissions
         #[command(subcommand)]
-        Permission(Permission),
-        /// List roles
+        Permission(PermissionCommand),
+        /// List role names
         #[command(subcommand)]
         List(List),
-        /// Register role
-        Register(Register),
+        /// Register role and grant it to you registrant
+        Register(Id),
         /// Unregister role
-        Unregister(Unregister),
+        Unregister(Id),
     }
 
     impl Run for Command {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
-            match_all!((self, context), { Permission, List, Register, Unregister })
+            match self {
+                Permission(cmd) => cmd.run(context),
+                List(cmd) => cmd.run(context),
+                Register(args) => {
+                    let instruction = iroha::data_model::isi::Register::role(Role::new(
+                        args.id,
+                        context.config().account.clone(),
+                    ));
+                    context
+                        .finish([instruction])
+                        .wrap_err("Failed to register role")
+                }
+                Unregister(args) => {
+                    let instruction = iroha::data_model::isi::Unregister::role(args.id);
+                    context
+                        .finish([instruction])
+                        .wrap_err("Failed to unregister role")
+                }
+            }
         }
     }
 
     #[derive(clap::Subcommand, Debug)]
-    pub enum Permission {
+    pub enum PermissionCommand {
         /// List role permissions
-        #[command(subcommand)]
-        List(PermissionList),
-        /// Grant role permission
-        Grant(PermissionGrant),
-        /// Revoke role permission
-        Revoke(PermissionRevoke),
+        List(Id),
+        /// Grant role permission constructed from a JSON5 stdin
+        Grant(Id),
+        /// Revoke role permission constructed from a JSON5 stdin
+        Revoke(Id),
     }
 
-    impl Run for Permission {
+    impl Run for PermissionCommand {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
-            use self::Permission::*;
-            match_all!(
-                (self, context),
-                { List, Grant, Revoke }
-            )
-        }
-    }
-
-    #[derive(clap::Subcommand, Debug)]
-    pub enum PermissionList {
-        /// TODO to be implemented
-        EmptyCommand,
-    }
-
-    impl Run for PermissionList {
-        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
-            unimplemented!("coming soon")
+            use self::PermissionCommand::*;
+            match self {
+                List(args) => {
+                    let client = context.client_from_config();
+                    let role = client
+                        .query(FindRoles)
+                        .filter_with(|entry| entry.id.eq(args.id))
+                        .execute_single()?;
+                    for permission in role.permissions() {
+                        context.print_data(&permission)?;
+                    }
+                    Ok(())
+                }
+                Grant(args) => {
+                    let permission: Permission = parse_json5_stdin()?;
+                    let instruction =
+                        iroha::data_model::isi::Grant::role_permission(permission, args.id);
+                    context
+                        .finish([instruction])
+                        .wrap_err("Failed to grant the permission to the role")
+                }
+                Revoke(args) => {
+                    let permission: Permission = parse_json5_stdin()?;
+                    let instruction =
+                        iroha::data_model::isi::Revoke::role_permission(permission, args.id);
+                    context
+                        .finish([instruction])
+                        .wrap_err("Failed to revoke the permission from the role")
+                }
+            }
         }
     }
 
     #[derive(clap::Args, Debug)]
-    pub struct PermissionGrant;
-
-    impl Run for PermissionGrant {
-        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
-            unimplemented!("coming soon")
-        }
-    }
-
-    #[derive(clap::Args, Debug)]
-    pub struct PermissionRevoke;
-
-    impl Run for PermissionRevoke {
-        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
-            unimplemented!("coming soon")
-        }
+    pub struct Id {
+        /// Role name as double-quoted string
+        #[arg(short, long)]
+        id: RoleId,
     }
 
     #[derive(clap::Subcommand, Debug)]
     pub enum List {
-        /// List all registered roles
+        /// List all role names
         All,
     }
 
     impl Run for List {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
-            let entities = client.query(FindRoles).execute_all()?;
-            context.print_data(&entities)
-        }
-    }
-
-    #[derive(clap::Args, Debug)]
-    pub struct Register;
-
-    impl Run for Register {
-        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
-            unimplemented!("coming soon")
-        }
-    }
-
-    #[derive(clap::Args, Debug)]
-    pub struct Unregister;
-
-    impl Run for Unregister {
-        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
-            unimplemented!("coming soon")
+            let names = client.query(FindRoleIds).execute_all()?;
+            context.print_data(&names)
         }
     }
 }
