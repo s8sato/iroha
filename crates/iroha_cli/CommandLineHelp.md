@@ -130,7 +130,7 @@ Iroha CLI Client provides an ability to interact with Iroha Peers Web API withou
 * `role` — Read/Write roles
 * `parameter` — Read/Write parameters
 * `trigger` — TODO Read/Write triggers
-* `executor` — TODO Update executor
+* `executor` — Update executor
 * `markdown-help` — Dump a markdown help of this CLI to stdout
 
 ###### **Options:**
@@ -1393,7 +1393,7 @@ Delete an entry from a key-value store
 
 ## `iroha executor`
 
-TODO Update executor
+Update executor
 
 **Usage:** `iroha executor <COMMAND>`
 

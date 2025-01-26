@@ -78,7 +78,7 @@ enum Command {
     /// TODO Read/Write triggers
     #[command(subcommand)]
     Trigger(trigger::Command),
-    /// TODO Update executor
+    /// Update executor
     #[command(subcommand)]
     Executor(executor::Command),
     /// Dump a markdown help of this CLI to stdout
@@ -1813,8 +1813,13 @@ mod executor {
     }
 
     impl Run for Upgrade {
-        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
-            unimplemented!("coming soon")
+        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
+            let instruction = fs::read(self.path)
+                .map(WasmSmartContract::from_compiled)
+                .map(Executor::new)
+                .map(iroha::data_model::isi::Upgrade::new)
+                .wrap_err("Failed to read a Wasm from the file")?;
+            context.finish([instruction])
         }
     }
 }
