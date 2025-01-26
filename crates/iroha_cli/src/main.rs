@@ -35,7 +35,7 @@ struct Args {
     ///
     /// # Usage
     ///
-    /// iroha -a domain register -i "domain" | iroha -a asset definition register -i "asset#domain" | iroha transaction stdin
+    /// echo "[]" | iroha -a domain register -i "domain" | iroha -a asset definition register -i "asset#domain" -t Numeric | iroha transaction stdin
     #[arg(short, long)]
     accumulate: bool,
     /// Commands
