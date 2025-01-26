@@ -471,7 +471,7 @@ mod domain {
         Transfer(Transfer),
         /// Read/Write metadata
         #[command(subcommand)]
-        Meta(metadata::MetadataCommand),
+        Meta(metadata::domain::Command),
     }
 
     impl Run for Command {
@@ -618,34 +618,124 @@ mod _metadata {
 }
 
 mod metadata {
-
     use super::*;
 
-    // trait MetadataRoot {
-    //     type Id: Send + Sync + 'static + clap::ValueEnum + std::fmt::Debug;
-    // }
+    macro_rules! impl_metadata_command {
+        ($entity:ty, $query:expr, $constructor:ident) => {
+            use super::*;
 
-    #[derive(clap::Subcommand, Debug)]
-    pub enum MetadataCommand {
-        /// metadata
-        Get,
-        Set,
-        Remove,
+            #[derive(clap::Subcommand, Debug)]
+            pub enum Command {
+                /// Read a value from a key-value store
+                Get(IdKey),
+                /// Create or update an entry in a key-value store, with a value constructed from a JSON5 stdin
+                Set(IdKey),
+                /// Delete an entry from a key-value store
+                Remove(IdKey),
+            }
+
+            #[derive(clap::Args, Debug)]
+            pub struct IdKey {
+                #[arg(short, long)]
+                pub id: <$entity as Identifiable>::Id,
+                #[arg(short, long)]
+                pub key: Name,
+            }
+
+            impl Run for Command {
+                fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
+                    use self::Command::*;
+                    match self {
+                        Get(args) => {
+                            let client = context.client_from_config();
+                            let value = client
+                                .query($query)
+                                .filter_with(|entry| entry.id.eq(args.id))
+                                .select_with(|entry| entry.metadata.key(args.key))
+                                .execute_single()
+                                .wrap_err("Failed to get value")?;
+                            context.print_data(&value)
+                        }
+                        Set(args) => {
+                            let value: Json = parse_json5_stdin()?;
+                            let instruction = iroha::data_model::isi::SetKeyValue::$constructor(
+                                args.id, args.key, value,
+                            );
+                            context.finish([instruction])
+                        }
+                        Remove(args) => {
+                            let instruction = iroha::data_model::isi::RemoveKeyValue::$constructor(
+                                args.id, args.key,
+                            );
+                            context.finish([instruction])
+                        }
+                    }
+                }
+            }
+        };
     }
 
-    // #[derive(clap::Args, Debug)]
-    // pub struct IdKey<T: MetadataRoot> {
-    //     /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
-    //     #[arg(short, long)]
-    //     pub id: T::Id,
-    //     /// Key for the value
-    //     #[arg(short, long)]
-    //     pub key: Name,
-    // }
+    pub mod domain {
+        impl_metadata_command!(Domain, FindDomains, domain);
+    }
 
-    impl Run for MetadataCommand {
-        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
-            todo!()
+    pub mod account {
+        impl_metadata_command!(Account, FindAccounts, account);
+    }
+
+    pub mod asset_definition {
+        impl_metadata_command!(AssetDefinition, FindAssetsDefinitions, asset_definition);
+    }
+
+    // TODO apply macro after trigger.action.metadata is relocated to trigger.metadata
+    pub mod trigger {
+        use super::*;
+
+        #[derive(clap::Subcommand, Debug)]
+        pub enum Command {
+            /// Read a value from a key-value store
+            Get(IdKey),
+            /// Create or update an entry in a key-value store, with a value constructed from a JSON5 stdin
+            Set(IdKey),
+            /// Delete an entry from a key-value store
+            Remove(IdKey),
+        }
+
+        #[derive(clap::Args, Debug)]
+        pub struct IdKey {
+            #[arg(short, long)]
+            pub id: <Trigger as Identifiable>::Id,
+            #[arg(short, long)]
+            pub key: Name,
+        }
+
+        impl Run for Command {
+            fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
+                use self::Command::*;
+                match self {
+                    Get(args) => {
+                        let client = context.client_from_config();
+                        let value = client
+                            .query(FindTriggers)
+                            .filter_with(|entry| entry.id.eq(args.id))
+                            .select_with(|entry| entry.action.metadata.key(args.key))
+                            .execute_single()
+                            .wrap_err("Failed to get value")?;
+                        context.print_data(&value)
+                    }
+                    Set(args) => {
+                        let value: Json = parse_json5_stdin()?;
+                        let instruction =
+                            iroha::data_model::isi::SetKeyValue::trigger(args.id, args.key, value);
+                        context.finish([instruction])
+                    }
+                    Remove(args) => {
+                        let instruction =
+                            iroha::data_model::isi::RemoveKeyValue::trigger(args.id, args.key);
+                        context.finish([instruction])
+                    }
+                }
+            }
         }
     }
 }
@@ -672,7 +762,7 @@ mod account {
         Unregister(Id),
         /// Read/Write metadata
         #[command(subcommand)]
-        Meta(metadata::MetadataCommand),
+        Meta(metadata::account::Command),
     }
 
     impl Run for Command {
@@ -927,7 +1017,7 @@ mod asset {
             Unregister(Unregister),
             /// Read/Write metadata
             #[command(subcommand)]
-            Meta(metadata::MetadataCommand),
+            Meta(metadata::asset_definition::Command),
         }
 
         impl Run for Command {
@@ -1814,7 +1904,7 @@ mod trigger {
         Unregister(Unregister),
         /// Read/Write metadata
         #[command(subcommand)]
-        Meta(metadata::MetadataCommand),
+        Meta(metadata::trigger::Command),
     }
 
     impl Run for Command {

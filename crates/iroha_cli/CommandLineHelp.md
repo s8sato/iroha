@@ -239,29 +239,48 @@ Read/Write metadata
 
 ###### **Subcommands:**
 
-* `get` — metadata
-* `set` — 
-* `remove` — 
+* `get` — Read a value from a key-value store
+* `set` — Create or update an entry in a key-value store, with a value constructed from a JSON5 stdin
+* `remove` — Delete an entry from a key-value store
 
 
 
 ## `iroha domain meta get`
 
-metadata
+Read a value from a key-value store
 
-**Usage:** `iroha domain meta get`
+**Usage:** `iroha domain meta get --id <ID> --key <KEY>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>`
+* `-k`, `--key <KEY>`
 
 
 
 ## `iroha domain meta set`
 
-**Usage:** `iroha domain meta set`
+Create or update an entry in a key-value store, with a value constructed from a JSON5 stdin
+
+**Usage:** `iroha domain meta set --id <ID> --key <KEY>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>`
+* `-k`, `--key <KEY>`
 
 
 
 ## `iroha domain meta remove`
 
-**Usage:** `iroha domain meta remove`
+Delete an entry from a key-value store
+
+**Usage:** `iroha domain meta remove --id <ID> --key <KEY>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>`
+* `-k`, `--key <KEY>`
 
 
 
@@ -449,29 +468,48 @@ Read/Write metadata
 
 ###### **Subcommands:**
 
-* `get` — metadata
-* `set` — 
-* `remove` — 
+* `get` — Read a value from a key-value store
+* `set` — Create or update an entry in a key-value store, with a value constructed from a JSON5 stdin
+* `remove` — Delete an entry from a key-value store
 
 
 
 ## `iroha account meta get`
 
-metadata
+Read a value from a key-value store
 
-**Usage:** `iroha account meta get`
+**Usage:** `iroha account meta get --id <ID> --key <KEY>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>`
+* `-k`, `--key <KEY>`
 
 
 
 ## `iroha account meta set`
 
-**Usage:** `iroha account meta set`
+Create or update an entry in a key-value store, with a value constructed from a JSON5 stdin
+
+**Usage:** `iroha account meta set --id <ID> --key <KEY>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>`
+* `-k`, `--key <KEY>`
 
 
 
 ## `iroha account meta remove`
 
-**Usage:** `iroha account meta remove`
+Delete an entry from a key-value store
+
+**Usage:** `iroha account meta remove --id <ID> --key <KEY>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>`
+* `-k`, `--key <KEY>`
 
 
 
@@ -577,29 +615,48 @@ Read/Write metadata
 
 ###### **Subcommands:**
 
-* `get` — metadata
-* `set` — 
-* `remove` — 
+* `get` — Read a value from a key-value store
+* `set` — Create or update an entry in a key-value store, with a value constructed from a JSON5 stdin
+* `remove` — Delete an entry from a key-value store
 
 
 
 ## `iroha asset definition meta get`
 
-metadata
+Read a value from a key-value store
 
-**Usage:** `iroha asset definition meta get`
+**Usage:** `iroha asset definition meta get --id <ID> --key <KEY>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>`
+* `-k`, `--key <KEY>`
 
 
 
 ## `iroha asset definition meta set`
 
-**Usage:** `iroha asset definition meta set`
+Create or update an entry in a key-value store, with a value constructed from a JSON5 stdin
+
+**Usage:** `iroha asset definition meta set --id <ID> --key <KEY>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>`
+* `-k`, `--key <KEY>`
 
 
 
 ## `iroha asset definition meta remove`
 
-**Usage:** `iroha asset definition meta remove`
+Delete an entry from a key-value store
+
+**Usage:** `iroha asset definition meta remove --id <ID> --key <KEY>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>`
+* `-k`, `--key <KEY>`
 
 
 
@@ -1232,29 +1289,48 @@ Read/Write metadata
 
 ###### **Subcommands:**
 
-* `get` — metadata
-* `set` — 
-* `remove` — 
+* `get` — Read a value from a key-value store
+* `set` — Create or update an entry in a key-value store, with a value constructed from a JSON5 stdin
+* `remove` — Delete an entry from a key-value store
 
 
 
 ## `iroha trigger meta get`
 
-metadata
+Read a value from a key-value store
 
-**Usage:** `iroha trigger meta get`
+**Usage:** `iroha trigger meta get --id <ID> --key <KEY>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>`
+* `-k`, `--key <KEY>`
 
 
 
 ## `iroha trigger meta set`
 
-**Usage:** `iroha trigger meta set`
+Create or update an entry in a key-value store, with a value constructed from a JSON5 stdin
+
+**Usage:** `iroha trigger meta set --id <ID> --key <KEY>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>`
+* `-k`, `--key <KEY>`
 
 
 
 ## `iroha trigger meta remove`
 
-**Usage:** `iroha trigger meta remove`
+Delete an entry from a key-value store
+
+**Usage:** `iroha trigger meta remove --id <ID> --key <KEY>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>`
+* `-k`, `--key <KEY>`
 
 
 
