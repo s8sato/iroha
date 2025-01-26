@@ -9,6 +9,7 @@ This document contains the help content for the `iroha` command-line program.
 * [`iroha domain list`↴](#iroha-domain-list)
 * [`iroha domain list all`↴](#iroha-domain-list-all)
 * [`iroha domain list filter`↴](#iroha-domain-list-filter)
+* [`iroha domain get`↴](#iroha-domain-get)
 * [`iroha domain register`↴](#iroha-domain-register)
 * [`iroha domain unregister`↴](#iroha-domain-unregister)
 * [`iroha domain transfer`↴](#iroha-domain-transfer)
@@ -28,6 +29,7 @@ This document contains the help content for the `iroha` command-line program.
 * [`iroha account list`↴](#iroha-account-list)
 * [`iroha account list all`↴](#iroha-account-list-all)
 * [`iroha account list filter`↴](#iroha-account-list-filter)
+* [`iroha account get`↴](#iroha-account-get)
 * [`iroha account register`↴](#iroha-account-register)
 * [`iroha account unregister`↴](#iroha-account-unregister)
 * [`iroha account meta`↴](#iroha-account-meta)
@@ -39,6 +41,7 @@ This document contains the help content for the `iroha` command-line program.
 * [`iroha asset definition list`↴](#iroha-asset-definition-list)
 * [`iroha asset definition list all`↴](#iroha-asset-definition-list-all)
 * [`iroha asset definition list filter`↴](#iroha-asset-definition-list-filter)
+* [`iroha asset definition get`↴](#iroha-asset-definition-get)
 * [`iroha asset definition register`↴](#iroha-asset-definition-register)
 * [`iroha asset definition unregister`↴](#iroha-asset-definition-unregister)
 * [`iroha asset definition meta`↴](#iroha-asset-definition-meta)
@@ -151,7 +154,8 @@ Read/Write domains
 
 ###### **Subcommands:**
 
-* `list` — List domains
+* `list` — List domain ids
+* `get` — Read a single domain details
 * `register` — Register domain
 * `unregister` — Unregister domain
 * `transfer` — Transfer domain
@@ -161,20 +165,20 @@ Read/Write domains
 
 ## `iroha domain list`
 
-List domains
+List domain ids
 
 **Usage:** `iroha domain list <COMMAND>`
 
 ###### **Subcommands:**
 
-* `all` — All domains
+* `all` — List all domain ids
 * `filter` — Filter domains by given predicate
 
 
 
 ## `iroha domain list all`
 
-All domains
+List all domain ids
 
 **Usage:** `iroha domain list all`
 
@@ -189,6 +193,18 @@ Filter domains by given predicate
 ###### **Arguments:**
 
 * `<PREDICATE>` — Predicate for filtering given as JSON5 string
+
+
+
+## `iroha domain get`
+
+Read a single domain details
+
+**Usage:** `iroha domain get --id <ID>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>` — Domain name as double-quoted string
 
 
 
@@ -293,7 +309,8 @@ Read/Write accounts
 
 * `role` — Read/Write account roles
 * `permission` — Read/Write account permissions
-* `list` — List accounts
+* `list` — List account ids
+* `get` — Read a single account details
 * `register` — Register account
 * `unregister` — Unregister account
 * `meta` — Read/Write metadata
@@ -308,7 +325,7 @@ Read/Write account roles
 
 ###### **Subcommands:**
 
-* `list` — List account roles
+* `list` — List account role ids
 * `grant` — Grant account role
 * `revoke` — Revoke account role
 
@@ -316,7 +333,7 @@ Read/Write account roles
 
 ## `iroha account role list`
 
-List account roles
+List account role ids
 
 **Usage:** `iroha account role list --id <ID>`
 
@@ -404,20 +421,20 @@ Revoke account permission constructed from a JSON5 stdin
 
 ## `iroha account list`
 
-List accounts
+List account ids
 
 **Usage:** `iroha account list <COMMAND>`
 
 ###### **Subcommands:**
 
-* `all` — All accounts
+* `all` — List all account ids
 * `filter` — Filter accounts by given predicate
 
 
 
 ## `iroha account list all`
 
-All accounts
+List all account ids
 
 **Usage:** `iroha account list all`
 
@@ -432,6 +449,18 @@ Filter accounts by given predicate
 ###### **Arguments:**
 
 * `<PREDICATE>` — Predicate for filtering given as JSON5 string
+
+
+
+## `iroha account get`
+
+Read a single account details
+
+**Usage:** `iroha account get --id <ID>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>` — Account in form "multihash@domain"
 
 
 
@@ -521,8 +550,8 @@ Read/Write assets
 ###### **Subcommands:**
 
 * `definition` — Read/Write asset definitions
-* `get` — Read a single asset
-* `list` — List assets
+* `get` — Read a single asset details
+* `list` — List asset ids
 * `mint` — Increase an amount of asset
 * `burn` — Decrease an amount of asset
 * `transfer` — Transfer an amount of asset between accounts
@@ -540,7 +569,8 @@ Read/Write asset definitions
 
 ###### **Subcommands:**
 
-* `list` — List asset definitions
+* `list` — List asset definition ids
+* `get` — Read a single asset definition details
 * `register` — Register asset definition
 * `unregister` — Unregister asset definition
 * `meta` — Read/Write metadata
@@ -549,20 +579,20 @@ Read/Write asset definitions
 
 ## `iroha asset definition list`
 
-List asset definitions
+List asset definition ids
 
 **Usage:** `iroha asset definition list <COMMAND>`
 
 ###### **Subcommands:**
 
-* `all` — All asset definitions
+* `all` — List all asset definition ids
 * `filter` — Filter asset definitions by given predicate
 
 
 
 ## `iroha asset definition list all`
 
-All asset definitions
+List all asset definition ids
 
 **Usage:** `iroha asset definition list all`
 
@@ -577,6 +607,18 @@ Filter asset definitions by given predicate
 ###### **Arguments:**
 
 * `<PREDICATE>` — Predicate for filtering given as JSON5 string
+
+
+
+## `iroha asset definition get`
+
+Read a single asset definition details
+
+**Usage:** `iroha asset definition get --id <ID>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>` — Asset definition in form "asset#domain"
 
 
 
@@ -661,7 +703,7 @@ Delete an entry from a key-value store
 
 ## `iroha asset get`
 
-Read a single asset
+Read a single asset details
 
 **Usage:** `iroha asset get --id <ID>`
 
@@ -673,20 +715,20 @@ Read a single asset
 
 ## `iroha asset list`
 
-List assets
+List asset ids
 
 **Usage:** `iroha asset list <COMMAND>`
 
 ###### **Subcommands:**
 
-* `all` — All assets
+* `all` — List all asset ids
 * `filter` — Filter assets by given predicate
 
 
 
 ## `iroha asset list all`
 
-All assets
+List all asset ids
 
 **Usage:** `iroha asset list all`
 
@@ -791,7 +833,7 @@ Read/Write peers
 
 ###### **Subcommands:**
 
-* `list` — List peers in world state that are expected to connect with each other
+* `list` — List registered peers expected to connect with each other
 * `register` — Register peer
 * `unregister` — Unregister peer
 
@@ -799,7 +841,7 @@ Read/Write peers
 
 ## `iroha peer list`
 
-List peers in world state that are expected to connect with each other
+List registered peers expected to connect with each other
 
 **Usage:** `iroha peer list <COMMAND>`
 
@@ -1087,7 +1129,7 @@ Read/Write roles
 ###### **Subcommands:**
 
 * `permission` — Read/Write role permissions
-* `list` — List role names
+* `list` — List role ids
 * `register` — Register role and grant it to you registrant
 * `unregister` — Unregister role
 
@@ -1145,19 +1187,19 @@ Revoke role permission constructed from a JSON5 stdin
 
 ## `iroha role list`
 
-List role names
+List role ids
 
 **Usage:** `iroha role list <COMMAND>`
 
 ###### **Subcommands:**
 
-* `all` — List all role names
+* `all` — List all role ids
 
 
 
 ## `iroha role list all`
 
-List all role names
+List all role ids
 
 **Usage:** `iroha role list all`
 
@@ -1236,7 +1278,7 @@ TODO Read/Write triggers
 
 ###### **Subcommands:**
 
-* `list` — List trigger names
+* `list` — List trigger ids
 * `get` — Read a single trigger details
 * `register` — Register trigger
 * `unregister` — Unregister trigger
@@ -1246,19 +1288,19 @@ TODO Read/Write triggers
 
 ## `iroha trigger list`
 
-List trigger names
+List trigger ids
 
 **Usage:** `iroha trigger list <COMMAND>`
 
 ###### **Subcommands:**
 
-* `all` — List all active trigger names
+* `all` — List all trigger ids
 
 
 
 ## `iroha trigger list all`
 
-List all active trigger names
+List all trigger ids
 
 **Usage:** `iroha trigger list all`
 
@@ -1268,7 +1310,11 @@ List all active trigger names
 
 Read a single trigger details
 
-**Usage:** `iroha trigger get`
+**Usage:** `iroha trigger get --id <ID>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>` — Trigger name as double-quoted string
 
 
 
@@ -1284,7 +1330,11 @@ Register trigger
 
 Unregister trigger
 
-**Usage:** `iroha trigger unregister`
+**Usage:** `iroha trigger unregister --id <ID>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>` — Trigger name as double-quoted string
 
 
 

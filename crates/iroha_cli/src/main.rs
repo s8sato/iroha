@@ -378,23 +378,23 @@ mod events {
 
         if let Some(timeout) = timeout {
             eprintln!("Listening to events with filter: {filter:?} and timeout: {timeout:?}");
-            let rt = Runtime::new().wrap_err("Failed to create runtime.")?;
+            let rt = Runtime::new().wrap_err("Failed to create runtime")?;
             rt.block_on(async {
                 let mut stream = client
                     .listen_for_events_async([filter])
                     .await
-                    .expect("Failed to listen for events.");
+                    .expect("Failed to listen for events");
                 while let Ok(event) = tokio::time::timeout(timeout, stream.try_next()).await {
                     context.print_data(&event?)?;
                 }
-                eprintln!("Timeout period has expired.");
+                eprintln!("Timeout period has expired");
                 Result::<()>::Ok(())
             })?;
         } else {
             eprintln!("Listening to events with filter: {filter:?}");
             client
                 .listen_for_events([filter])
-                .wrap_err("Failed to listen for events.")?
+                .wrap_err("Failed to listen for events")?
                 .try_for_each(|event| context.print_data(&event?))?;
         }
         Ok(())
@@ -432,23 +432,23 @@ mod blocks {
         let client = context.client_from_config();
         if let Some(timeout) = timeout {
             eprintln!("Listening to blocks from height: {height} and timeout: {timeout:?}");
-            let rt = Runtime::new().wrap_err("Failed to create runtime.")?;
+            let rt = Runtime::new().wrap_err("Failed to create runtime")?;
             rt.block_on(async {
                 let mut stream = client
                     .listen_for_blocks_async(height)
                     .await
-                    .expect("Failed to listen for blocks.");
+                    .expect("Failed to listen for blocks");
                 while let Ok(event) = tokio::time::timeout(timeout, stream.try_next()).await {
                     context.print_data(&event?)?;
                 }
-                eprintln!("Timeout period has expired.");
+                eprintln!("Timeout period has expired");
                 Result::<()>::Ok(())
             })?;
         } else {
             eprintln!("Listening to blocks from height: {height}");
             client
                 .listen_for_blocks(height)
-                .wrap_err("Failed to listen for blocks.")?
+                .wrap_err("Failed to listen for blocks")?
                 .try_for_each(|event| context.print_data(&event?))?;
         }
         Ok(())
@@ -460,9 +460,11 @@ mod domain {
 
     #[derive(clap::Subcommand, Debug)]
     pub enum Command {
-        /// List domains
+        /// List domain ids
         #[command(subcommand)]
         List(List),
+        /// Read a single domain details
+        Get(Id),
         /// Register domain
         Register(Id),
         /// Unregister domain
@@ -479,11 +481,20 @@ mod domain {
             use self::Command::*;
             match self {
                 List(cmd) => cmd.run(context),
+                Get(args) => {
+                    let client = context.client_from_config();
+                    let entry = client
+                        .query(FindDomains)
+                        .filter_with(|entry| entry.id.eq(args.id))
+                        .execute_single()
+                        .wrap_err("Failed to get domain")?;
+                    context.print_data(&entry)
+                }
                 Register(args) => {
-                    let create_domain =
+                    let instruction =
                         iroha::data_model::isi::Register::domain(Domain::new(args.id));
                     context
-                        .finish([create_domain])
+                        .finish([instruction])
                         .wrap_err("Failed to register domain")
                 }
                 Unregister(args) => {
@@ -507,7 +518,7 @@ mod domain {
 
     #[derive(clap::Subcommand, Debug)]
     pub enum List {
-        /// All domains
+        /// List all domain ids
         All,
         /// Filter domains by given predicate
         Filter(filter::DomainFilter),
@@ -516,18 +527,13 @@ mod domain {
     impl Run for List {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
-
-            let query = client.query(FindDomains::new());
-
+            let query = client.query(FindDomains).select_with(|entry| entry.id);
             let query = match self {
                 List::All => query,
                 List::Filter(filter) => query.filter(filter.predicate),
             };
-
-            let result = query.execute_all().wrap_err("Failed to get all accounts")?;
-            context.print_data(&result)?;
-
-            Ok(())
+            let ids = query.execute_all()?;
+            context.print_data(&ids)
         }
     }
 
@@ -546,10 +552,9 @@ mod domain {
 
     impl Run for Transfer {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
-            let transfer_domain =
-                iroha::data_model::isi::Transfer::domain(self.from, self.id, self.to);
+            let instruction = iroha::data_model::isi::Transfer::domain(self.from, self.id, self.to);
             context
-                .finish([transfer_domain])
+                .finish([instruction])
                 .wrap_err("Failed to transfer domain")
         }
     }
@@ -753,9 +758,11 @@ mod account {
         /// Read/Write account permissions
         #[command(subcommand)]
         Permission(PermissionCommand),
-        /// List accounts
+        /// List account ids
         #[command(subcommand)]
         List(List),
+        /// Read a single account details
+        Get(Id),
         /// Register account
         Register(Id),
         /// Unregister account
@@ -772,6 +779,15 @@ mod account {
                 Role(cmd) => cmd.run(context),
                 Permission(cmd) => cmd.run(context),
                 List(cmd) => cmd.run(context),
+                Get(args) => {
+                    let client = context.client_from_config();
+                    let entry = client
+                        .query(FindAccounts)
+                        .filter_with(|entry| entry.id.eq(args.id))
+                        .execute_single()
+                        .wrap_err("Failed to get account")?;
+                    context.print_data(&entry)
+                }
                 Register(args) => {
                     let instruction =
                         iroha::data_model::isi::Register::account(Account::new(args.id));
@@ -792,7 +808,7 @@ mod account {
 
     #[derive(clap::Subcommand, Debug)]
     pub enum RoleCommand {
-        /// List account roles
+        /// List account role ids
         List(Id),
         /// Grant account role
         Grant(IdRole),
@@ -889,7 +905,7 @@ mod account {
 
     #[derive(clap::Subcommand, Debug)]
     pub enum List {
-        /// All accounts
+        /// List all account ids
         All,
         /// Filter accounts by given predicate
         Filter(filter::AccountFilter),
@@ -898,18 +914,13 @@ mod account {
     impl Run for List {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
-
-            let query = client.query(FindAccounts::new());
-
+            let query = client.query(FindAccounts).select_with(|entry| entry.id);
             let query = match self {
                 List::All => query,
                 List::Filter(filter) => query.filter(filter.predicate),
             };
-
-            let result = query.execute_all().wrap_err("Failed to get all accounts")?;
-            context.print_data(&result)?;
-
-            Ok(())
+            let ids = query.execute_all()?;
+            context.print_data(&ids)
         }
     }
 }
@@ -924,9 +935,9 @@ mod asset {
         /// Read/Write asset definitions
         #[command(subcommand)]
         Definition(definition::Command),
-        /// Read a single asset
+        /// Read a single asset details
         Get(Id),
-        /// List assets
+        /// List asset ids
         #[command(subcommand)]
         List(List),
         /// Increase an amount of asset
@@ -953,12 +964,12 @@ mod asset {
                 Definition(cmd) => cmd.run(context),
                 Get(args) => {
                     let client = context.client_from_config();
-                    let asset = client
-                        .query(FindAssets::new())
-                        .filter_with(|asset| asset.id.eq(args.id))
+                    let entry = client
+                        .query(FindAssets)
+                        .filter_with(|entry| entry.id.eq(args.id))
                         .execute_single()
-                        .wrap_err("Failed to get asset.")?;
-                    context.print_data(&asset)
+                        .wrap_err("Failed to get asset")?;
+                    context.print_data(&entry)
                 }
                 List(cmd) => cmd.run(context),
                 Mint(args) => {
@@ -1008,13 +1019,15 @@ mod asset {
 
         #[derive(clap::Subcommand, Debug)]
         pub enum Command {
-            /// List asset definitions
+            /// List asset definition ids
             #[command(subcommand)]
             List(List),
+            /// Read a single asset definition details
+            Get(Id),
             /// Register asset definition
             Register(Register),
             /// Unregister asset definition
-            Unregister(Unregister),
+            Unregister(Id),
             /// Read/Write metadata
             #[command(subcommand)]
             Meta(metadata::asset_definition::Command),
@@ -1023,10 +1036,36 @@ mod asset {
         impl Run for Command {
             fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
                 use self::Command::*;
-                match_all!(
-                    (self, context),
-                    { List, Register, Unregister, Meta }
-                )
+                match self {
+                    List(cmd) => cmd.run(context),
+                    Get(args) => {
+                        let client = context.client_from_config();
+                        let entry = client
+                            .query(FindAssetsDefinitions)
+                            .filter_with(|entry| entry.id.eq(args.id))
+                            .execute_single()
+                            .wrap_err("Failed to get asset definition")?;
+                        context.print_data(&entry)
+                    }
+                    Register(args) => {
+                        let mut entry = AssetDefinition::new(args.id, args.r#type);
+                        if args.unmintable {
+                            entry = entry.mintable_once();
+                        }
+                        let instruction = iroha::data_model::isi::Register::asset_definition(entry);
+                        context
+                            .finish([instruction])
+                            .wrap_err("Failed to register asset")
+                    }
+                    Unregister(args) => {
+                        let instruction =
+                            iroha::data_model::isi::Unregister::asset_definition(args.id);
+                        context
+                            .finish([instruction])
+                            .wrap_err("Failed to unregister asset")
+                    }
+                    Meta(cmd) => cmd.run(context),
+                }
             }
         }
 
@@ -1043,39 +1082,16 @@ mod asset {
             pub r#type: AssetType,
         }
 
-        impl Run for Register {
-            fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
-                let mut asset_definition = AssetDefinition::new(self.id, self.r#type);
-                if self.unmintable {
-                    asset_definition = asset_definition.mintable_once();
-                }
-                let instruction =
-                    iroha::data_model::isi::Register::asset_definition(asset_definition);
-                context
-                    .finish([instruction])
-                    .wrap_err("Failed to register asset")
-            }
-        }
-
         #[derive(clap::Args, Debug)]
-        pub struct Unregister {
+        pub struct Id {
             /// Asset definition in form "asset#domain"
             #[arg(short, long)]
             pub id: AssetDefinitionId,
         }
 
-        impl Run for Unregister {
-            fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
-                let instruction = iroha::data_model::isi::Unregister::asset_definition(self.id);
-                context
-                    .finish([instruction])
-                    .wrap_err("Failed to unregister asset")
-            }
-        }
-
         #[derive(clap::Subcommand, Debug)]
         pub enum List {
-            /// All asset definitions
+            /// List all asset definition ids
             All,
             /// Filter asset definitions by given predicate
             Filter(filter::AssetDefinitionFilter),
@@ -1084,20 +1100,15 @@ mod asset {
         impl Run for List {
             fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
                 let client = context.client_from_config();
-
-                let query = client.query(FindAssetsDefinitions::new());
-
+                let query = client
+                    .query(FindAssetsDefinitions)
+                    .select_with(|entry| entry.id);
                 let query = match self {
                     List::All => query,
                     List::Filter(filter) => query.filter(filter.predicate),
                 };
-
-                let result = query
-                    .execute_all()
-                    .wrap_err("Failed to get all asset definitions")?;
-
-                context.print_data(&result)?;
-                Ok(())
+                let ids = query.execute_all()?;
+                context.print_data(&ids)
             }
         }
     }
@@ -1144,7 +1155,7 @@ mod asset {
 
     #[derive(clap::Subcommand, Debug)]
     pub enum List {
-        /// All assets
+        /// List all asset ids
         All,
         /// Filter assets by given predicate
         Filter(filter::AssetFilter),
@@ -1153,18 +1164,13 @@ mod asset {
     impl Run for List {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
-
-            let query = client.query(FindAssets::new());
-
+            let query = client.query(FindAssets).select_with(|entry| entry.id);
             let query = match self {
                 List::All => query,
                 List::Filter(filter) => query.filter(filter.predicate),
             };
-
-            let result = query.execute_all().wrap_err("Failed to get all accounts")?;
-            context.print_data(&result)?;
-
-            Ok(())
+            let ids = query.execute_all()?;
+            context.print_data(&ids)
         }
     }
     #[derive(clap::Args, Debug)]
@@ -1183,7 +1189,7 @@ mod peer {
 
     #[derive(clap::Subcommand, Debug)]
     pub enum Command {
-        /// List peers in world state that are expected to connect with each other
+        /// List registered peers expected to connect with each other
         #[command(subcommand)]
         List(List),
         /// Register peer
@@ -1222,8 +1228,8 @@ mod peer {
     impl Run for List {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
-            let entities = client.query(FindPeers).execute_all()?;
-            context.print_data(&entities)
+            let entries = client.query(FindPeers).execute_all()?;
+            context.print_data(&entries)
         }
     }
 
@@ -1678,7 +1684,7 @@ mod transaction {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
             let transaction = client
-                .query(FindTransactions::new())
+                .query(FindTransactions)
                 .filter_with(|txn| txn.value.hash.eq(self.hash))
                 .execute_single()?;
             context.print_data(&transaction)
@@ -1698,8 +1704,8 @@ mod transaction {
 
     impl Run for Ping {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
-            let ping = Log::new(self.log_level, self.msg);
-            context.finish([ping])
+            let instruction = Log::new(self.log_level, self.msg);
+            context.finish([instruction])
         }
     }
 
@@ -1745,7 +1751,7 @@ mod role {
         /// Read/Write role permissions
         #[command(subcommand)]
         Permission(PermissionCommand),
-        /// List role names
+        /// List role ids
         #[command(subcommand)]
         List(List),
         /// Register role and grant it to you registrant
@@ -1833,15 +1839,15 @@ mod role {
 
     #[derive(clap::Subcommand, Debug)]
     pub enum List {
-        /// List all role names
+        /// List all role ids
         All,
     }
 
     impl Run for List {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
-            let names = client.query(FindRoleIds).execute_all()?;
-            context.print_data(&names)
+            let ids = client.query(FindRoleIds).execute_all()?;
+            context.print_data(&ids)
         }
     }
 }
@@ -1884,8 +1890,8 @@ mod parameter {
 
     impl Run for Set {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
-            let parameter: Parameter = parse_json5_stdin()?;
-            let instruction = SetParameter::new(parameter);
+            let entry: Parameter = parse_json5_stdin()?;
+            let instruction = SetParameter::new(entry);
             context.finish([instruction])
         }
     }
@@ -1896,15 +1902,16 @@ mod trigger {
 
     #[derive(clap::Subcommand, Debug)]
     pub enum Command {
-        /// List trigger names
+        /// List trigger ids
         #[command(subcommand)]
         List(List),
         /// Read a single trigger details
-        Get(Get),
+        // TODO For readability and reusability, trigger should hold a reference to a Wasm executable instead of the blob itself
+        Get(Id),
         /// Register trigger
         Register(Register),
         /// Unregister trigger
-        Unregister(Unregister),
+        Unregister(Id),
         /// Read/Write metadata
         #[command(subcommand)]
         Meta(metadata::trigger::Command),
@@ -1913,46 +1920,54 @@ mod trigger {
     impl Run for Command {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
-            match_all!((self, context), { List, Get, Register, Unregister, Meta })
+            match self {
+                List(cmd) => cmd.run(context),
+                Get(args) => {
+                    let client = context.client_from_config();
+                    let entry = client
+                        .query(FindTriggers)
+                        .filter_with(|entry| entry.id.eq(args.id))
+                        .execute_single()
+                        .wrap_err("Failed to get trigger")?;
+                    context.print_data(&entry)
+                }
+                Register(args) => args.run(context),
+                Unregister(args) => {
+                    let instruction = iroha::data_model::isi::Unregister::trigger(args.id);
+                    context
+                        .finish([instruction])
+                        .wrap_err("Failed to unregister trigger")
+                }
+                Meta(cmd) => cmd.run(context),
+            }
         }
     }
 
     #[derive(clap::Subcommand, Debug)]
     pub enum List {
-        /// List all active trigger names
+        /// List all trigger ids
         All,
     }
 
     impl Run for List {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             let client = context.client_from_config();
-            let entities = client.query(FindActiveTriggerIds).execute_all()?;
-            context.print_data(&entities)
+            let ids = client.query(FindActiveTriggerIds).execute_all()?;
+            context.print_data(&ids)
         }
     }
 
     #[derive(clap::Args, Debug)]
-    pub struct Get;
-
-    impl Run for Get {
-        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
-            unimplemented!("coming soon")
-        }
+    pub struct Id {
+        /// Trigger name as double-quoted string
+        #[arg(short, long)]
+        pub id: TriggerId,
     }
 
     #[derive(clap::Args, Debug)]
     pub struct Register;
 
     impl Run for Register {
-        fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
-            unimplemented!("coming soon")
-        }
-    }
-
-    #[derive(clap::Args, Debug)]
-    pub struct Unregister;
-
-    impl Run for Unregister {
         fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
             unimplemented!("coming soon")
         }
