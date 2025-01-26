@@ -560,191 +560,6 @@ mod domain {
     }
 }
 
-mod _metadata {
-    use iroha::data_model::domain::DomainId;
-
-    use super::*;
-
-    #[derive(clap::Subcommand, Debug)]
-    pub enum Command {
-        /// Set domain metadata, from JSON stdin
-        Set(Set),
-        /// Remove domain metadata
-        Remove(Remove),
-    }
-
-    impl Run for Command {
-        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
-            use self::Command::*;
-            match_all!((self, context), { Set, Remove })
-        }
-    }
-
-    #[derive(clap::Args, Debug)]
-    pub struct Set {
-        /// A domain id from which metadata is to be removed
-        #[arg(short, long)]
-        id: DomainId,
-        /// A key of metadata
-        #[arg(short, long)]
-        key: Name,
-    }
-
-    impl Run for Set {
-        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
-            let Self { id, key } = self;
-            let value: Json = parse_json5_stdin()?;
-            let set_key_value = SetKeyValue::domain(id, key, value);
-            context
-                .finish([set_key_value])
-                .wrap_err("Failed to submit Set instruction")
-        }
-    }
-
-    #[derive(clap::Args, Debug)]
-    pub struct Remove {
-        /// A domain id from which metadata is to be removed
-        #[arg(short, long)]
-        id: DomainId,
-        /// A key of metadata
-        #[arg(short, long)]
-        key: Name,
-    }
-
-    impl Run for Remove {
-        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
-            let Self { id, key } = self;
-            let remove_key_value = RemoveKeyValue::domain(id, key);
-            context
-                .finish([remove_key_value])
-                .wrap_err("Failed to submit Remove instruction")
-        }
-    }
-}
-
-mod metadata {
-    use super::*;
-
-    macro_rules! impl_metadata_command {
-        ($entity:ty, $query:expr, $constructor:ident) => {
-            use super::*;
-
-            #[derive(clap::Subcommand, Debug)]
-            pub enum Command {
-                /// Read a value from a key-value store
-                Get(IdKey),
-                /// Create or update an entry in a key-value store, with a value constructed from a JSON5 stdin
-                Set(IdKey),
-                /// Delete an entry from a key-value store
-                Remove(IdKey),
-            }
-
-            #[derive(clap::Args, Debug)]
-            pub struct IdKey {
-                #[arg(short, long)]
-                pub id: <$entity as Identifiable>::Id,
-                #[arg(short, long)]
-                pub key: Name,
-            }
-
-            impl Run for Command {
-                fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
-                    use self::Command::*;
-                    match self {
-                        Get(args) => {
-                            let client = context.client_from_config();
-                            let value = client
-                                .query($query)
-                                .filter_with(|entry| entry.id.eq(args.id))
-                                .select_with(|entry| entry.metadata.key(args.key))
-                                .execute_single()
-                                .wrap_err("Failed to get value")?;
-                            context.print_data(&value)
-                        }
-                        Set(args) => {
-                            let value: Json = parse_json5_stdin()?;
-                            let instruction = iroha::data_model::isi::SetKeyValue::$constructor(
-                                args.id, args.key, value,
-                            );
-                            context.finish([instruction])
-                        }
-                        Remove(args) => {
-                            let instruction = iroha::data_model::isi::RemoveKeyValue::$constructor(
-                                args.id, args.key,
-                            );
-                            context.finish([instruction])
-                        }
-                    }
-                }
-            }
-        };
-    }
-
-    pub mod domain {
-        impl_metadata_command!(Domain, FindDomains, domain);
-    }
-
-    pub mod account {
-        impl_metadata_command!(Account, FindAccounts, account);
-    }
-
-    pub mod asset_definition {
-        impl_metadata_command!(AssetDefinition, FindAssetsDefinitions, asset_definition);
-    }
-
-    // TODO apply macro after trigger.action.metadata is relocated to trigger.metadata
-    pub mod trigger {
-        use super::*;
-
-        #[derive(clap::Subcommand, Debug)]
-        pub enum Command {
-            /// Read a value from a key-value store
-            Get(IdKey),
-            /// Create or update an entry in a key-value store, with a value constructed from a JSON5 stdin
-            Set(IdKey),
-            /// Delete an entry from a key-value store
-            Remove(IdKey),
-        }
-
-        #[derive(clap::Args, Debug)]
-        pub struct IdKey {
-            #[arg(short, long)]
-            pub id: <Trigger as Identifiable>::Id,
-            #[arg(short, long)]
-            pub key: Name,
-        }
-
-        impl Run for Command {
-            fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
-                use self::Command::*;
-                match self {
-                    Get(args) => {
-                        let client = context.client_from_config();
-                        let value = client
-                            .query(FindTriggers)
-                            .filter_with(|entry| entry.id.eq(args.id))
-                            .select_with(|entry| entry.action.metadata.key(args.key))
-                            .execute_single()
-                            .wrap_err("Failed to get value")?;
-                        context.print_data(&value)
-                    }
-                    Set(args) => {
-                        let value: Json = parse_json5_stdin()?;
-                        let instruction =
-                            iroha::data_model::isi::SetKeyValue::trigger(args.id, args.key, value);
-                        context.finish([instruction])
-                    }
-                    Remove(args) => {
-                        let instruction =
-                            iroha::data_model::isi::RemoveKeyValue::trigger(args.id, args.key);
-                        context.finish([instruction])
-                    }
-                }
-            }
-        }
-    }
-}
-
 mod account {
     use std::fmt::Debug;
 
@@ -2000,6 +1815,124 @@ mod executor {
     impl Run for Upgrade {
         fn run<C: RunContext>(self, _context: &mut C) -> Result<()> {
             unimplemented!("coming soon")
+        }
+    }
+}
+
+mod metadata {
+    use super::*;
+
+    macro_rules! impl_metadata_command {
+        ($entity:ty, $query:expr, $constructor:ident) => {
+            pub mod $constructor {
+                use super::*;
+
+                #[derive(clap::Subcommand, Debug)]
+                pub enum Command {
+                    /// Read a value from a key-value store
+                    Get(IdKey),
+                    /// Create or update an entry in a key-value store, with a value constructed from a JSON5 stdin
+                    Set(IdKey),
+                    /// Delete an entry from a key-value store
+                    Remove(IdKey),
+                }
+
+                #[derive(clap::Args, Debug)]
+                pub struct IdKey {
+                    #[arg(short, long)]
+                    pub id: <$entity as Identifiable>::Id,
+                    #[arg(short, long)]
+                    pub key: Name,
+                }
+
+                impl Run for Command {
+                    fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
+                        use self::Command::*;
+                        match self {
+                            Get(args) => {
+                                let client = context.client_from_config();
+                                let value = client
+                                    .query($query)
+                                    .filter_with(|entry| entry.id.eq(args.id))
+                                    .select_with(|entry| entry.metadata.key(args.key))
+                                    .execute_single()
+                                    .wrap_err("Failed to get value")?;
+                                context.print_data(&value)
+                            }
+                            Set(args) => {
+                                let value: Json = parse_json5_stdin()?;
+                                let instruction = iroha::data_model::isi::SetKeyValue::$constructor(
+                                    args.id, args.key, value,
+                                );
+                                context.finish([instruction])
+                            }
+                            Remove(args) => {
+                                let instruction =
+                                    iroha::data_model::isi::RemoveKeyValue::$constructor(
+                                        args.id, args.key,
+                                    );
+                                context.finish([instruction])
+                            }
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    impl_metadata_command!(Domain, FindDomains, domain);
+    impl_metadata_command!(Account, FindAccounts, account);
+    impl_metadata_command!(AssetDefinition, FindAssetsDefinitions, asset_definition);
+
+    // TODO apply macro after trigger.action.metadata is relocated to trigger.metadata
+    pub mod trigger {
+        use super::*;
+
+        #[derive(clap::Subcommand, Debug)]
+        pub enum Command {
+            /// Read a value from a key-value store
+            Get(IdKey),
+            /// Create or update an entry in a key-value store, with a value constructed from a JSON5 stdin
+            Set(IdKey),
+            /// Delete an entry from a key-value store
+            Remove(IdKey),
+        }
+
+        #[derive(clap::Args, Debug)]
+        pub struct IdKey {
+            #[arg(short, long)]
+            pub id: <Trigger as Identifiable>::Id,
+            #[arg(short, long)]
+            pub key: Name,
+        }
+
+        impl Run for Command {
+            fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
+                use self::Command::*;
+                match self {
+                    Get(args) => {
+                        let client = context.client_from_config();
+                        let value = client
+                            .query(FindTriggers)
+                            .filter_with(|entry| entry.id.eq(args.id))
+                            .select_with(|entry| entry.action.metadata.key(args.key))
+                            .execute_single()
+                            .wrap_err("Failed to get value")?;
+                        context.print_data(&value)
+                    }
+                    Set(args) => {
+                        let value: Json = parse_json5_stdin()?;
+                        let instruction =
+                            iroha::data_model::isi::SetKeyValue::trigger(args.id, args.key, value);
+                        context.finish([instruction])
+                    }
+                    Remove(args) => {
+                        let instruction =
+                            iroha::data_model::isi::RemoveKeyValue::trigger(args.id, args.key);
+                        context.finish([instruction])
+                    }
+                }
+            }
         }
     }
 }
