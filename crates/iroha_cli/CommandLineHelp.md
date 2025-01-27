@@ -44,6 +44,7 @@ This document contains the help content for the `iroha` command-line program.
 * [`iroha asset definition get`↴](#iroha-asset-definition-get)
 * [`iroha asset definition register`↴](#iroha-asset-definition-register)
 * [`iroha asset definition unregister`↴](#iroha-asset-definition-unregister)
+* [`iroha asset definition transfer`↴](#iroha-asset-definition-transfer)
 * [`iroha asset definition meta`↴](#iroha-asset-definition-meta)
 * [`iroha asset definition meta get`↴](#iroha-asset-definition-meta-get)
 * [`iroha asset definition meta set`↴](#iroha-asset-definition-meta-set)
@@ -55,6 +56,7 @@ This document contains the help content for the `iroha` command-line program.
 * [`iroha asset mint`↴](#iroha-asset-mint)
 * [`iroha asset burn`↴](#iroha-asset-burn)
 * [`iroha asset transfer`↴](#iroha-asset-transfer)
+* [`iroha asset transferkvs`↴](#iroha-asset-transferkvs)
 * [`iroha asset getkv`↴](#iroha-asset-getkv)
 * [`iroha asset setkv`↴](#iroha-asset-setkv)
 * [`iroha asset removekv`↴](#iroha-asset-removekv)
@@ -555,6 +557,7 @@ Read/Write assets
 * `mint` — Increase an amount of asset
 * `burn` — Decrease an amount of asset
 * `transfer` — Transfer an amount of asset between accounts
+* `transferkvs` — Transfer a key-value store between accounts
 * `getkv` — Read a value from a key-value store
 * `setkv` — Create or update an entry in a key-value store, with a value constructed from a JSON5 stdin
 * `removekv` — Delete an entry from a key-value store
@@ -573,6 +576,7 @@ Read/Write asset definitions
 * `get` — Read a single asset definition details
 * `register` — Register asset definition
 * `unregister` — Unregister asset definition
+* `transfer` — Transfer asset definition
 * `meta` — Read/Write metadata
 
 
@@ -645,6 +649,20 @@ Unregister asset definition
 ###### **Options:**
 
 * `-i`, `--id <ID>` — Asset definition in form "asset#domain"
+
+
+
+## `iroha asset definition transfer`
+
+Transfer asset definition
+
+**Usage:** `iroha asset definition transfer --id <ID> --from <FROM> --to <TO>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>` — Asset definition in form "asset#domain"
+* `-f`, `--from <FROM>` — Account from which to transfer, in form "multihash@domain"
+* `-t`, `--to <TO>` — Account to which to transfer, in form "multihash@domain"
 
 
 
@@ -755,7 +773,7 @@ Increase an amount of asset
 ###### **Options:**
 
 * `-i`, `--id <ID>` — Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
-* `-q`, `--quantity <QUANTITY>` — Quantity to mint
+* `-q`, `--quantity <QUANTITY>` — Amount in an integer or decimal
 
 
 
@@ -768,7 +786,7 @@ Decrease an amount of asset
 ###### **Options:**
 
 * `-i`, `--id <ID>` — Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
-* `-q`, `--quantity <QUANTITY>` — Quantity to mint
+* `-q`, `--quantity <QUANTITY>` — Amount in an integer or decimal
 
 
 
@@ -782,7 +800,20 @@ Transfer an amount of asset between accounts
 
 * `-i`, `--id <ID>` — Asset to transfer, in form "asset##account@domain" or "asset#another_domain#account@domain"
 * `-t`, `--to <TO>` — Account to which to transfer, in form "multihash@domain"
-* `-q`, `--quantity <QUANTITY>` — How much to transfer, in an integer or decimal
+* `-q`, `--quantity <QUANTITY>` — Amount to transfer, in an integer or decimal
+
+
+
+## `iroha asset transferkvs`
+
+Transfer a key-value store between accounts
+
+**Usage:** `iroha asset transferkvs --id <ID> --to <TO>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>` — Asset to transfer, in form "asset##account@domain" or "asset#another_domain#account@domain"
+* `-t`, `--to <TO>` — Account to which to transfer, in form "multihash@domain"
 
 
 

@@ -504,10 +504,29 @@ mod domain {
                         .finish([instruction])
                         .wrap_err("Failed to unregister domain")
                 }
-                Transfer(args) => args.run(context),
+                Transfer(args) => {
+                    let instruction =
+                        iroha::data_model::isi::Transfer::domain(args.from, args.id, args.to);
+                    context
+                        .finish([instruction])
+                        .wrap_err("Failed to transfer domain")
+                }
                 Meta(cmd) => cmd.run(context),
             }
         }
+    }
+
+    #[derive(clap::Args, Debug)]
+    pub struct Transfer {
+        /// Domain name as double-quoted string
+        #[arg(short, long)]
+        pub id: DomainId,
+        /// Account from which to transfer, in form "multihash@domain"
+        #[arg(short, long)]
+        pub from: AccountId,
+        /// Account to which to transfer, in form "multihash@domain"
+        #[arg(short, long)]
+        pub to: AccountId,
     }
 
     #[derive(clap::Args, Debug)]
@@ -535,28 +554,6 @@ mod domain {
             };
             let ids = query.execute_all()?;
             context.print_data(&ids)
-        }
-    }
-
-    #[derive(clap::Args, Debug)]
-    pub struct Transfer {
-        /// Domain name as double-quoted string
-        #[arg(short, long)]
-        pub id: DomainId,
-        /// Account from which to transfer, in form "multihash@domain"
-        #[arg(short, long)]
-        pub from: AccountId,
-        /// Account to which to transfer, in form "multihash@domain"
-        #[arg(short, long)]
-        pub to: AccountId,
-    }
-
-    impl Run for Transfer {
-        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
-            let instruction = iroha::data_model::isi::Transfer::domain(self.from, self.id, self.to);
-            context
-                .finish([instruction])
-                .wrap_err("Failed to transfer domain")
         }
     }
 }
@@ -761,7 +758,11 @@ mod asset {
         /// Decrease an amount of asset
         Burn(IdQuantity),
         /// Transfer an amount of asset between accounts
-        Transfer(Transfer),
+        #[command(name = "transfer")]
+        TransferNumeric(TransferNumeric),
+        /// Transfer a key-value store between accounts
+        #[command(name = "transferkvs")]
+        TransferStore(TransferStore),
         /// Read a value from a key-value store
         #[command(name = "getkv")]
         GetKeyValue(IdKey),
@@ -802,7 +803,23 @@ mod asset {
                         .finish([instruction])
                         .wrap_err("Failed to burn numeric asset")
                 }
-                Transfer(args) => args.run(context),
+                TransferNumeric(args) => {
+                    let instruction = iroha::data_model::isi::Transfer::asset_numeric(
+                        args.id,
+                        args.quantity,
+                        args.to,
+                    );
+                    context
+                        .finish([instruction])
+                        .wrap_err("Failed to transfer numeric asset")
+                }
+                TransferStore(args) => {
+                    let instruction =
+                        iroha::data_model::isi::Transfer::asset_store(args.id, args.to);
+                    context
+                        .finish([instruction])
+                        .wrap_err("Failed to transfer key-value store")
+                }
                 GetKeyValue(args) => {
                     let client = context.client_from_config();
                     let value = client
@@ -844,6 +861,8 @@ mod asset {
             Register(Register),
             /// Unregister asset definition
             Unregister(Id),
+            /// Transfer asset definition
+            Transfer(Transfer),
             /// Read/Write metadata
             #[command(subcommand)]
             Meta(metadata::asset_definition::Command),
@@ -880,6 +899,14 @@ mod asset {
                             .finish([instruction])
                             .wrap_err("Failed to unregister asset")
                     }
+                    Transfer(args) => {
+                        let instruction = iroha::data_model::isi::Transfer::asset_definition(
+                            args.from, args.id, args.to,
+                        );
+                        context
+                            .finish([instruction])
+                            .wrap_err("Failed to transfer asset definition")
+                    }
                     Meta(cmd) => cmd.run(context),
                 }
             }
@@ -896,6 +923,19 @@ mod asset {
             /// Value type stored in asset
             #[arg(short, long)]
             pub r#type: AssetType,
+        }
+
+        #[derive(clap::Args, Debug)]
+        pub struct Transfer {
+            /// Asset definition in form "asset#domain"
+            #[arg(short, long)]
+            pub id: AssetDefinitionId,
+            /// Account from which to transfer, in form "multihash@domain"
+            #[arg(short, long)]
+            pub from: AccountId,
+            /// Account to which to transfer, in form "multihash@domain"
+            #[arg(short, long)]
+            pub to: AccountId,
         }
 
         #[derive(clap::Args, Debug)]
@@ -930,36 +970,26 @@ mod asset {
     }
 
     #[derive(clap::Args, Debug)]
-    pub struct IdQuantity {
-        /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
-        #[arg(short, long)]
-        pub id: AssetId,
-        /// Quantity to mint
-        #[arg(short, long)]
-        pub quantity: Numeric,
-    }
-
-    #[derive(clap::Args, Debug)]
-    pub struct Transfer {
+    pub struct TransferNumeric {
         /// Asset to transfer, in form "asset##account@domain" or "asset#another_domain#account@domain"
         #[arg(short, long)]
         pub id: AssetId,
         /// Account to which to transfer, in form "multihash@domain"
         #[arg(short, long)]
         pub to: AccountId,
-        /// How much to transfer, in an integer or decimal
+        /// Amount to transfer, in an integer or decimal
         #[arg(short, long)]
         pub quantity: Numeric,
     }
 
-    impl Run for Transfer {
-        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
-            let instruction =
-                iroha::data_model::isi::Transfer::asset_numeric(self.id, self.quantity, self.to);
-            context
-                .finish([instruction])
-                .wrap_err("Failed to transfer numeric asset")
-        }
+    #[derive(clap::Args, Debug)]
+    pub struct TransferStore {
+        /// Asset to transfer, in form "asset##account@domain" or "asset#another_domain#account@domain"
+        #[arg(short, long)]
+        pub id: AssetId,
+        /// Account to which to transfer, in form "multihash@domain"
+        #[arg(short, long)]
+        pub to: AccountId,
     }
 
     #[derive(clap::Args, Debug)]
@@ -967,6 +997,26 @@ mod asset {
         /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
         #[arg(short, long)]
         pub id: AssetId,
+    }
+
+    #[derive(clap::Args, Debug)]
+    pub struct IdQuantity {
+        /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
+        #[arg(short, long)]
+        pub id: AssetId,
+        /// Amount in an integer or decimal
+        #[arg(short, long)]
+        pub quantity: Numeric,
+    }
+
+    #[derive(clap::Args, Debug)]
+    pub struct IdKey {
+        /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
+        #[arg(short, long)]
+        pub id: AssetId,
+        /// Key for the value
+        #[arg(short, long)]
+        pub key: Name,
     }
 
     #[derive(clap::Subcommand, Debug)]
@@ -988,15 +1038,6 @@ mod asset {
             let ids = query.execute_all()?;
             context.print_data(&ids)
         }
-    }
-    #[derive(clap::Args, Debug)]
-    pub struct IdKey {
-        /// Asset in form "asset##account@domain" or "asset#another_domain#account@domain"
-        #[arg(short, long)]
-        pub id: AssetId,
-        /// Key for the value
-        #[arg(short, long)]
-        pub key: Name,
     }
 }
 
