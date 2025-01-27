@@ -155,7 +155,7 @@
         "AssetDefinition": {
           "object": "rose#wonderland",
           "key": "airdrop",
-          "value": 100.0
+          "value": 100
         }
       }
     },
