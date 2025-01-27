@@ -15,12 +15,11 @@ const AIRDROP_KEY: &str = "airdrop";
 
 #[iroha_trigger::main]
 fn main(host: Iroha, context: Context) {
-    // let EventBox::Data(DataEvent::Domain(DomainEvent::Account(AccountEvent::Created(account)))) =
-    //     context.event
-    // else {
-    //     dbg_panic!("only account-created events should pass");
-    // };
-    let account = Account::new("ed0120CE7FA46C9DCE7EA4B125E2E36BDB63EA33073E7590AC92816AE1E861B7048B03@wonderland".parse().unwrap());
+    let EventBox::Data(DataEvent::Domain(DomainEvent::Account(AccountEvent::Created(account)))) =
+        context.event
+    else {
+        dbg_panic!("only account-created events should pass");
+    };
     let asset_defs_unfiltered = host
         .query(FindAssetsDefinitions)
         .execute_all()

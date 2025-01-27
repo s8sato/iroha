@@ -121,7 +121,6 @@ trait RunContext {
     /// # Errors
     ///
     /// Fails if submitting over network fails
-    #[expect(clippy::shadow_unrelated)]
     fn _submit(&mut self, instructions: impl Into<Executable>) -> Result<()> {
         let client = self.client_from_config();
         let transaction = client.build_transaction(

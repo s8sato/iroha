@@ -82,10 +82,8 @@ fn airdrop_on_account_registration() -> Result<()> {
 
     test_client.submit_blocking(Log::new(Level::DEBUG, "Just ticking time".to_string()))?;
 
-    let init_roses = super::get_asset_value(
-        &test_client,
-        format!("rose##{}", account_id).parse().unwrap(),
-    );
+    let init_roses =
+        super::get_asset_value(&test_client, format!("rose##{account_id}").parse().unwrap());
     assert_eq!(init_roses, DEFAULT_AIRDROP.into());
 
     Ok(())
