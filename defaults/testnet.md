@@ -6,112 +6,103 @@
 [transactions]: https://hyperledger-iroha.github.io/iroha-2-docs/blockchain/transactions.html#transactions
 [query]: https://hyperledger-iroha.github.io/iroha-2-docs/reference/glossary.html#iroha-query
 
-<!-- TODO abstract -->
+This guide explains how to launch your own [peer] and operate your [account].
 
-## Generate your key pair and declare the public half
+## Generate Your Key Pair and Declare the Public Key
 
-Run the utility tool on the docker image and get an unique key pair:
+To generate a unique key pair, run the utility tool in the Docker image:
 
 ```bash
 docker pull hyperledger/iroha:testnet-2.0.0-rc.1
 docker run hyperledger/iroha:testnet-2.0.0-rc.1 kagami crypto
 ```
 
-Example result:
+__Example output:__
 
 ```log
 Public key (multihash): "ed0120CAA7C95F78150097932C3E1C62B89D73007C5F30D5907DD0FBE7EA09AF6658E2"
 Private key (multihash): "8026205F4FD09D9F9C390B9E3B0DB7CFA3E8B8D567707227E549519CC0C170D87447B9"
 ```
 
-Share the PUBLIC key with the administrator to register your [peer] and [account], and make sure to keep the PRIVATE key secret.
+Share your __public key__ with the administrator to register your [peer] and [account], and ensure your __private key__ is kept confidential.
 
-### Notes
+__Notes:__
 
-* We use the same key pair for peer and account for convenience in testnet, but in general these key pairs are different
-* Account is planned to be registration-free
+* For testnet purposes, the same key pair is used for both the peer and account. In production environments, separate key pairs are recommended.
+* Account registration is planned to be automatic in future releases.
 
-## Launch your own peer
+## Launch Your Own Peer
 
-### Ensure static IP address
+### 1. Ensure a Static IP Address
 
-Verify that you have a white static IP address assigned to your machine or server. Usually in cloud provided by default.
+Confirm that your machine or server is assigned a static, publicly accessible IP address. Most cloud providers enable this by default.
 
-### Configure port access
+### 2. Configure Port Access
 
-Open port `1337` on your firewall or add a corresponding rule in your cloud provider's security group settings to allow inbound traffic.
+Ensure that port `1337` is open on your firewall, or add the necessary rules in your cloud provider’s security group settings to allow inbound traffic.
 
-### Update docker compose configuration
+### 3. Update Docker Compose Configuration
 
-Edit [docker-compose.volunteer.yml](./docker-compose.volunteer.yml) as follows:
+Edit the `docker-compose.volunteer.yml` file as follows:
 
 ```yml
-# for the attached client
+# For the attached client
 ACCOUNT_PUBLIC_KEY: <your_public_key>
 ACCOUNT_PRIVATE_KEY: <your_private_key>
-# for the peer
+# For the peer
 PUBLIC_KEY: <your_public_key>
 PRIVATE_KEY: <your_private_key>
 P2P_PUBLIC_ADDRESS: <your_advertised_host>:1337
 ```
 
-### Start the docker container
+### 4. Start the Docker Container
 
-Launch your Iroha peer by running the container:
+Run the following command to launch your peer:
 
 ```bash
 docker compose -f docker-compose.volunteer.yml up -d
 ```
 
-### Check peer status
+### 5. Check Peer Status
 
-Once your peer is registered, verify its status by running one of the following commands:
+Once your peer is registered, verify its status using one of these commands:
 
 ```bash
 curl <your_host>:8080/status
 curl <your_host>:8080/peers
 ```
 
-* If peers are empty, it means your peer hasn't yet been registered or there're some network errors
+__Note:__ If the peer list is empty, your peer may not be registered, or there might be network issues.
 
-## Make [transactions] via your peer
+## Perform [Transactions] via Your Peer
 
-### Send and inspect a mock transaction
+### 1. Send and Inspect a Mock Transaction
 
-Attach a shell to the running container and run a transaction lister:
+To listen for incoming transactions, attach a shell to the running container and run:
 
-```docker
+```bash
 cd /config
-iroha events transaction-pipeline
+iroha events transaction
 ```
 
-Attach another shell to the running container and send a mock transaction:
+In another shell, send a mock transaction:
 
-```docker
+```bash
 cd /config
 iroha transaction ping --msg "This is an extraordinary mock transaction"
 ```
 
-Example result:
+__Example output:__
 
 ```json
 "23EC79207A5573333057A4836533A72ED015AADE4DABC00CA8676120C919DE67"
 ```
 
-* If it claims the account is not found, your account may not be registered yet
+__Note:__ If the account is not found, your account may not be registered.
 
-Make sure that the transaction listener reports the transaction approval with the same hash:
+If the transaction listener is running, you should see a report of the transaction being approved:
 
 ```json
-{
-  "Pipeline": {
-    "Transaction": {
-      "hash": "23EC79207A5573333057A4836533A72ED015AADE4DABC00CA8676120C919DE67",
-      "block_height": null,
-      "status": "Queued"
-    }
-  }
-}
 {
   "Pipeline": {
     "Transaction": {
@@ -123,14 +114,16 @@ Make sure that the transaction listener reports the transaction approval with th
 }
 ```
 
-[Query] the transaction details:
+### 2. Query Transaction Details
 
-```docker
+Retrieve details of a specific transaction using its hash:
+
+```bash
 cd /config
 iroha transaction get --hash "23EC79207A5573333057A4836533A72ED015AADE4DABC00CA8676120C919DE67"
 ```
 
-Example result:
+__Example result:__
 
 ```json
 {
@@ -138,41 +131,25 @@ Example result:
   "value": {
     "version": "1",
     "content": {
-      "signature": "E715AA09A0D41A05264C05EDF0954C9E3E1E5D15AF65E15DC8288FA2954E2F2FC7AF83A2A2C1684F0E23B86CD3AEEC72CDFE787AFDB8C15AB892BD84AA073F07",
-      "payload": {
-        "chain": "00000000-0000-0000-0000-000000000000",
-        "authority": "ed0120CE7FA46C9DCE7EA4B125E2E36BDB63EA33073E7590AC92816AE1E861B7048B03@wonderland",
-        "creation_time_ms": 1737758809325,
-        "instructions": {
-          "Instructions": [
-            {
-              "Log": {
-                "level": "INFO",
-                "msg": "This is an extraordinary mock transaction"
-              }
-            }
-          ]
-        },
-        "time_to_live_ms": 100000,
-        "nonce": null,
-        "metadata": {}
-      }
+      ...
+      "msg": "This is an extraordinary mock transaction"
+      ...
     }
   },
   "error": null
 }
 ```
 
-### Transfer [assets]
+### 3. Transfer [Assets]
 
-You should have 100 roses as an airdrop. Query to check it:
+By default, your account should have 100 roses as an airdrop. Verify this with the following query:
 
-```docker
+```bash
 cd /config
 iroha asset get --id "rose##<your_public_key>@wonderland"
 ```
 
-Example result:
+__Example result:__
 
 ```json
 {
@@ -183,23 +160,23 @@ Example result:
 }
 ```
 
-Transfer some roses to your friend and check that your roses are decreased:
+To transfer some roses to a friend, use the following command and confirm the balance update:
 
-```docker
+```bash
 cd /config
-iroha asset transfer --id "rose##<your_public_key>@wonderland" --to "<friend_public_key>@wonderland" --quantity 5
+iroha asset transfer --id "rose##<your_public_key>@wonderland" --to "<friend_public_key>@wonderland" --quantity 0.4
 iroha asset get --id "rose##<your_public_key>@wonderland"
 ```
 
-Example result:
+__Example result:__
 
 ```json
 {
   "id": "rose##ed0120CE7FA46C9DCE7EA4B125E2E36BDB63EA33073E7590AC92816AE1E861B7048B03@wonderland",
   "value": {
-    "Numeric": "95"
+    "Numeric": "99.6"
   }
 }
 ```
 
-<!-- iroha asset list filter '{"Atom": {"Id": {"Account": {"Signatory": {"Atom": {"Equals": "<your_public_key>"}}}}}}' -->
+For further information, consult the [Command-Line Help](../crates/iroha_cli/CommandLineHelp.md).
