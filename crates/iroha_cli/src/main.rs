@@ -31,15 +31,20 @@ struct Args {
     /// Path to a JSON5 file for attaching transaction metadata (optional)
     #[arg(short, long, value_name("PATH"))]
     metadata: Option<PathBuf>,
-    /// Accumulate instructions into a single transaction.
-    ///
-    /// If specified, loads instructions from stdin, appends new ones, and outputs them to stdout.
+    /// Reads instructions from stdin and appends new ones.
     ///
     /// Example usage:
     ///
-    /// `echo "[]" | iroha -a domain register -i "domain" | iroha -a asset definition register -i "asset#domain" -t Numeric | iroha transaction stdin`
+    /// `echo "[]" | iroha -io domain register --id "domain" | iroha -i asset definition register --id "asset#domain" -t Numeric`
     #[arg(short, long)]
-    accumulate: bool,
+    input: bool,
+    /// Outputs instructions to stdout without submitting them.
+    ///
+    /// Example usage:
+    ///
+    /// `iroha -o domain register --id "domain" | iroha -io asset definition register --id "asset#domain" -t Numeric | iroha transaction stdin`
+    #[arg(short, long)]
+    output: bool,
     /// Commands
     #[command(subcommand)]
     command: Command,
@@ -96,7 +101,9 @@ trait RunContext {
 
     fn transaction_metadata(&self) -> Option<&Metadata>;
 
-    fn accumulate_instructions(&self) -> bool;
+    fn input_instructions(&self) -> bool;
+
+    fn output_instructions(&self) -> bool;
 
     fn print_data(&mut self, data: &dyn Serialize) -> Result<()>;
 
@@ -108,16 +115,27 @@ trait RunContext {
 
     /// Submit instructions or dump them to stdout depending on the flag
     fn finish(&mut self, instructions: impl Into<Executable>) -> Result<()> {
-        if !self.accumulate_instructions() {
-            return self._submit(instructions);
-        }
-        let instructions = match instructions.into() {
-            Executable::Wasm(wasm) => return self._submit(wasm),
-            Executable::Instructions(instructions) => instructions,
+        let mut instructions = match instructions.into() {
+            Executable::Wasm(wasm) => {
+                if self.input_instructions() || self.output_instructions() {
+                    eyre::bail!(
+                        "Incompatible `iroha transaction wasm` with `--input` `--output` flags"
+                    )
+                }
+                return self._submit(wasm);
+            }
+            Executable::Instructions(instructions) => instructions.into_vec(),
         };
-        let mut acc: Vec<InstructionBox> = parse_json5_stdin()?;
-        acc.append(&mut instructions.into_vec());
-        dump_json5_stdout(&acc)
+        if self.input_instructions() {
+            let mut acc: Vec<InstructionBox> = parse_json5_stdin()?;
+            acc.append(&mut instructions);
+            instructions = acc;
+        }
+        if self.output_instructions() {
+            dump_json5_stdout(&instructions)
+        } else {
+            self._submit(instructions)
+        }
     }
 
     /// Combine instructions into a single transaction and submit it
@@ -154,7 +172,8 @@ struct PrintJsonContext<W> {
     write: W,
     config: Config,
     transaction_metadata: Option<Metadata>,
-    accumulate_instructions: bool,
+    input_instructions: bool,
+    output_instructions: bool,
 }
 
 impl<W: std::io::Write> RunContext for PrintJsonContext<W> {
@@ -166,8 +185,12 @@ impl<W: std::io::Write> RunContext for PrintJsonContext<W> {
         self.transaction_metadata.as_ref()
     }
 
-    fn accumulate_instructions(&self) -> bool {
-        self.accumulate_instructions
+    fn input_instructions(&self) -> bool {
+        self.input_instructions
+    }
+
+    fn output_instructions(&self) -> bool {
+        self.output_instructions
     }
 
     /// Serialize and print data
@@ -260,7 +283,8 @@ fn main() -> error_stack::Result<(), MainError> {
         write: io::stdout(),
         config,
         transaction_metadata: None,
-        accumulate_instructions: args.accumulate,
+        input_instructions: args.input,
+        output_instructions: args.output,
     };
     if let Some(path) = args.metadata {
         let str = fs::read_to_string(&path)

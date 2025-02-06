@@ -144,13 +144,16 @@ Iroha Client CLI provides a simple way to interact with the Iroha Web API
   Default value: `client.toml`
 * `-v`, `--verbose` — Print configuration details to stderr
 * `-m`, `--metadata <PATH>` — Path to a JSON5 file for attaching transaction metadata (optional)
-* `-a`, `--accumulate` — Accumulate instructions into a single transaction.
-
-   If specified, loads instructions from stdin, appends new ones, and outputs them to stdout.
+* `-i`, `--input` — Reads instructions from stdin and appends new ones.
 
    Example usage:
 
-   `echo "[]" | iroha -a domain register -i "domain" | iroha -a asset definition register -i "asset#domain" -t Numeric | iroha transaction stdin`
+   `echo "[]" | iroha -io domain register --id "domain" | iroha -i asset definition register --id "asset#domain" -t Numeric`
+* `-o`, `--output` — Outputs instructions to stdout without submitting them.
+
+   Example usage:
+
+   `iroha -o domain register --id "domain" | iroha -io asset definition register --id "asset#domain" -t Numeric | iroha transaction stdin`
 
 
 
