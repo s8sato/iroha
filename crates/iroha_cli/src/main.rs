@@ -1728,6 +1728,10 @@ mod trigger {
         Register(Register),
         /// Unregister trigger
         Unregister(Id),
+        /// Increase the number of trigger repetitions
+        Mint(IdInt),
+        /// Decrease the number of trigger repetitions
+        Burn(IdInt),
         /// Read/Write metadata
         #[command(subcommand)]
         Meta(metadata::trigger::Command),
@@ -1754,6 +1758,24 @@ mod trigger {
                         .finish([instruction])
                         .wrap_err("Failed to unregister trigger")
                 }
+                Mint(args) => {
+                    let instruction = iroha::data_model::isi::Mint::trigger_repetitions(
+                        args.repetitions,
+                        args.id,
+                    );
+                    context
+                        .finish([instruction])
+                        .wrap_err("Failed to mint trigger repetitions")
+                }
+                Burn(args) => {
+                    let instruction = iroha::data_model::isi::Burn::trigger_repetitions(
+                        args.repetitions,
+                        args.id,
+                    );
+                    context
+                        .finish([instruction])
+                        .wrap_err("Failed to burn trigger repetitions")
+                }
                 Meta(cmd) => cmd.run(context),
             }
         }
@@ -1778,6 +1800,16 @@ mod trigger {
         /// Trigger name as double-quoted string
         #[arg(short, long)]
         pub id: TriggerId,
+    }
+
+    #[derive(clap::Args, Debug)]
+    pub struct IdInt {
+        /// Trigger name as double-quoted string
+        #[arg(short, long)]
+        pub id: TriggerId,
+        /// Amount of change in number of repetitions
+        #[arg(short, long)]
+        pub repetitions: u32,
     }
 
     #[derive(clap::Args, Debug)]

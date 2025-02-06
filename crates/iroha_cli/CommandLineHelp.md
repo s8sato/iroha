@@ -104,6 +104,8 @@ This document contains the help content for the `iroha` command-line program.
 * [`iroha trigger get`↴](#iroha-trigger-get)
 * [`iroha trigger register`↴](#iroha-trigger-register)
 * [`iroha trigger unregister`↴](#iroha-trigger-unregister)
+* [`iroha trigger mint`↴](#iroha-trigger-mint)
+* [`iroha trigger burn`↴](#iroha-trigger-burn)
 * [`iroha trigger meta`↴](#iroha-trigger-meta)
 * [`iroha trigger meta get`↴](#iroha-trigger-meta-get)
 * [`iroha trigger meta set`↴](#iroha-trigger-meta-set)
@@ -1329,6 +1331,8 @@ TODO Read/Write triggers
 * `get` — Read a single trigger details
 * `register` — TODO Register trigger
 * `unregister` — Unregister trigger
+* `mint` — Increase the number of trigger repetitions
+* `burn` — Decrease the number of trigger repetitions
 * `meta` — Read/Write metadata
 
 
@@ -1382,6 +1386,32 @@ Unregister trigger
 ###### **Options:**
 
 * `-i`, `--id <ID>` — Trigger name as double-quoted string
+
+
+
+## `iroha trigger mint`
+
+Increase the number of trigger repetitions
+
+**Usage:** `iroha trigger mint --id <ID> --repetitions <REPETITIONS>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>` — Trigger name as double-quoted string
+* `-r`, `--repetitions <REPETITIONS>` — Amount of change in number of repetitions
+
+
+
+## `iroha trigger burn`
+
+Decrease the number of trigger repetitions
+
+**Usage:** `iroha trigger burn --id <ID> --repetitions <REPETITIONS>`
+
+###### **Options:**
+
+* `-i`, `--id <ID>` — Trigger name as double-quoted string
+* `-r`, `--repetitions <REPETITIONS>` — Amount of change in number of repetitions
 
 
 
