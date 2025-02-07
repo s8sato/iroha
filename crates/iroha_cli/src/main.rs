@@ -88,7 +88,7 @@ enum Command {
     /// Read and write triggers
     #[command(subcommand)]
     Trigger(trigger::Command),
-    /// Update the executor
+    /// Read and write the executor
     #[command(subcommand)]
     Executor(executor::Command),
     /// Output CLI documentation in Markdown format
@@ -1854,6 +1854,8 @@ mod executor {
 
     #[derive(clap::Subcommand, Debug)]
     pub enum Command {
+        /// Retrieve the executor data model
+        DataModel,
         /// Upgrade the executor
         Upgrade(Upgrade),
     }
@@ -1861,7 +1863,21 @@ mod executor {
     impl Run for Command {
         fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
             use self::Command::*;
-            match_all!((self, context), { Upgrade })
+            match self {
+                DataModel => {
+                    let client = context.client_from_config();
+                    let model = client.query_single(FindExecutorDataModel)?;
+                    context.print_data(&model)
+                }
+                Upgrade(args) => {
+                    let instruction = fs::read(args.path)
+                        .map(WasmSmartContract::from_compiled)
+                        .map(Executor::new)
+                        .map(iroha::data_model::isi::Upgrade::new)
+                        .wrap_err("Failed to read a Wasm from the file")?;
+                    context.finish([instruction])
+                }
+            }
         }
     }
 
@@ -1870,17 +1886,6 @@ mod executor {
         /// Path to the compiled Wasm file
         #[arg(short, long)]
         path: PathBuf,
-    }
-
-    impl Run for Upgrade {
-        fn run<C: RunContext>(self, context: &mut C) -> Result<()> {
-            let instruction = fs::read(self.path)
-                .map(WasmSmartContract::from_compiled)
-                .map(Executor::new)
-                .map(iroha::data_model::isi::Upgrade::new)
-                .wrap_err("Failed to read a Wasm from the file")?;
-            context.finish([instruction])
-        }
     }
 }
 

@@ -111,6 +111,7 @@ This document contains the help content for the `iroha` command-line program.
 * [`iroha trigger meta set`↴](#iroha-trigger-meta-set)
 * [`iroha trigger meta remove`↴](#iroha-trigger-meta-remove)
 * [`iroha executor`↴](#iroha-executor)
+* [`iroha executor data-model`↴](#iroha-executor-data-model)
 * [`iroha executor upgrade`↴](#iroha-executor-upgrade)
 * [`iroha markdown-help`↴](#iroha-markdown-help)
 
@@ -134,7 +135,7 @@ Iroha Client CLI provides a simple way to interact with the Iroha Web API
 * `role` — Read and write roles
 * `parameter` — Read and write system parameters
 * `trigger` — Read and write triggers
-* `executor` — Update the executor
+* `executor` — Read and write the executor
 * `markdown-help` — Output CLI documentation in Markdown format
 
 ###### **Options:**
@@ -1479,13 +1480,22 @@ Delete an entry from the key-value store
 
 ## `iroha executor`
 
-Update the executor
+Read and write the executor
 
 **Usage:** `iroha executor <COMMAND>`
 
 ###### **Subcommands:**
 
+* `data-model` — Retrieve the executor data model
 * `upgrade` — Upgrade the executor
+
+
+
+## `iroha executor data-model`
+
+Retrieve the executor data model
+
+**Usage:** `iroha executor data-model`
 
 
 
