@@ -46,8 +46,10 @@ mod model {
         /// Time event.
         Time(time::TimeEvent),
         /// Trigger execution event.
+        // TODO #4968 Remove as it is no longer needed.
         ExecuteTrigger(execute_trigger::ExecuteTriggerEvent),
         /// Trigger completion event.
+        // TODO #4968 Merge into pipeline events as an internal transaction.
         TriggerCompleted(trigger_completed::TriggerCompletedEvent),
     }
 
@@ -178,7 +180,14 @@ impl EventFilter for EventFilterBox {
     fn matches(&self, event: &EventBox) -> bool {
         match (event, self) {
             (EventBox::Pipeline(event), Self::Pipeline(filter)) => filter.matches(event),
-            (EventBox::Data(event), Self::Data(filter)) => filter.matches(event),
+            // SATO EventFilterBox::matches
+            // // (EventBox::Data(event), Self::Data(filter)) => filter.matches(event),
+            // (EventBox::Data(event), Self::Data(filter)) => {
+            //     let event = tree::Event::from(event);
+            //     let receptor = tree::Receptor::from(filter);
+            //     event.passes(&receptor)
+            // },
+            // SATO end
             (EventBox::Time(event), Self::Time(filter)) => filter.matches(event),
             (EventBox::ExecuteTrigger(event), Self::ExecuteTrigger(filter)) => {
                 filter.matches(event)
