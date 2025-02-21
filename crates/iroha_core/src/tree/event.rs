@@ -86,10 +86,10 @@ macro_rules! impl_filtered {
     ($($ty:ty,)+) => {
         $(
         impl Filtered for $ty {
-            type Filter = super::FilterU8;
+            type Filter = FilterU8;
 
             fn as_filter(&self) -> Self::Filter {
-                todo!()
+                FilterU8((*self) as u8)
             }
         }
         )+
@@ -113,28 +113,94 @@ impl_filtered!(
     MetadataWS,
 );
 
-pub enum UnitWS {}
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum UnitWS {
+    Create = 0b00000_010,
+    Delete = 0b00000_100,
+}
 
-pub enum ParameterWS {}
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum ParameterWS {
+    Set = 0b00000_010,
+    Unset = 0b00000_100,
+}
 
-pub enum DomainWS {}
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum DomainWS {
+    Transfer = 0b0000_0010,
+    Create = 0b0000_0100,
+    Delete = 0b0000_1000,
+}
 
-pub enum AssetWS {}
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum AssetWS {
+    Transfer = 0b0000_0010,
+    Create = 0b0000_0100,
+    Delete = 0b0000_1000,
+}
 
-pub enum NftWS {}
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum NftWS {
+    Transfer = 0b0000_0010,
+    Create = 0b0000_0100,
+    Delete = 0b0000_1000,
+}
 
-pub enum AccountAssetWS {}
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum AccountAssetWS {
+    Receive = 0b000_00010,
+    Send = 0b000_00100,
+    Mint = 0b000_01000,
+    Burn = 0b000_10000,
+}
 
-pub enum PermissionWS {}
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum PermissionWS {
+    Set = 0b00000_010,
+    Unset = 0b00000_100,
+}
 
-pub enum CommandWS {}
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum CommandWS {
+    Set = 0b00000_010,
+    Unset = 0b00000_100,
+}
 
-pub enum TriggerWS {}
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum TriggerWS {
+    Increase = 0b000_00010,
+    Decrease = 0b000_00100,
+    Create = 0b000_01000,
+    Delete = 0b000_10000,
+}
 
-pub enum ExecutableWS {}
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum ExecutableWS {
+    Set = 0b00000_010,
+    Unset = 0b00000_100,
+}
 
-pub enum AuthorizerWS {}
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum AuthorizerWS {
+    Set = 0b00000_010,
+}
 
-pub enum MetadataWS {}
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum MetadataWS {
+    Set = 0b00000_010,
+    Unset = 0b00000_100,
+}
 
 mod transitional {}

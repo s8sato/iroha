@@ -196,8 +196,8 @@ pub enum CommandW {
 }
 
 pub enum TriggerW {
-    Inc(u32),
-    Dec(u32),
+    Increase(u32),
+    Decrease(u32),
     Create(state::tr::TriggerValue),
     Delete,
 }
@@ -208,7 +208,7 @@ pub enum ExecutableW {
 }
 
 pub enum AuthorizerW {
-    Update(state::tr::AuthorizerValue),
+    Set(state::tr::AuthorizerValue),
 }
 
 pub enum MetadataW {
