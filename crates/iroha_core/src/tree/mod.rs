@@ -154,8 +154,8 @@ macro_rules! impl_node_values {
 
 impl_node_values!(((), (), ()),);
 
-trait NodeWrite<T: NodeKey>: NodeValue<T> + Filtered {
-    type Status: NodeValue<T> + Filtered;
+trait NodeWrite<K: NodeKey>: NodeValue<K> + Filtered {
+    type Status: NodeValue<K> + Filtered;
 
     fn as_status(&self) -> Self::Status;
 }
