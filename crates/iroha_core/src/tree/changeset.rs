@@ -209,15 +209,15 @@ pub enum MetadataW {
     Unset(()),
 }
 
-// impl NodeWrite<()> for ChangeSet {
-//     type Status = event::Event;
+impl NodeWrite<Root> for ChangeSet {
+    type Status = event::Event;
 
-//     fn as_status(&self) -> Self::Status {
-//         todo!()
-//     }
-// }
+    fn as_status(&self) -> Self::Status {
+        todo!()
+    }
+}
 
-impl Filtered<()> for ChangeSet {
+impl Filtered<Root> for ChangeSet {
     type Filter = permission::Permission;
 
     fn as_filter(&self) -> Self::Filter {

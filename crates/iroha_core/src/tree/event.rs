@@ -245,7 +245,7 @@ impl_from_write!(
     (MetadataWS, MetadataW: Set | Unset),
 );
 
-impl Filtered<()> for Event {
+impl Filtered<Root> for Event {
     type Filter = receptor::Receptor;
 
     fn as_filter(&self) -> Self::Filter {

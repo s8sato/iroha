@@ -110,6 +110,7 @@ macro_rules! impl_node_keys {
 }
 
 declare_node_keys!(
+    (Root, ()),
     // Rank 1
     (Parameters, Parameter),
     (Peers, Peer),
@@ -152,6 +153,13 @@ impl_node_keys!(
 );
 
 impl NodeKey for () {
+    type Ext = ();
+}
+
+impl<M> NodeValue<Root> for Tree<M>
+where
+    M: Mode + Debug + PartialEq,
+{
     type Ext = ();
 }
 
