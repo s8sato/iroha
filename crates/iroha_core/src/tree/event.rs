@@ -116,15 +116,15 @@ impl_filtered!(
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum UnitWS {
-    Create = 0b00000_010,
-    Delete = 0b00000_100,
+    Create = 0b0000_0010,
+    Delete = 0b0000_0100,
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum ParameterWS {
-    Set = 0b00000_010,
-    Unset = 0b00000_100,
+    Set = 0b0000_0010,
+    Unset = 0b0000_0100,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -154,53 +154,89 @@ pub enum NftWS {
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum AccountAssetWS {
-    Receive = 0b000_00010,
-    Send = 0b000_00100,
-    Mint = 0b000_01000,
-    Burn = 0b000_10000,
+    Receive = 0b0000_0010,
+    Send = 0b0000_0100,
+    Mint = 0b0000_1000,
+    Burn = 0b0001_0000,
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum PermissionWS {
-    Set = 0b00000_010,
-    Unset = 0b00000_100,
+    Set = 0b0000_0010,
+    Unset = 0b0000_0100,
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum CommandWS {
-    Set = 0b00000_010,
-    Unset = 0b00000_100,
+    Set = 0b0000_0010,
+    Unset = 0b0000_0100,
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum TriggerWS {
-    Increase = 0b000_00010,
-    Decrease = 0b000_00100,
-    Create = 0b000_01000,
-    Delete = 0b000_10000,
+    Increase = 0b0000_0010,
+    Decrease = 0b0000_0100,
+    Create = 0b0000_1000,
+    Delete = 0b0001_0000,
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum ExecutableWS {
-    Set = 0b00000_010,
-    Unset = 0b00000_100,
+    Set = 0b0000_0010,
+    Unset = 0b0000_0100,
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum AuthorizerWS {
-    Set = 0b00000_010,
+    Set = 0b0000_0010,
+    Unset = 0b0000_0100,
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum MetadataWS {
-    Set = 0b00000_010,
-    Unset = 0b00000_100,
+    Set = 0b0000_0010,
+    Unset = 0b0000_0100,
 }
+
+macro_rules! impl_from_write {
+    ($(($ty:ty, $write:ident: $($variant:ident)|+),)+) => {
+        $(
+        use changeset::$write;
+
+        impl From<&$write> for $ty {
+            fn from(value: &$write) -> Self {
+                match value {
+                    $(
+                    $write::$variant(_) => Self::$variant,
+                    )+
+                }
+            }
+        }
+        )+
+    };
+}
+
+impl_from_write!(
+    // Rank 2
+    (UnitWS, UnitW: Create | Delete),
+    (ParameterWS, ParameterW: Set | Unset),
+    (DomainWS, DomainW: Transfer | Create | Delete),
+    (AssetWS, AssetW: Transfer | Create | Delete),
+    (NftWS, NftW: Transfer | Create | Delete),
+    (AccountAssetWS, AccountAssetW: Receive | Send | Mint | Burn),
+    (PermissionWS, PermissionW: Set | Unset),
+    (CommandWS, CommandW: Set | Unset),
+    (TriggerWS, TriggerW: Increase | Decrease | Create | Delete),
+    (ExecutableWS, ExecutableW: Set | Unset),
+    (AuthorizerWS, AuthorizerW: Set | Unset),
+    // Rank 3
+    (MetadataWS, MetadataW: Set | Unset),
+);
 
 mod transitional {}

@@ -1,7 +1,7 @@
 #![allow(missing_docs)] // SATO disallow
 #![allow(dead_code)] // SATO disallow
 
-use std::{cmp::Ordering, collections::HashMap, hash::Hash};
+use std::{cmp::Ordering, hash::Hash};
 
 use derive_more::From;
 
@@ -11,7 +11,9 @@ where
     V: NodeValue<K>,
 {
     End(V),
-    Ext(HashMap<<K::Ext as NodeKey>::Key, Node<K::Ext, V::Ext>>),
+    #[expect(clippy::type_complexity)]
+    #[expect(clippy::disallowed_types)]
+    Ext(std::collections::HashMap<<K::Ext as NodeKey>::Key, Node<K::Ext, V::Ext>>),
 }
 
 trait NodeKey {

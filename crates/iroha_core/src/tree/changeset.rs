@@ -89,7 +89,7 @@ macro_rules! impl_node_write {
             type Status = event::$status;
 
             fn as_status(&self) -> Self::Status {
-                todo!()
+                self.into()
             }
         }
         )+
@@ -151,8 +151,8 @@ impl_filtered!(
 );
 
 pub enum UnitW {
-    Create,
-    Delete,
+    Create(()),
+    Delete(()),
 }
 
 pub enum ParameterW {
@@ -163,19 +163,19 @@ pub enum ParameterW {
 pub enum DomainW {
     Transfer(dm::AccountId),
     Create(state::tr::DomainValue),
-    Delete,
+    Delete(()),
 }
 
 pub enum AssetW {
     Transfer(dm::AccountId),
     Create(state::tr::AssetValue),
-    Delete,
+    Delete(()),
 }
 
 pub enum NftW {
     Transfer(dm::AccountId),
     Create(state::tr::NftValue),
-    Delete,
+    Delete(()),
 }
 
 pub enum AccountAssetW {
@@ -186,34 +186,35 @@ pub enum AccountAssetW {
 }
 
 pub enum PermissionW {
-    Set(state::tr::PermissionValue),
-    Unset,
+    Set(Box<state::tr::PermissionValue>),
+    Unset(()),
 }
 
 pub enum CommandW {
-    Set(state::tr::CommandValue),
-    Unset,
+    Set(Box<state::tr::CommandValue>),
+    Unset(()),
 }
 
 pub enum TriggerW {
     Increase(u32),
     Decrease(u32),
-    Create(state::tr::TriggerValue),
-    Delete,
+    Create(Box<state::tr::TriggerValue>),
+    Delete(()),
 }
 
 pub enum ExecutableW {
-    Set(state::tr::ExecutableValue),
-    Unset,
+    Set(Box<state::tr::ExecutableValue>),
+    Unset(()),
 }
 
 pub enum AuthorizerW {
     Set(state::tr::AuthorizerValue),
+    Unset(()),
 }
 
 pub enum MetadataW {
     Set(state::tr::MetadataValue),
-    Unset,
+    Unset(()),
 }
 
 mod transitional {}
