@@ -154,13 +154,13 @@ macro_rules! impl_node_values {
 
 impl_node_values!(((), (), ()),);
 
-trait NodeWrite<K: NodeKey>: NodeValue<K> + Filtered {
-    type Status: NodeValue<K> + Filtered;
+trait NodeWrite<K: NodeKey>: NodeValue<K> + Filtered<K> {
+    type Status: NodeValue<K> + Filtered<K>;
 
     fn as_status(&self) -> Self::Status;
 }
 
-trait Filtered {
+trait Filtered<K: NodeKey> {
     type Filter: PartialOrd;
 
     fn as_filter(&self) -> Self::Filter;

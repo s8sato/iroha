@@ -92,6 +92,15 @@ macro_rules! impl_node_write {
                 self.into()
             }
         }
+
+        impl Filtered<$key> for $ty {
+            type Filter = super::FilterU8;
+
+            fn as_filter(&self) -> Self::Filter {
+                let status = NodeWrite::<$key>::as_status(self);
+                Filtered::<$key>::as_filter(&status)
+            }
+        }
         )+
     };
 }
@@ -116,38 +125,6 @@ impl_node_write!(
     (AuthorizerW, Authorizer, AuthorizerWS),
     // Rank 3
     (MetadataW, Metadata, MetadataWS),
-);
-
-macro_rules! impl_filtered {
-    ($($ty:ty,)+) => {
-        $(
-        impl Filtered for $ty {
-            type Filter = super::FilterU8;
-
-            fn as_filter(&self) -> Self::Filter {
-                todo!()
-                // self.as_status().as_filter()
-            }
-        }
-        )+
-    };
-}
-
-impl_filtered!(
-    // Rank 2
-    UnitW,
-    ParameterW,
-    DomainW,
-    AssetW,
-    NftW,
-    AccountAssetW,
-    PermissionW,
-    CommandW,
-    TriggerW,
-    ExecutableW,
-    AuthorizerW,
-    // Rank 3
-    MetadataW,
 );
 
 pub enum UnitW {

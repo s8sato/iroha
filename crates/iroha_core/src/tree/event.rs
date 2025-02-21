@@ -83,9 +83,9 @@ impl_node_values!(
 );
 
 macro_rules! impl_filtered {
-    ($($ty:ty,)+) => {
+    ($(($ty:ty, $key:ty),)+) => {
         $(
-        impl Filtered for $ty {
+        impl Filtered<$key> for $ty {
             type Filter = FilterU8;
 
             fn as_filter(&self) -> Self::Filter {
@@ -98,19 +98,24 @@ macro_rules! impl_filtered {
 
 impl_filtered!(
     // Rank 2
-    UnitWS,
-    ParameterWS,
-    DomainWS,
-    AssetWS,
-    NftWS,
-    AccountAssetWS,
-    PermissionWS,
-    CommandWS,
-    TriggerWS,
-    ExecutableWS,
-    AuthorizerWS,
+    (ParameterWS, Parameter),
+    (UnitWS, Peer),
+    (DomainWS, Domain),
+    (UnitWS, Account),
+    (AssetWS, Asset),
+    (NftWS, Nft),
+    (AccountAssetWS, AccountAsset),
+    (UnitWS, Role),
+    (PermissionWS, Permission),
+    (UnitWS, AccountRole),
+    (UnitWS, AccountPermission),
+    (UnitWS, RolePermission),
+    (CommandWS, Command),
+    (TriggerWS, Trigger),
+    (ExecutableWS, Executable),
+    (AuthorizerWS, Authorizer),
     // Rank 3
-    MetadataWS,
+    (MetadataWS, Metadata),
 );
 
 #[derive(Debug, Clone, Copy)]
