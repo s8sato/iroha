@@ -1,7 +1,10 @@
+use std::ops::Add;
+
 use super::*;
 
 pub type ChangeSet = Tree<Write>;
 
+#[derive(Debug, PartialEq)]
 pub struct Write;
 
 impl Mode for Write {
@@ -127,34 +130,40 @@ impl_node_write!(
     (MetadataW, Metadata, MetadataWS),
 );
 
+#[derive(Debug, PartialEq)]
 pub enum UnitW {
     Create(()),
     Delete(()),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum ParameterW {
     Set(state::tr::ParameterValue),
     Unset(dm::CustomParameterId),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum DomainW {
     Transfer(dm::AccountId),
     Create(state::tr::DomainValue),
     Delete(()),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum AssetW {
     Transfer(dm::AccountId),
     Create(state::tr::AssetValue),
     Delete(()),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum NftW {
     Transfer(dm::AccountId),
     Create(state::tr::NftValue),
     Delete(()),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum AccountAssetW {
     Receive(dm::Numeric),
     Send(dm::Numeric),
@@ -162,16 +171,19 @@ pub enum AccountAssetW {
     Burn(dm::Numeric),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum PermissionW {
     Set(Box<state::tr::PermissionValue>),
     Unset(()),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum CommandW {
     Set(Box<state::tr::CommandValue>),
     Unset(()),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum TriggerW {
     Increase(u32),
     Decrease(u32),
@@ -179,19 +191,46 @@ pub enum TriggerW {
     Delete(()),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum ExecutableW {
     Set(Box<state::tr::ExecutableValue>),
     Unset(()),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum AuthorizerW {
     Set(state::tr::AuthorizerValue),
     Unset(()),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum MetadataW {
     Set(state::tr::MetadataValue),
     Unset(()),
+}
+
+// impl NodeWrite<()> for ChangeSet {
+//     type Status = event::Event;
+
+//     fn as_status(&self) -> Self::Status {
+//         todo!()
+//     }
+// }
+
+impl Filtered<()> for ChangeSet {
+    type Filter = permission::Permission;
+
+    fn as_filter(&self) -> Self::Filter {
+        todo!()
+    }
+}
+
+impl Add for ChangeSet {
+    type Output = Result<Self, (Self, Self)>;
+
+    fn add(self, _rhs: Self) -> Self::Output {
+        todo!()
+    }
 }
 
 mod transitional {}

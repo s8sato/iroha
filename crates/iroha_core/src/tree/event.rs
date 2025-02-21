@@ -2,6 +2,7 @@ use super::*;
 
 pub type Event = Tree<WriteStatus>;
 
+#[derive(Debug, PartialEq)]
 pub struct WriteStatus;
 
 impl Mode for WriteStatus {
@@ -118,21 +119,21 @@ impl_filtered!(
     (MetadataWS, Metadata),
 );
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u8)]
 pub enum UnitWS {
     Create = 0b0000_0010,
     Delete = 0b0000_0100,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u8)]
 pub enum ParameterWS {
     Set = 0b0000_0010,
     Unset = 0b0000_0100,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u8)]
 pub enum DomainWS {
     Transfer = 0b0000_0010,
@@ -140,7 +141,7 @@ pub enum DomainWS {
     Delete = 0b0000_1000,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u8)]
 pub enum AssetWS {
     Transfer = 0b0000_0010,
@@ -148,7 +149,7 @@ pub enum AssetWS {
     Delete = 0b0000_1000,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u8)]
 pub enum NftWS {
     Transfer = 0b0000_0010,
@@ -156,7 +157,7 @@ pub enum NftWS {
     Delete = 0b0000_1000,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u8)]
 pub enum AccountAssetWS {
     Receive = 0b0000_0010,
@@ -165,21 +166,21 @@ pub enum AccountAssetWS {
     Burn = 0b0001_0000,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u8)]
 pub enum PermissionWS {
     Set = 0b0000_0010,
     Unset = 0b0000_0100,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u8)]
 pub enum CommandWS {
     Set = 0b0000_0010,
     Unset = 0b0000_0100,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u8)]
 pub enum TriggerWS {
     Increase = 0b0000_0010,
@@ -188,21 +189,21 @@ pub enum TriggerWS {
     Delete = 0b0001_0000,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u8)]
 pub enum ExecutableWS {
     Set = 0b0000_0010,
     Unset = 0b0000_0100,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u8)]
 pub enum AuthorizerWS {
     Set = 0b0000_0010,
     Unset = 0b0000_0100,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u8)]
 pub enum MetadataWS {
     Set = 0b0000_0010,
@@ -243,5 +244,13 @@ impl_from_write!(
     // Rank 3
     (MetadataWS, MetadataW: Set | Unset),
 );
+
+impl Filtered<()> for Event {
+    type Filter = receptor::Receptor;
+
+    fn as_filter(&self) -> Self::Filter {
+        todo!()
+    }
+}
 
 mod transitional {}

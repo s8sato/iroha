@@ -1,10 +1,11 @@
 #![allow(missing_docs)] // SATO disallow
 #![allow(dead_code)] // SATO disallow
 
-use std::{cmp::Ordering, hash::Hash};
+use std::{cmp::Ordering, fmt::Debug, hash::Hash};
 
 use derive_more::From;
 
+#[derive(Debug, PartialEq)]
 enum Node<K, V>
 where
     K: NodeKey,
@@ -13,19 +14,18 @@ where
     End(V),
     #[expect(clippy::type_complexity)]
     #[expect(clippy::disallowed_types)]
-    Ext(std::collections::HashMap<<K::Ext as NodeKey>::Key, Node<K::Ext, V::Ext>>),
+    Ext(std::collections::HashMap<K::Ext, Node<K::Ext, V::Ext>>),
 }
 
-trait NodeKey {
-    type Key: std::hash::Hash;
+trait NodeKey: Debug + Eq + Hash {
     type Ext: NodeKey;
 }
 
-trait NodeValue<K: NodeKey> {
-    type Value;
+trait NodeValue<K: NodeKey>: Debug + PartialEq {
     type Ext: NodeValue<K::Ext>;
 }
 
+#[derive(Debug, PartialEq)]
 struct Tree<M: Mode> {
     parameters: Node<Parameters, M::Parameters>,
     peers: Node<Peers, M::Peers>,
@@ -85,12 +85,24 @@ trait Mode {
 }
 
 macro_rules! declare_node_keys {
-    ($(($ident:ident, $key:ty, $ext:ty),)+) => {
+    ($(($struct:ident, $ext:ty),)+) => {
         $(
-        struct $ident;
+        #[derive(Debug, PartialEq, Eq, Hash)]
+        struct $struct;
 
-        impl NodeKey for $ident {
-            type Key = $key;
+        impl NodeKey for $struct {
+            type Ext = $ext;
+        }
+        )+
+    };
+}
+
+macro_rules! impl_node_keys {
+    ($(($alias:ident = $key:ty, $ext:ty),)+) => {
+        $(
+        type $alias = $key;
+
+        impl NodeKey for $alias {
             type Ext = $ext;
         }
         )+
@@ -99,45 +111,47 @@ macro_rules! declare_node_keys {
 
 declare_node_keys!(
     // Rank 1
-    (Parameters, (), Parameter),
-    (Peers, (), Peer),
-    (Domains, (), Domain),
-    (Accounts, (), Account),
-    (Assets, (), Asset),
-    (Nfts, (), Nft),
-    (AccountAssets, (), AccountAsset),
-    (Roles, (), Role),
-    (Permissions, (), Permission),
-    (AccountRoles, (), AccountRole),
-    (AccountPermissions, (), AccountPermission),
-    (RolePermissions, (), RolePermission),
-    (Commands, (), Command),
-    (Triggers, (), Trigger),
-    (Executables, (), Executable),
-    (Authorizers, (), Authorizer),
+    (Parameters, Parameter),
+    (Peers, Peer),
+    (Domains, Domain),
+    (Accounts, Account),
+    (Assets, Asset),
+    (Nfts, Nft),
+    (AccountAssets, AccountAsset),
+    (Roles, Role),
+    (Permissions, Permission),
+    (AccountRoles, AccountRole),
+    (AccountPermissions, AccountPermission),
+    (RolePermissions, RolePermission),
+    (Commands, Command),
+    (Triggers, Trigger),
+    (Executables, Executable),
+    (Authorizers, Authorizer),
+);
+
+impl_node_keys!(
     // Rank 2
-    (Parameter, (), ()),
-    (Peer, dm::PeerId, ()),
-    (Domain, dm::DomainId, Metadata),
-    (Account, dm::AccountId, Metadata),
-    (Asset, tr::AssetId, Metadata),
-    (Nft, tr::NftId, Metadata),
-    (AccountAsset, (dm::AccountId, tr::AssetId), ()),
-    (Role, dm::RoleId, ()),
-    (Permission, tr::PermissionId, ()),
-    (AccountRole, (dm::AccountId, dm::RoleId), ()),
-    (AccountPermission, (dm::AccountId, tr::PermissionId), ()),
-    (RolePermission, (dm::RoleId, tr::PermissionId), ()),
-    (Command, tr::CommandId, ()),
-    (Trigger, dm::TriggerId, Metadata),
-    (Executable, tr::ExecutableId, ()),
-    (Authorizer, tr::AuthorizerId, ()),
+    (Parameter = tr::ParameterId, ()),
+    (Peer = dm::PeerId, ()),
+    (Domain = dm::DomainId, Metadata),
+    (Account = dm::AccountId, Metadata),
+    (Asset = tr::AssetId, Metadata),
+    (Nft = tr::NftId, Metadata),
+    (AccountAsset = (dm::AccountId, tr::AssetId), ()),
+    (Role = dm::RoleId, ()),
+    (Permission = tr::PermissionId, ()),
+    (AccountRole = (dm::AccountId, dm::RoleId), ()),
+    (AccountPermission = (dm::AccountId, tr::PermissionId), ()),
+    (RolePermission = (dm::RoleId, tr::PermissionId), ()),
+    (Command = tr::CommandId, ()),
+    (Trigger = dm::TriggerId, Metadata),
+    (Executable = tr::ExecutableId, ()),
+    (Authorizer = tr::AuthorizerId, ()),
     // Rank 3
-    (Metadata, dm::Name, ()),
+    (Metadata = dm::Name, ()),
 );
 
 impl NodeKey for () {
-    type Key = ();
     type Ext = ();
 }
 
@@ -145,7 +159,6 @@ macro_rules! impl_node_values {
     ($(($ty:ty, $key:ty, $ext:ty),)+) => {
         $(
         impl NodeValue<$key> for $ty {
-            type Value = Self;
             type Ext = $ext;
         }
         )+
@@ -238,20 +251,24 @@ mod state;
 mod transitional {
     use super::*;
 
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub struct ParameterId;
+
     pub type AssetId = dm::AssetDefinitionId;
 
-    pub type NftId = dm::AssetDefinitionId;
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub struct NftId;
 
-    #[derive(Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash)]
     pub struct PermissionId;
 
-    #[derive(Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash)]
     pub struct CommandId;
 
-    #[derive(Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash)]
     pub struct ExecutableId;
 
-    #[derive(Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash)]
     pub struct AuthorizerId;
 }
 

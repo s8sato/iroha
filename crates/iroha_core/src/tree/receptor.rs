@@ -2,6 +2,7 @@ use super::*;
 
 pub type Receptor = Tree<WriteStatusFilter>;
 
+#[derive(Debug, PartialEq)]
 pub struct WriteStatusFilter;
 
 impl Mode for WriteStatusFilter {
@@ -41,6 +42,12 @@ impl Mode for WriteStatusFilter {
     type Authorizer = FilterU8;
     // Rank 3
     type Metadata = FilterU8;
+}
+
+impl PartialOrd for Receptor {
+    fn partial_cmp(&self, _other: &Self) -> Option<Ordering> {
+        todo!()
+    }
 }
 
 mod transitional {}

@@ -83,15 +83,18 @@ impl_node_values!(
 pub mod transitional {
     use super::*;
 
+    #[derive(Debug, PartialEq)]
     pub struct ParameterValue {
         parameter: dm::Parameter,
     }
 
+    #[derive(Debug, PartialEq)]
     pub struct DomainValue {
         logo: Option<dm::IpfsPath>,
         admin: dm::AccountId,
     }
 
+    #[derive(Debug, PartialEq)]
     pub struct AssetValue {
         total_quantity: dm::Numeric,
         mintable: dm::Mintable,
@@ -99,22 +102,27 @@ pub mod transitional {
         admin: dm::AccountId,
     }
 
+    #[derive(Debug, PartialEq)]
     pub struct NftValue {
         owner: dm::AccountId,
     }
 
+    #[derive(Debug, PartialEq)]
     pub struct AccountAssetValue {
         balance: dm::Numeric,
     }
 
+    #[derive(Debug, PartialEq)]
     pub struct PermissionValue {
         permission: permission::Permission,
     }
 
+    #[derive(Debug, PartialEq)]
     pub struct CommandValue {
         changeset: changeset::ChangeSet,
     }
 
+    #[derive(Debug, PartialEq)]
     pub struct TriggerValue {
         receptor: receptor::Receptor,
         executable: self::TriggerExecutable,
@@ -122,19 +130,23 @@ pub mod transitional {
         authority: dm::AccountId,
     }
 
+    #[derive(Debug, PartialEq)]
     enum TriggerExecutable {
         Cmd(crate::tree::tr::CommandId),
         Exe(crate::tree::tr::ExecutableId),
     }
 
+    #[derive(Debug, PartialEq)]
     pub struct ExecutableValue {
         wasm: dm::WasmSmartContract,
     }
 
+    #[derive(Debug, PartialEq)]
     pub struct AuthorizerValue {
         wasm: dm::WasmSmartContract,
     }
 
+    #[derive(Debug, PartialEq)]
     pub struct MetadataValue {
         json: dm::Json,
     }

@@ -1,7 +1,10 @@
+use std::ops::Add;
+
 use super::*;
 
 pub type Permission = Tree<ReadWriteStatusFilter>;
 
+#[derive(Debug, PartialEq)]
 pub struct ReadWriteStatusFilter;
 
 impl Mode for ReadWriteStatusFilter {
@@ -41,6 +44,20 @@ impl Mode for ReadWriteStatusFilter {
     type Authorizer = FilterU8;
     // Rank 3
     type Metadata = FilterU8;
+}
+
+impl PartialOrd for Permission {
+    fn partial_cmp(&self, _other: &Self) -> Option<Ordering> {
+        todo!()
+    }
+}
+
+impl Add for Permission {
+    type Output = Self;
+
+    fn add(self, _rhs: Self) -> Self::Output {
+        todo!()
+    }
 }
 
 mod transitional {}
