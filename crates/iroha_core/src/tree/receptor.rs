@@ -50,4 +50,12 @@ impl PartialOrd for Receptor {
     }
 }
 
-mod transitional {}
+mod transitional {
+    use super::*;
+
+    impl From<dm::DataEventFilter> for Receptor {
+        fn from(_value: dm::DataEventFilter) -> Self {
+            todo!()
+        }
+    }
+}

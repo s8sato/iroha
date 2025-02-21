@@ -90,7 +90,7 @@ macro_rules! impl_filtered {
             type Filter = FilterU8;
 
             fn as_filter(&self) -> Self::Filter {
-                FilterU8((*self) as u8)
+                ((*self) as u8).into()
             }
         }
         )+
@@ -253,4 +253,12 @@ impl Filtered<Root> for Event {
     }
 }
 
-mod transitional {}
+mod transitional {
+    use super::*;
+
+    impl From<dm::DataEvent> for Event {
+        fn from(_value: dm::DataEvent) -> Self {
+            todo!()
+        }
+    }
+}

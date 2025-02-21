@@ -1,6 +1,6 @@
 use super::*;
 
-type State = Tree<()>;
+pub type State = Tree<()>;
 
 impl Mode for () {
     // Rank 1
@@ -81,6 +81,8 @@ impl_node_values!(
 );
 
 pub mod transitional {
+    use std::collections::HashSet;
+
     use super::*;
 
     #[derive(Debug, PartialEq)]
@@ -137,18 +139,57 @@ pub mod transitional {
     }
 
     #[derive(Debug, PartialEq)]
-    pub struct ExecutableValue {
-        wasm: dm::WasmSmartContract,
-    }
+    pub struct ExecutableValue;
 
     #[derive(Debug, PartialEq)]
-    pub struct AuthorizerValue {
-        wasm: dm::WasmSmartContract,
-    }
+    pub struct AuthorizerValue;
 
     #[derive(Debug, PartialEq)]
     pub struct MetadataValue {
         json: dm::Json,
+    }
+
+    #[expect(clippy::disallowed_types)]
+    use std::collections::HashMap;
+
+    impl State {
+        fn triggers(&self) -> HashMap<dm::TriggerId, &TriggerValue> {
+            todo!()
+        }
+
+        fn command(&self, _id: &crate::tree::tr::CommandId) -> Option<&CommandValue> {
+            todo!()
+        }
+    }
+
+    impl TriggerValue {
+        fn leads_event_loops(&self, candidate_id: &dm::TriggerId, state: &State) -> bool {
+            let mut triggers: HashMap<dm::TriggerId, &TriggerValue> = state.triggers();
+            triggers.insert(candidate_id.clone(), self);
+            let mut stack = vec![candidate_id];
+            let mut seen = HashSet::new();
+            while let Some(trigger_id) = stack.pop() {
+                if seen.contains(&trigger_id) {
+                    return true;
+                }
+                seen.insert(trigger_id);
+                let changeset = {
+                    let TriggerExecutable::Cmd(cmd_id) = &triggers[&trigger_id].executable else {
+                        unimplemented!()
+                    };
+                    &state.command(cmd_id).unwrap().changeset
+                };
+                // TODO update detection of trigger mutations
+                // if changeset.iter().any(|(path, _change)| 100 <= *path) {
+                //     return true;
+                // }
+                let next_trigger_ids = triggers
+                    .iter()
+                    .filter_map(|(id, v)| changeset.as_status().passes(&v.receptor).then_some(id));
+                stack.extend(next_trigger_ids);
+            }
+            false
+        }
     }
 }
 

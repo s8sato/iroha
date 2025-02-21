@@ -186,8 +186,8 @@ trait Filtered<K: NodeKey> {
 
     fn as_filter(&self) -> Self::Filter;
 
-    fn passes(&self, filter: Self::Filter) -> bool {
-        self.as_filter() <= filter
+    fn passes(&self, filter: &Self::Filter) -> bool {
+        self.as_filter() <= *filter
     }
 }
 

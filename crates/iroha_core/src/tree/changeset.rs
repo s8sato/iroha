@@ -233,4 +233,41 @@ impl Add for ChangeSet {
     }
 }
 
-mod transitional {}
+mod transitional {
+    use super::*;
+
+    type State<'block, 'state> = crate::state::StateTransaction<'block, 'state>;
+
+    impl<'block, 'state> ChangeSet {
+        fn apply(
+            self,
+            _state: &mut State<'block, 'state>,
+        ) -> Result<event::Event, InvariantsViolation> {
+            todo!()
+        }
+    }
+
+    struct InvariantsViolation;
+
+    impl Default for ChangeSet {
+        fn default() -> Self {
+            todo!()
+        }
+    }
+
+    impl TryFrom<Vec<dm::InstructionBox>> for ChangeSet {
+        type Error = (Self, Self);
+
+        fn try_from(value: Vec<dm::InstructionBox>) -> Result<Self, Self::Error> {
+            value.into_iter().fold(Ok(Self::default()), |acc, x| {
+                acc.and_then(|changeset| changeset + Self::from(x))
+            })
+        }
+    }
+
+    impl From<dm::InstructionBox> for ChangeSet {
+        fn from(_value: dm::InstructionBox) -> Self {
+            todo!()
+        }
+    }
+}

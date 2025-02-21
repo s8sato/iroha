@@ -44,6 +44,8 @@ iroha_primitives = { workspace = true }
 iroha_genesis = { workspace = true }
 iroha_wasm_codec = { workspace = true }
 mv = { workspace = true, features = ["serde"] }
+# SATO
+iroha_executor_data_model = { workspace = true }
 
 async-trait = { workspace = true }
 dashmap = { workspace = true }
