@@ -67,7 +67,7 @@ impl_node_values!(
     (DomainWS, Domain, MetadataWS),
     (UnitWS, Account, MetadataWS),
     (AssetWS, Asset, MetadataWS),
-    (NftWS, Nft, ()),
+    (NftWS, Nft, MetadataWS),
     (AccountAssetWS, AccountAsset, ()),
     (UnitWS, Role, ()),
     (PermissionWS, Permission, ()),

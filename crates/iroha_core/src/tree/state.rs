@@ -65,7 +65,7 @@ impl_node_values!(
     (tr::DomainValue, Domain, tr::MetadataValue),
     ((), Account, tr::MetadataValue),
     (tr::AssetValue, Asset, tr::MetadataValue),
-    (tr::NftValue, Nft, ()),
+    (tr::NftValue, Nft, tr::MetadataValue),
     (tr::AccountAssetValue, AccountAsset, ()),
     ((), Role, ()),
     (tr::PermissionValue, Permission, ()),
