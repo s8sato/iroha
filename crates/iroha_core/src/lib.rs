@@ -16,7 +16,7 @@ pub mod state;
 pub mod sumeragi;
 pub mod tx;
 
-// SATO
+// SATO separate crate
 pub mod tree;
 
 use core::time::Duration;

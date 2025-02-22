@@ -26,6 +26,7 @@ trait NodeValue<K: NodeKey>: Debug + PartialEq {
 }
 
 #[derive(Debug, PartialEq)]
+// SATO size = 768
 struct Tree<M: Mode> {
     parameters: Node<Parameters, M::Parameters>,
     peers: Node<Peers, M::Peers>,
