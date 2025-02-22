@@ -78,6 +78,16 @@ pub fn visit_transaction<V: Execute + Visit + ?Sized>(
 ///
 /// Instruction is executed following successful validation
 pub fn visit_instruction<V: Execute + Visit + ?Sized>(executor: &mut V, isi: &InstructionBox) {
+    // SATO visit_instruction, workaround until wasm is restructured
+    // let changeset = crate::tree::ChangeSet::from(isi.clone());
+    // let permission: crate::tree::Permission = construct_permission(executor.context().authority, executor.host())?;
+    // let authorizer = Authorizer::default();
+    // if let Err(err) = changeset.validate(authorizer, permission) {
+    //     deny!(executor, err)
+    // } else {
+    //     execute!(executor, isi)
+    // }
+    // SATO end
     match isi {
         InstructionBox::SetParameter(isi) => {
             executor.visit_set_parameter(isi);

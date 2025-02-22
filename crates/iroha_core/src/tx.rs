@@ -222,6 +222,22 @@ impl StateBlock<'_> {
         state_transaction: &mut StateTransaction<'_, '_>,
         wasm_cache: &mut WasmCache<'_, '_, '_>,
     ) -> Result<(), TransactionRejectionReason> {
+        // SATO StateBlock::validate_execute_internal
+        // let (authority, executable) = tx.into();
+        // let permission = crate::tree::Permission::with_account(authority, state_transaction)?;
+        // let authorizer;
+        // let changeset: crate::tree::ChangeSet = match executable {
+        //     Executable::Instructions(instructions) => instructions.into(),
+        //     Executable::Wasm(wasm) => {
+        //         let read_request = wasm.request_read();
+        //         let read_response = read_request.validate_execute(authorizer, permission, state_transaction)?;
+        //         wasm.request_write(read_response, wasm_cache)?;
+        //     },
+        // };
+        // changeset.validate_execute(authorizer, permission, state_transaction)?;
+        // Ok(())
+        // SATO end
+
         let authority = tx.as_ref().authority();
 
         if state_transaction.world.accounts.get(authority).is_none() {
