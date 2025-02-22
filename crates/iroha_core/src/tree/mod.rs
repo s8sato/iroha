@@ -1,3 +1,15 @@
+//! A transitional crate that can be merged into other crates.
+//!
+//! It aims to integrate executables, events, and event filters while enabling recursive trigger prediction in a static manner.
+//! The prediction is based on the union of possible execution paths, enabling pessimistic event loop detection.
+//!
+//! Additionally, to improve performance, it consolidates:
+//!
+//! - Instructions into a single [`ChangeSet`] per transaction (or per block/epoch, depending on feature requests such as chain compression).
+//! - (Data) events into a single [`Event`] per transaction.
+//! - (Data) event filters into a single [`Receptor`] per trigger.
+//! - Permissions, roles, and ownerships into a single [`Permission`] per validation.
+
 #![allow(missing_docs)] // SATO disallow
 #![allow(dead_code)] // SATO disallow
 
