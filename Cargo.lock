@@ -3110,6 +3110,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "iroha_authorizer"
+version = "2.0.0-rc.1.0"
+
+[[package]]
 name = "iroha_cli"
 version = "2.0.0-rc.1.0"
 dependencies = [
@@ -3827,6 +3831,16 @@ name = "iroha_torii_const"
 version = "2.0.0-rc.1.0"
 dependencies = [
  "iroha_primitives",
+]
+
+[[package]]
+name = "iroha_tree"
+version = "2.0.0-rc.1.0"
+dependencies = [
+ "derive_more",
+ "iroha_core",
+ "iroha_data_model",
+ "iroha_executor_data_model",
 ]
 
 [[package]]

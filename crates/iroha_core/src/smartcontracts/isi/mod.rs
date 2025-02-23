@@ -40,9 +40,9 @@ impl Execute for InstructionBox {
         state_transaction: &mut StateTransaction<'_, '_>,
     ) -> Result<(), Error> {
         // SATO InstructionBox::execute, workaround until wasm is restructured
-        // ) -> Result<crate::tree::Event, Error> {
+        // ) -> Result<iroha_tree::Event, Error> {
 
-        // let changeset = crate::tree::ChangeSet::from(self);
+        // let changeset = iroha_tree::ChangeSet::from(self);
         // changeset.apply(state_transaction)
         // SATO end
         iroha_logger::debug!(isi=%self, "Executing");

@@ -12,7 +12,6 @@
 
 #![allow(missing_docs)] // SATO disallow
 #![allow(dead_code)] // SATO disallow
-#![expect(clippy::disallowed_types)]
 
 use std::{cmp::Ordering, collections::HashMap, fmt::Debug, hash::Hash};
 

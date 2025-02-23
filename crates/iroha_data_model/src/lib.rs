@@ -37,8 +37,6 @@ pub mod block;
 pub mod domain;
 pub mod events;
 pub mod executor;
-// SATO separate crate
-pub mod authorizer;
 pub mod ipfs;
 pub mod isi;
 pub mod metadata;

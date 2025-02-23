@@ -16,9 +16,6 @@ pub mod state;
 pub mod sumeragi;
 pub mod tx;
 
-// SATO separate crate
-pub mod tree;
-
 use core::time::Duration;
 
 use gossiper::TransactionGossip;

@@ -97,8 +97,8 @@ pub mod transitional {
 
     #[derive(Debug, PartialEq, Eq)]
     enum TriggerExecutable {
-        Cmd(crate::tree::tr::CommandId),
-        Exe(crate::tree::tr::ExecutableId),
+        Cmd(crate::tr::CommandId),
+        Exe(crate::tr::ExecutableId),
     }
 
     #[derive(Debug, PartialEq, Eq)]
@@ -114,7 +114,7 @@ pub mod transitional {
             todo!()
         }
 
-        fn command(&self, _id: &crate::tree::tr::CommandId) -> Option<&CommandValue> {
+        fn command(&self, _id: &crate::tr::CommandId) -> Option<&CommandValue> {
             todo!()
         }
     }

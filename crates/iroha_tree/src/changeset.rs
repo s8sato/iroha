@@ -191,7 +191,7 @@ impl Add for ChangeSet {
 mod transitional {
     use super::*;
 
-    type State<'block, 'state> = crate::state::StateTransaction<'block, 'state>;
+    type State<'block, 'state> = iroha_core::state::StateTransaction<'block, 'state>;
 
     impl<'block, 'state> ChangeSet {
         fn apply(

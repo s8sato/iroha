@@ -79,8 +79,8 @@ pub fn visit_transaction<V: Execute + Visit + ?Sized>(
 /// Instruction is executed following successful validation
 pub fn visit_instruction<V: Execute + Visit + ?Sized>(executor: &mut V, isi: &InstructionBox) {
     // SATO visit_instruction, workaround until wasm is restructured
-    // let changeset = crate::tree::ChangeSet::from(isi.clone());
-    // let permission: crate::tree::Permission = construct_permission(executor.context().authority, executor.host())?;
+    // let changeset = iroha_tree::ChangeSet::from(isi.clone());
+    // let permission: iroha_tree::Permission = construct_permission(executor.context().authority, executor.host())?;
     // let authorizer = DefaultAuthorizer;
     // if let Err(err) = changeset.validate(authorizer, permission) {
     //     deny!(executor, err)

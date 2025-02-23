@@ -224,9 +224,9 @@ impl StateBlock<'_> {
     ) -> Result<(), TransactionRejectionReason> {
         // SATO StateBlock::validate_execute_internal
         // let (authority, executable) = tx.into();
-        // let permission = crate::tree::Permission::with_account(authority, state_transaction)?;
+        // let permission = iroha_tree::Permission::with_account(authority, state_transaction)?;
         // let authorizer;
-        // let changeset: crate::tree::ChangeSet = match executable {
+        // let changeset: iroha_tree::ChangeSet = match executable {
         //     Executable::Instructions(instructions) => instructions.into(),
         //     Executable::Wasm(wasm) => {
         //         let read_request = wasm.request_read();
