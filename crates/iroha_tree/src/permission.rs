@@ -4,6 +4,8 @@ use super::*;
 
 pub type Permission = Tree<ReadWriteStatusFilter>;
 
+pub type PermissionRef<'a> = TreeRef<'a, ReadWriteStatusFilter>;
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct ReadWriteStatusFilter;
 

@@ -2,6 +2,8 @@ use super::*;
 
 pub type State = Tree<()>;
 
+pub type StateRef<'a> = TreeRef<'a, ()>;
+
 impl Mode for () {
     // Rank 1
     type Authorizer = tr::AuthorizerValue;

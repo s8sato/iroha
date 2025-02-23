@@ -2,6 +2,8 @@ use super::*;
 
 pub type Receptor = Tree<WriteStatusFilter>;
 
+pub type ReceptorRef<'a> = TreeRef<'a, WriteStatusFilter>;
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct WriteStatusFilter;
 
