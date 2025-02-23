@@ -13,7 +13,7 @@
 #![allow(missing_docs)] // SATO disallow
 #![allow(dead_code)] // SATO disallow
 
-use std::{cmp::Ordering, collections::HashMap, fmt::Debug, hash::Hash};
+use std::{cmp::Ordering, collections::HashMap, fmt::Debug, hash::Hash, ops::Deref};
 
 use derive_more::From;
 
@@ -23,8 +23,11 @@ mod permission;
 mod receptor;
 mod state;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, From)]
 struct Tree<M: Mode>(HashMap<NodeKey, NodeValue<M>>);
+
+#[derive(Debug, PartialEq, Eq, From)]
+struct TreeRef<'a, M: Mode>(HashMap<&'a NodeKey, &'a NodeValue<M>>);
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 enum NodeKey {
@@ -206,6 +209,116 @@ impl PartialOrd for FilterU8 {
         } else {
             None
         }
+    }
+}
+
+impl<M: Mode> FromIterator<(NodeKey, NodeValue<M>)> for Tree<M> {
+    fn from_iter<I: IntoIterator<Item = (NodeKey, NodeValue<M>)>>(iter: I) -> Self {
+        Tree::from(iter.into_iter().collect::<HashMap<_, _>>())
+    }
+}
+
+impl<'a, M: Mode> FromIterator<(&'a NodeKey, &'a NodeValue<M>)> for TreeRef<'a, M> {
+    fn from_iter<I: IntoIterator<Item = (&'a NodeKey, &'a NodeValue<M>)>>(iter: I) -> Self {
+        TreeRef::from(iter.into_iter().collect::<HashMap<_, _>>())
+    }
+}
+
+impl<M: Mode> Tree<M> {
+    fn get(&self, key: &NodeKey) -> Option<&NodeValue<M>> {
+        self.0.get(key)
+    }
+
+    fn insert(&mut self, key: NodeKey, value: NodeValue<M>) -> Option<NodeValue<M>> {
+        debug_assert!(consistent_key_value(&key, &value));
+        self.0.insert(key, value)
+    }
+
+    fn remove(&mut self, key: &NodeKey) -> Option<NodeValue<M>> {
+        self.0.remove(key)
+    }
+
+    fn iter(&self) -> impl Iterator<Item = (&NodeKey, &NodeValue<M>)> {
+        self.0.iter()
+    }
+
+    fn into_iter(self) -> impl Iterator<Item = (NodeKey, NodeValue<M>)> {
+        self.0.into_iter()
+    }
+
+    fn map<N, F>(self, f: F) -> Tree<N>
+    where
+        N: Mode,
+        F: Fn(NodeValue<M>) -> NodeValue<N>,
+    {
+        self.into_iter().map(|(k, v)| (k, f(v))).collect()
+    }
+
+    fn as_ref(&self) -> TreeRef<M> {
+        self.iter().collect()
+    }
+}
+
+impl<'a, M: Mode> TreeRef<'a, M> {
+    fn get(&self, key: &NodeKey) -> Option<&NodeValue<M>> {
+        self.0.get(key).map(Deref::deref)
+    }
+
+    fn into_iter(self) -> impl Iterator<Item = (&'a NodeKey, &'a NodeValue<M>)> {
+        self.0.into_iter()
+    }
+
+    fn map<N, F>(self, f: F) -> TreeRef<'a, N>
+    where
+        N: Mode,
+        F: Fn(&NodeValue<M>) -> &NodeValue<N>,
+    {
+        self.into_iter().map(|(k, v)| (k, f(v))).collect()
+    }
+}
+
+fn consistent_key_value<M: Mode>(key: &NodeKey, value: &NodeValue<M>) -> bool {
+    match (key ,value) {
+        // Rank 1
+        (NodeKey::Authorizer, NodeValue::<M>::Authorizer(_)) |
+        (NodeKey::Parameters, NodeValue::<M>::Parameters(_)) |
+        (NodeKey::Peers, NodeValue::<M>::Peers(_)) |
+        (NodeKey::Domains, NodeValue::<M>::Domains(_)) |
+        (NodeKey::Accounts, NodeValue::<M>::Accounts(_)) |
+        (NodeKey::Assets, NodeValue::<M>::Assets(_)) |
+        (NodeKey::Nfts, NodeValue::<M>::Nfts(_)) |
+        (NodeKey::AccountAssets, NodeValue::<M>::AccountAssets(_)) |
+        (NodeKey::Roles, NodeValue::<M>::Roles(_)) |
+        (NodeKey::Permissions, NodeValue::<M>::Permissions(_)) |
+        (NodeKey::AccountRoles, NodeValue::<M>::AccountRoles(_)) |
+        (NodeKey::AccountPermissions, NodeValue::<M>::AccountPermissions(_)) |
+        (NodeKey::RolePermissions, NodeValue::<M>::RolePermissions(_)) |
+        (NodeKey::Commands, NodeValue::<M>::Commands(_)) |
+        (NodeKey::Triggers, NodeValue::<M>::Triggers(_)) |
+        (NodeKey::Executables, NodeValue::<M>::Executables(_)) |
+        // Rank 2
+        (NodeKey::Parameter(_), NodeValue::<M>::Parameter(_)) |
+        (NodeKey::Peer(_), NodeValue::<M>::Peer(_)) |
+        (NodeKey::Domain(_), NodeValue::<M>::Domain(_)) |
+        (NodeKey::Account(_), NodeValue::<M>::Account(_)) |
+        (NodeKey::Asset(_), NodeValue::<M>::Asset(_)) |
+        (NodeKey::Nft(_), NodeValue::<M>::Nft(_)) |
+        (NodeKey::AccountAsset(_), NodeValue::<M>::AccountAsset(_)) |
+        (NodeKey::Role(_), NodeValue::<M>::Role(_)) |
+        (NodeKey::Permission(_), NodeValue::<M>::Permission(_)) |
+        (NodeKey::AccountRole(_), NodeValue::<M>::AccountRole(_)) |
+        (NodeKey::AccountPermission(_), NodeValue::<M>::AccountPermission(_)) |
+        (NodeKey::RolePermission(_), NodeValue::<M>::RolePermission(_)) |
+        (NodeKey::Command(_), NodeValue::<M>::Command(_)) |
+        (NodeKey::Trigger(_), NodeValue::<M>::Trigger(_)) |
+        (NodeKey::Executable(_), NodeValue::<M>::Executable(_)) |
+        // Rank 3
+        (NodeKey::DomainMetadata(_), NodeValue::<M>::DomainMetadata(_)) |
+        (NodeKey::AccountMetadata(_), NodeValue::<M>::AccountMetadata(_)) |
+        (NodeKey::AssetMetadata(_), NodeValue::<M>::AssetMetadata(_)) |
+        (NodeKey::NftData(_), NodeValue::<M>::NftData(_)) |
+        (NodeKey::TriggerMetadata(_), NodeValue::<M>::TriggerMetadata(_)) => true,
+        (_, _) => false
     }
 }
 
