@@ -9,7 +9,7 @@ pub struct Write;
 
 impl Mode for Write {
     // Rank 1
-    type Authorizer = ();
+    type Authorizer = AuthorizerW;
     type Parameters = ();
     type Peers = ();
     type Domains = ();
@@ -168,7 +168,9 @@ impl NodeWrite for ChangeSet {
     type Status = event::Event;
 
     fn as_status(&self) -> Self::Status {
-        todo!()
+        self.iter()
+            .map(|(k, write)| (k.clone(), write.into()))
+            .collect()
     }
 }
 
@@ -176,7 +178,9 @@ impl Filtered for ChangeSet {
     type Filter = permission::Permission;
 
     fn as_filter(&self) -> Self::Filter {
-        todo!()
+        self.iter()
+            .map(|(k, write)| (k.clone(), write.into()))
+            .collect()
     }
 }
 
@@ -187,6 +191,70 @@ impl Add for ChangeSet {
         todo!()
     }
 }
+
+macro_rules! impl_enum_into {
+    ($($ident:ident,)+) => {
+        impl From<&NodeValue<Write>> for NodeValue<event::WriteStatus> {
+            fn from(value: &NodeValue<Write>) -> Self {
+                match value {
+                    $(
+                    NodeValue::$ident(write) => Self::$ident(write.as_status()),
+                    )+
+                    _ => unreachable!(),
+                }
+            }
+        }
+
+        impl From<&NodeValue<Write>> for NodeValue<permission::ReadWriteStatusFilter> {
+            fn from(value: &NodeValue<Write>) -> Self {
+                match value {
+                    $(
+                    NodeValue::$ident(write) => Self::$ident(write.as_status().as_filter()),
+                    )+
+                    _ => unreachable!(),
+                }
+            }
+        }
+
+        impl From<&NodeValue<event::WriteStatus>> for NodeValue<receptor::WriteStatusFilter> {
+            fn from(value: &NodeValue<event::WriteStatus>) -> Self {
+                match value {
+                    $(
+                    NodeValue::$ident(write_status) => Self::$ident(write_status.as_filter()),
+                    )+
+                    _ => unreachable!(),
+                }
+            }
+        }
+    };
+}
+
+impl_enum_into!(
+    // Rank 1
+    Authorizer,
+    // Rank 2
+    Parameter,
+    Peer,
+    Domain,
+    Account,
+    Asset,
+    Nft,
+    AccountAsset,
+    Role,
+    Permission,
+    AccountRole,
+    AccountPermission,
+    RolePermission,
+    Command,
+    Trigger,
+    Executable,
+    // Rank 3
+    DomainMetadata,
+    AccountMetadata,
+    AssetMetadata,
+    NftData,
+    TriggerMetadata,
+);
 
 mod transitional {
     use super::*;

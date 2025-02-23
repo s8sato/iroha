@@ -43,38 +43,6 @@ impl Mode for WriteStatus {
     type Metadata = MetadataWS;
 }
 
-macro_rules! impl_filtered {
-    ($($ty:ty,)+) => {
-        $(
-        impl Filtered for $ty {
-            type Filter = FilterU8;
-
-            fn as_filter(&self) -> Self::Filter {
-                ((*self) as u8).into()
-            }
-        }
-        )+
-    };
-}
-
-impl_filtered!(
-    // Rank 1
-    AuthorizerWS,
-    // Rank 2
-    UnitWS,
-    ParameterWS,
-    DomainWS,
-    AssetWS,
-    NftWS,
-    AccountAssetWS,
-    PermissionWS,
-    CommandWS,
-    TriggerWS,
-    ExecutableWS,
-    // Rank 3
-    MetadataWS,
-);
-
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum AuthorizerWS {
@@ -165,7 +133,17 @@ pub enum MetadataWS {
     Unset = 0b0000_0100,
 }
 
-macro_rules! impl_from_write {
+impl Filtered for Event {
+    type Filter = receptor::Receptor;
+
+    fn as_filter(&self) -> Self::Filter {
+        self.iter()
+            .map(|(k, write_status)| (k.clone(), write_status.into()))
+            .collect()
+    }
+}
+
+macro_rules! impl_from_write_filtered {
     ($(($ty:ty, $write:ident: $($variant:ident)|+),)+) => {
         $(
         use changeset::$write;
@@ -179,11 +157,19 @@ macro_rules! impl_from_write {
                 }
             }
         }
+
+        impl Filtered for $ty {
+            type Filter = FilterU8;
+
+            fn as_filter(&self) -> Self::Filter {
+                ((*self) as u8).into()
+            }
+        }
         )+
     };
 }
 
-impl_from_write!(
+impl_from_write_filtered!(
     // Rank 1
     (AuthorizerWS, AuthorizerW: Set),
     // Rank 2
@@ -200,14 +186,6 @@ impl_from_write!(
     // Rank 3
     (MetadataWS, MetadataW: Set | Unset),
 );
-
-impl Filtered for Event {
-    type Filter = receptor::Receptor;
-
-    fn as_filter(&self) -> Self::Filter {
-        todo!()
-    }
-}
 
 mod transitional {
     use super::*;

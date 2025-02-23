@@ -29,7 +29,7 @@ struct Tree<M: Mode>(HashMap<NodeKey, NodeValue<M>>);
 #[derive(Debug, PartialEq, Eq, From)]
 struct TreeRef<'a, M: Mode>(HashMap<&'a NodeKey, &'a NodeValue<M>>);
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 enum NodeKey {
     // Rank 1
     Authorizer,
@@ -325,21 +325,21 @@ fn consistent_key_value<M: Mode>(key: &NodeKey, value: &NodeValue<M>) -> bool {
 mod transitional {
     use super::*;
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct ParameterId;
 
     pub type AssetId = dm::AssetDefinitionId;
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct NftId;
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct PermissionId;
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct CommandId;
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct ExecutableId;
 }
 
