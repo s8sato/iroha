@@ -13,7 +13,13 @@
 #![allow(missing_docs)] // SATO disallow
 #![allow(dead_code)] // SATO disallow
 
-use std::{cmp::Ordering, collections::HashMap, fmt::Debug, hash::Hash, ops::Deref};
+use std::{
+    cmp::Ordering,
+    collections::HashMap,
+    fmt::Debug,
+    hash::Hash,
+    ops::{Add, Deref},
+};
 
 use derive_more::From;
 
@@ -192,7 +198,7 @@ trait Filtered {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, From)]
+#[derive(Debug, PartialEq, Eq, From, Default)]
 struct FilterU8(u8);
 
 impl PartialOrd for FilterU8 {
@@ -209,6 +215,15 @@ impl PartialOrd for FilterU8 {
         } else {
             None
         }
+    }
+}
+
+impl Add for FilterU8 {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        #[expect(clippy::suspicious_arithmetic_impl)]
+        Self(self.0 | rhs.0)
     }
 }
 

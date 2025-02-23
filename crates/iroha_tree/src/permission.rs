@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 use super::*;
 
 pub type Permission = Tree<ReadWriteStatusFilter>;
@@ -56,10 +54,76 @@ impl PartialOrd for Permission {
 impl Add for Permission {
     type Output = Self;
 
-    fn add(self, _rhs: Self) -> Self::Output {
-        todo!()
+    fn add(self, mut rhs: Self) -> Self::Output {
+        for (k, v0) in self.into_iter() {
+            let v = match rhs.remove(&k) {
+                None => v0,
+                Some(v1) => v0 + v1,
+            };
+            rhs.insert(k, v);
+        }
+        rhs
     }
 }
+
+macro_rules! impl_enum_add {
+    ($($ident:ident,)+) => {
+        impl Add for NodeValue<ReadWriteStatusFilter> {
+            type Output = Self;
+
+            fn add(self, rhs: Self) -> Self::Output {
+                match (self, rhs) {
+                    $(
+                    (Self::$ident(l), Self::$ident(r)) => Self::$ident(l + r),
+                    )+
+                    _ => unreachable!(),
+                }
+            }
+        }
+    }
+}
+
+impl_enum_add!(
+    // Rank 1
+    Parameters,
+    Peers,
+    Authorizer,
+    Domains,
+    Accounts,
+    Assets,
+    Nfts,
+    AccountAssets,
+    Roles,
+    Permissions,
+    AccountRoles,
+    AccountPermissions,
+    RolePermissions,
+    Commands,
+    Triggers,
+    Executables,
+    // Rank 2
+    Parameter,
+    Peer,
+    Domain,
+    Account,
+    Asset,
+    Nft,
+    AccountAsset,
+    Role,
+    Permission,
+    AccountRole,
+    AccountPermission,
+    RolePermission,
+    Command,
+    Trigger,
+    Executable,
+    // Rank 3
+    DomainMetadata,
+    AccountMetadata,
+    AssetMetadata,
+    NftData,
+    TriggerMetadata,
+);
 
 mod transitional {
     use iroha_executor_data_model::permission as xp;
