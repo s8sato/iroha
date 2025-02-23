@@ -47,47 +47,6 @@ impl Mode for Write {
     type Metadata = MetadataW;
 }
 
-macro_rules! impl_node_write {
-    ($(($ty:ty, $status:ident),)+) => {
-        $(
-        impl NodeWrite for $ty {
-            type Status = event::$status;
-
-            fn as_status(&self) -> Self::Status {
-                self.into()
-            }
-        }
-
-        impl Filtered for $ty {
-            type Filter = super::FilterU8;
-
-            fn as_filter(&self) -> Self::Filter {
-                let status = NodeWrite::as_status(self);
-                Filtered::as_filter(&status)
-            }
-        }
-        )+
-    };
-}
-
-impl_node_write!(
-    // Rank 1
-    (AuthorizerW, AuthorizerWS),
-    // Rank 2
-    (UnitW, UnitWS),
-    (ParameterW, ParameterWS),
-    (DomainW, DomainWS),
-    (AssetW, AssetWS),
-    (NftW, NftWS),
-    (AccountAssetW, AccountAssetWS),
-    (PermissionW, PermissionWS),
-    (CommandW, CommandWS),
-    (TriggerW, TriggerWS),
-    (ExecutableW, ExecutableWS),
-    // Rank 3
-    (MetadataW, MetadataWS),
-);
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum AuthorizerW {
     Set(state::tr::AuthorizerValue),
@@ -102,7 +61,7 @@ pub enum UnitW {
 #[derive(Debug, PartialEq, Eq)]
 pub enum ParameterW {
     Set(state::tr::ParameterValue),
-    Unset(dm::CustomParameterId),
+    Unset(()),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -187,15 +146,207 @@ impl Filtered for ChangeSet {
 }
 
 impl Add for ChangeSet {
-    type Output = Result<Self, (Self, Self)>;
+    type Output = Result<Self, (NodeKey, NodeValue<Write>, NodeValue<Write>)>;
 
-    fn add(self, _rhs: Self) -> Self::Output {
-        todo!()
+    fn add(self, mut rhs: Self) -> Self::Output {
+        for (k, v0) in self.into_iter() {
+            let v = match rhs.remove(&k) {
+                None => v0,
+                Some(v1) => match v0 + v1 {
+                    Ok(v) => v,
+                    Err((v0, v1)) => return Err((k, v0, v1)),
+                },
+            };
+            rhs.insert(k, v);
+        }
+        Ok(rhs)
     }
 }
 
-macro_rules! impl_enum_into {
+macro_rules! impl_node_write {
+    ($(($ty:ty, $status:ident),)+) => {
+        $(
+        impl NodeWrite for $ty {
+            type Status = event::$status;
+
+            fn as_status(&self) -> Self::Status {
+                self.into()
+            }
+        }
+
+        impl Filtered for $ty {
+            type Filter = super::FilterU8;
+
+            fn as_filter(&self) -> Self::Filter {
+                self.as_status().as_filter()
+            }
+        }
+        )+
+    };
+}
+
+impl_node_write!(
+    // Rank 1
+    (AuthorizerW, AuthorizerWS),
+    // Rank 2
+    (UnitW, UnitWS),
+    (ParameterW, ParameterWS),
+    (DomainW, DomainWS),
+    (AssetW, AssetWS),
+    (NftW, NftWS),
+    (AccountAssetW, AccountAssetWS),
+    (PermissionW, PermissionWS),
+    (CommandW, CommandWS),
+    (TriggerW, TriggerWS),
+    (ExecutableW, ExecutableWS),
+    // Rank 3
+    (MetadataW, MetadataWS),
+);
+
+impl Add for AuthorizerW {
+    type Output = Result<Self, (Self, Self)>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Ok(rhs)
+    }
+}
+
+impl Add for UnitW {
+    type Output = Result<Self, (Self, Self)>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Err((self, rhs))
+    }
+}
+
+impl Add for ParameterW {
+    type Output = Result<Self, (Self, Self)>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Ok(rhs)
+    }
+}
+
+impl Add for DomainW {
+    type Output = Result<Self, (Self, Self)>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Err((self, rhs))
+    }
+}
+
+impl Add for AssetW {
+    type Output = Result<Self, (Self, Self)>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Err((self, rhs))
+    }
+}
+
+impl Add for NftW {
+    type Output = Result<Self, (Self, Self)>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Err((self, rhs))
+    }
+}
+
+impl Add for AccountAssetW {
+    type Output = Result<Self, (Self, Self)>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let add = match (self, rhs) {
+            (Self::Receive(l), Self::Receive(r)) => match l.checked_add(r) {
+                Some(add) => Self::Receive(add),
+                _ => return Err((Self::Receive(l), Self::Receive(r))),
+            },
+            (Self::Send(l), Self::Send(r)) => match l.checked_add(r) {
+                Some(add) => Self::Send(add),
+                _ => return Err((Self::Send(l), Self::Send(r))),
+            },
+            (Self::Mint(l), Self::Mint(r)) => match l.checked_add(r) {
+                Some(add) => Self::Mint(add),
+                _ => return Err((Self::Mint(l), Self::Mint(r))),
+            },
+            (Self::Burn(l), Self::Burn(r)) => match l.checked_add(r) {
+                Some(add) => Self::Burn(add),
+                _ => return Err((Self::Burn(l), Self::Burn(r))),
+            },
+            (l, r) => return Err((l, r)),
+        };
+        Ok(add)
+    }
+}
+
+impl Add for PermissionW {
+    type Output = Result<Self, (Self, Self)>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Ok(rhs)
+    }
+}
+
+impl Add for CommandW {
+    type Output = Result<Self, (Self, Self)>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Ok(rhs)
+    }
+}
+
+impl Add for TriggerW {
+    type Output = Result<Self, (Self, Self)>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let add = match (self, rhs) {
+            (Self::Increase(l), Self::Increase(r)) => match l.checked_add(r) {
+                Some(add) => Self::Increase(add),
+                _ => return Err((Self::Increase(l), Self::Increase(r))),
+            },
+            (Self::Decrease(l), Self::Decrease(r)) => match l.checked_add(r) {
+                Some(add) => Self::Decrease(add),
+                _ => return Err((Self::Decrease(l), Self::Decrease(r))),
+            },
+            (l, r) => return Err((l, r)),
+        };
+        Ok(add)
+    }
+}
+
+impl Add for ExecutableW {
+    type Output = Result<Self, (Self, Self)>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Ok(rhs)
+    }
+}
+
+impl Add for MetadataW {
+    type Output = Result<Self, (Self, Self)>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Ok(rhs)
+    }
+}
+
+macro_rules! impl_enum_add_into {
     ($($ident:ident,)+) => {
+        impl Add for NodeValue<Write> {
+            type Output = Result<Self, (Self, Self)>;
+
+            fn add(self, rhs: Self) -> Self::Output {
+                match (self, rhs) {
+                    $(
+                    (Self::$ident(l), Self::$ident(r)) => match l + r {
+                        Ok(add) => Ok(Self::$ident(add)),
+                        Err((l, r)) => Err((Self::$ident(l), Self::$ident(r))),
+                    },
+                    )+
+                    _ => unreachable!(),
+                }
+            }
+        }
+
         impl From<&NodeValue<Write>> for NodeValue<event::WriteStatus> {
             fn from(value: &NodeValue<Write>) -> Self {
                 match value {
@@ -231,7 +382,7 @@ macro_rules! impl_enum_into {
     };
 }
 
-impl_enum_into!(
+impl_enum_add_into!(
     // Rank 1
     Authorizer,
     // Rank 2
@@ -274,14 +425,8 @@ mod transitional {
 
     struct InvariantsViolation;
 
-    impl Default for ChangeSet {
-        fn default() -> Self {
-            todo!()
-        }
-    }
-
     impl TryFrom<Vec<dm::InstructionBox>> for ChangeSet {
-        type Error = (Self, Self);
+        type Error = (NodeKey, NodeValue<Write>, NodeValue<Write>);
 
         fn try_from(value: Vec<dm::InstructionBox>) -> Result<Self, Self::Error> {
             value

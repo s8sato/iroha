@@ -52,53 +52,53 @@ pub mod transitional {
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct ParameterValue {
-        parameter: dm::Parameter,
+        pub(crate) parameter: dm::Parameter,
     }
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct DomainValue {
-        logo: Option<dm::IpfsPath>,
-        admin: dm::AccountId,
+        pub(crate) logo: Option<dm::IpfsPath>,
+        pub(crate) admin: dm::AccountId,
     }
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct AssetValue {
-        total_quantity: dm::Numeric,
-        mintable: dm::Mintable,
-        logo: Option<dm::IpfsPath>,
-        admin: dm::AccountId,
+        pub(crate) total_quantity: dm::Numeric,
+        pub(crate) mintable: dm::Mintable,
+        pub(crate) logo: Option<dm::IpfsPath>,
+        pub(crate) admin: dm::AccountId,
     }
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct NftValue {
-        owner: dm::AccountId,
+        pub(crate) owner: dm::AccountId,
     }
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct AccountAssetValue {
-        balance: dm::Numeric,
+        pub(crate) balance: dm::Numeric,
     }
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct PermissionValue {
-        permission: permission::Permission,
+        pub(crate) permission: permission::Permission,
     }
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct CommandValue {
-        changeset: changeset::ChangeSet,
+        pub(crate) changeset: changeset::ChangeSet,
     }
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct TriggerValue {
-        receptor: receptor::Receptor,
-        executable: self::TriggerExecutable,
-        repeats: dm::Repeats,
-        authority: dm::AccountId,
+        pub(crate) receptor: receptor::Receptor,
+        pub(crate) executable: self::TriggerExecutable,
+        pub(crate) repeats: dm::Repeats,
+        pub(crate) authority: dm::AccountId,
     }
 
     #[derive(Debug, PartialEq, Eq)]
-    enum TriggerExecutable {
+    pub enum TriggerExecutable {
         Cmd(crate::tr::CommandId),
         Exe(crate::tr::ExecutableId),
     }
@@ -108,7 +108,7 @@ pub mod transitional {
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct MetadataValue {
-        json: dm::Json,
+        pub(crate) json: dm::Json,
     }
 
     impl State {

@@ -5,7 +5,7 @@
 //!
 //! Additionally, to improve performance, it consolidates:
 //!
-//! - Instructions into a single [`ChangeSet`] per transaction (or per block/epoch, depending on feature requests such as chain compression).
+//! - Instructions into a single [`ChangeSet`] per transaction.
 //! - (Data) events into a single [`Event`] per transaction.
 //! - (Data) event filters into a single [`Receptor`] per trigger.
 //! - Permissions, roles, and ownerships into a single [`Permission`] per validation.
@@ -212,6 +212,12 @@ impl PartialOrd for FilterU8 {
     }
 }
 
+impl<M: Mode> Default for Tree<M> {
+    fn default() -> Self {
+        Self(HashMap::default())
+    }
+}
+
 impl<M: Mode> FromIterator<(NodeKey, NodeValue<M>)> for Tree<M> {
     fn from_iter<I: IntoIterator<Item = (NodeKey, NodeValue<M>)>>(iter: I) -> Self {
         Tree::from(iter.into_iter().collect::<HashMap<_, _>>())
@@ -326,7 +332,13 @@ mod transitional {
     use super::*;
 
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-    pub struct ParameterId;
+    pub enum ParameterId {
+        Preset(PresetParameterId),
+        Custom(dm::CustomParameterId),
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    pub struct PresetParameterId;
 
     pub type AssetId = dm::AssetDefinitionId;
 
