@@ -1,31 +1,14 @@
 use super::*;
 
-pub type ChangeSet = Tree<Write>;
+pub type ChangeSet = Leaves<Write>;
 
-pub type ChangeSetRef<'a> = TreeRef<'a, Write>;
+pub type ChangeSetRef<'a> = LeavesRef<'a, Write>;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Write;
 
-impl Mode for Write {
-    // Rank 1
+impl LeafMode for Write {
     type Authorizer = AuthorizerW;
-    type Parameters = ();
-    type Peers = ();
-    type Domains = ();
-    type Accounts = ();
-    type Assets = ();
-    type Nfts = ();
-    type AccountAssets = ();
-    type Roles = ();
-    type Permissions = ();
-    type AccountRoles = ();
-    type AccountPermissions = ();
-    type RolePermissions = ();
-    type Commands = ();
-    type Triggers = ();
-    type Executables = ();
-    // Rank 2
     type Parameter = ParameterW;
     type Peer = UnitW;
     type Domain = DomainW;
@@ -41,7 +24,6 @@ impl Mode for Write {
     type Command = CommandW;
     type Trigger = TriggerW;
     type Executable = ExecutableW;
-    // Rank 3
     type Metadata = MetadataW;
 }
 
@@ -138,13 +120,13 @@ impl Filtered for ChangeSet {
 
     fn as_filter(&self) -> Self::Filter {
         self.iter()
-            .map(|(k, write)| (k.clone(), write.into()))
+            .map(|(k, write)| (k.clone().into(), write.into()))
             .collect()
     }
 }
 
 impl Add for ChangeSet {
-    type Output = Result<Self, (NodeKey, NodeValue<Write>, NodeValue<Write>)>;
+    type Output = Result<Self, (LeafKey, LeafValue<Write>, LeafValue<Write>)>;
 
     fn add(self, mut rhs: Self) -> Self::Output {
         for (k, v0) in self.into_iter() {
@@ -184,9 +166,7 @@ macro_rules! impl_node_write {
 }
 
 impl_node_write!(
-    // Rank 1
     (AuthorizerW, AuthorizerWS),
-    // Rank 2
     (UnitW, UnitWS),
     (ParameterW, ParameterWS),
     (DomainW, DomainWS),
@@ -197,7 +177,6 @@ impl_node_write!(
     (CommandW, CommandWS),
     (TriggerW, TriggerWS),
     (ExecutableW, ExecutableWS),
-    // Rank 3
     (MetadataW, MetadataWS),
 );
 
@@ -329,7 +308,7 @@ impl Add for MetadataW {
 
 macro_rules! impl_enum_add_into {
     ($($ident:ident,)+) => {
-        impl Add for NodeValue<Write> {
+        impl Add for LeafValue<Write> {
             type Output = Result<Self, (Self, Self)>;
 
             fn add(self, rhs: Self) -> Self::Output {
@@ -345,35 +324,32 @@ macro_rules! impl_enum_add_into {
             }
         }
 
-        impl From<&NodeValue<Write>> for NodeValue<event::WriteStatus> {
-            fn from(value: &NodeValue<Write>) -> Self {
+        impl From<&LeafValue<Write>> for LeafValue<event::WriteStatus> {
+            fn from(value: &LeafValue<Write>) -> Self {
                 match value {
                     $(
-                    NodeValue::$ident(write) => Self::$ident(write.as_status()),
+                    LeafValue::$ident(write) => Self::$ident(write.as_status()),
                     )+
-                    _ => unreachable!(),
                 }
             }
         }
 
-        impl From<&NodeValue<Write>> for NodeValue<permission::ReadWriteStatusFilter> {
-            fn from(value: &NodeValue<Write>) -> Self {
+        impl From<&LeafValue<Write>> for NodeValue<permission::ReadWriteStatusFilter> {
+            fn from(value: &LeafValue<Write>) -> Self {
                 match value {
                     $(
-                    NodeValue::$ident(write) => Self::$ident(write.as_status().as_filter()),
+                    LeafValue::$ident(write) => LeafValue::$ident(write.as_status().as_filter()).into(),
                     )+
-                    _ => unreachable!(),
                 }
             }
         }
 
-        impl From<&NodeValue<event::WriteStatus>> for NodeValue<receptor::WriteStatusFilter> {
-            fn from(value: &NodeValue<event::WriteStatus>) -> Self {
+        impl From<&LeafValue<event::WriteStatus>> for NodeValue<receptor::WriteStatusFilter> {
+            fn from(value: &LeafValue<event::WriteStatus>) -> Self {
                 match value {
                     $(
-                    NodeValue::$ident(write_status) => Self::$ident(write_status.as_filter()),
+                    LeafValue::$ident(write_status) => LeafValue::$ident(write_status.as_filter()).into(),
                     )+
-                    _ => unreachable!(),
                 }
             }
         }
@@ -381,9 +357,7 @@ macro_rules! impl_enum_add_into {
 }
 
 impl_enum_add_into!(
-    // Rank 1
     Authorizer,
-    // Rank 2
     Parameter,
     Peer,
     Domain,
@@ -399,7 +373,6 @@ impl_enum_add_into!(
     Command,
     Trigger,
     Executable,
-    // Rank 3
     DomainMetadata,
     AccountMetadata,
     AssetMetadata,
@@ -424,7 +397,7 @@ mod transitional {
     struct InvariantsViolation;
 
     impl TryFrom<Vec<dm::InstructionBox>> for ChangeSet {
-        type Error = (NodeKey, NodeValue<Write>, NodeValue<Write>);
+        type Error = (LeafKey, LeafValue<Write>, LeafValue<Write>);
 
         fn try_from(value: Vec<dm::InstructionBox>) -> Result<Self, Self::Error> {
             value

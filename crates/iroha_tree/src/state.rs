@@ -1,28 +1,11 @@
 use super::*;
 
-pub type State = Tree<()>;
+pub type State = Leaves<()>;
 
-pub type StateRef<'a> = TreeRef<'a, ()>;
+pub type StateRef<'a> = LeavesRef<'a, ()>;
 
-impl Mode for () {
-    // Rank 1
+impl LeafMode for () {
     type Authorizer = tr::AuthorizerValue;
-    type Parameters = ();
-    type Peers = ();
-    type Domains = ();
-    type Accounts = ();
-    type Assets = ();
-    type Nfts = ();
-    type AccountAssets = ();
-    type Roles = ();
-    type Permissions = ();
-    type AccountRoles = ();
-    type AccountPermissions = ();
-    type RolePermissions = ();
-    type Commands = ();
-    type Triggers = ();
-    type Executables = ();
-    // Rank 2
     type Parameter = tr::ParameterValue;
     type Peer = ();
     type Domain = tr::DomainValue;
@@ -38,7 +21,6 @@ impl Mode for () {
     type Command = tr::CommandValue;
     type Trigger = tr::TriggerValue;
     type Executable = tr::ExecutableValue;
-    // Rank 3
     type Metadata = tr::MetadataValue;
 }
 

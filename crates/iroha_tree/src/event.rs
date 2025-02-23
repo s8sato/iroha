@@ -1,31 +1,14 @@
 use super::*;
 
-pub type Event = Tree<WriteStatus>;
+pub type Event = Leaves<WriteStatus>;
 
-pub type EventRef<'a> = TreeRef<'a, WriteStatus>;
+pub type EventRef<'a> = LeavesRef<'a, WriteStatus>;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct WriteStatus;
 
-impl Mode for WriteStatus {
-    // Rank 1
+impl LeafMode for WriteStatus {
     type Authorizer = AuthorizerWS;
-    type Parameters = ();
-    type Peers = ();
-    type Domains = ();
-    type Accounts = ();
-    type Assets = ();
-    type Nfts = ();
-    type AccountAssets = ();
-    type Roles = ();
-    type Permissions = ();
-    type AccountRoles = ();
-    type AccountPermissions = ();
-    type RolePermissions = ();
-    type Commands = ();
-    type Triggers = ();
-    type Executables = ();
-    // Rank 2
     type Parameter = ParameterWS;
     type Peer = UnitWS;
     type Domain = DomainWS;
@@ -41,7 +24,6 @@ impl Mode for WriteStatus {
     type Command = CommandWS;
     type Trigger = TriggerWS;
     type Executable = ExecutableWS;
-    // Rank 3
     type Metadata = MetadataWS;
 }
 
@@ -140,7 +122,7 @@ impl Filtered for Event {
 
     fn as_filter(&self) -> Self::Filter {
         self.iter()
-            .map(|(k, write_status)| (k.clone(), write_status.into()))
+            .map(|(k, write_status)| (k.clone().into(), write_status.into()))
             .collect()
     }
 }
@@ -172,9 +154,7 @@ macro_rules! impl_from_write_filtered {
 }
 
 impl_from_write_filtered!(
-    // Rank 1
     (AuthorizerWS, AuthorizerW: Set),
-    // Rank 2
     (UnitWS, UnitW: Create | Delete),
     (ParameterWS, ParameterW: Set | Unset),
     (DomainWS, DomainW: Transfer | Create | Delete),
@@ -185,7 +165,6 @@ impl_from_write_filtered!(
     (CommandWS, CommandW: Set | Unset),
     (TriggerWS, TriggerW: Increase | Decrease | Create | Delete),
     (ExecutableWS, ExecutableW: Set | Unset),
-    // Rank 3
     (MetadataWS, MetadataW: Set | Unset),
 );
 

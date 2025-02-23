@@ -7,9 +7,9 @@ pub type ReceptorRef<'a> = TreeRef<'a, WriteStatusFilter>;
 #[derive(Debug, PartialEq, Eq)]
 pub struct WriteStatusFilter;
 
-impl Mode for WriteStatusFilter {
-    // Rank 1
-    type Authorizer = FilterU8;
+impl NodeMode for WriteStatusFilter {}
+
+impl BranchMode for WriteStatusFilter {
     type Parameters = FilterU8;
     type Peers = FilterU8;
     type Domains = FilterU8;
@@ -25,7 +25,10 @@ impl Mode for WriteStatusFilter {
     type Commands = FilterU8;
     type Triggers = FilterU8;
     type Executables = FilterU8;
-    // Rank 2
+}
+
+impl LeafMode for WriteStatusFilter {
+    type Authorizer = FilterU8;
     type Parameter = FilterU8;
     type Peer = FilterU8;
     type Domain = FilterU8;
@@ -41,7 +44,6 @@ impl Mode for WriteStatusFilter {
     type Command = FilterU8;
     type Trigger = FilterU8;
     type Executable = FilterU8;
-    // Rank 3
     type Metadata = FilterU8;
 }
 
