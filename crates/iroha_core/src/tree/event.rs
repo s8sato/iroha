@@ -2,11 +2,12 @@ use super::*;
 
 pub type Event = Tree<WriteStatus>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct WriteStatus;
 
 impl Mode for WriteStatus {
     // Rank 1
+    type Authorizer = AuthorizerWS;
     type Parameters = ();
     type Peers = ();
     type Domains = ();
@@ -22,7 +23,6 @@ impl Mode for WriteStatus {
     type Commands = ();
     type Triggers = ();
     type Executables = ();
-    type Authorizers = ();
     // Rank 2
     type Parameter = ParameterWS;
     type Peer = UnitWS;
@@ -39,54 +39,14 @@ impl Mode for WriteStatus {
     type Command = CommandWS;
     type Trigger = TriggerWS;
     type Executable = ExecutableWS;
-    type Authorizer = AuthorizerWS;
     // Rank 3
     type Metadata = MetadataWS;
 }
 
-impl_node_values!(
-    // Rank 1
-    (WriteStatus, Parameters, ParameterWS),
-    (WriteStatus, Peers, UnitWS),
-    (WriteStatus, Domains, DomainWS),
-    (WriteStatus, Accounts, UnitWS),
-    (WriteStatus, Assets, AssetWS),
-    (WriteStatus, Nfts, NftWS),
-    (WriteStatus, AccountAssets, AccountAssetWS),
-    (WriteStatus, Roles, UnitWS),
-    (WriteStatus, Permissions, PermissionWS),
-    (WriteStatus, AccountRoles, UnitWS),
-    (WriteStatus, AccountPermissions, UnitWS),
-    (WriteStatus, RolePermissions, UnitWS),
-    (WriteStatus, Commands, CommandWS),
-    (WriteStatus, Triggers, TriggerWS),
-    (WriteStatus, Executables, ExecutableWS),
-    (WriteStatus, Authorizers, AuthorizerWS),
-    // Rank 2
-    (ParameterWS, Parameter, ()),
-    (UnitWS, Peer, ()),
-    (DomainWS, Domain, MetadataWS),
-    (UnitWS, Account, MetadataWS),
-    (AssetWS, Asset, MetadataWS),
-    (NftWS, Nft, MetadataWS),
-    (AccountAssetWS, AccountAsset, ()),
-    (UnitWS, Role, ()),
-    (PermissionWS, Permission, ()),
-    (UnitWS, AccountRole, ()),
-    (UnitWS, AccountPermission, ()),
-    (UnitWS, RolePermission, ()),
-    (CommandWS, Command, ()),
-    (TriggerWS, Trigger, MetadataWS),
-    (ExecutableWS, Executable, ()),
-    (AuthorizerWS, Authorizer, ()),
-    // Rank 3
-    (MetadataWS, Metadata, ()),
-);
-
 macro_rules! impl_filtered {
-    ($(($ty:ty, $key:ty),)+) => {
+    ($($ty:ty,)+) => {
         $(
-        impl Filtered<$key> for $ty {
+        impl Filtered for $ty {
             type Filter = FilterU8;
 
             fn as_filter(&self) -> Self::Filter {
@@ -98,42 +58,44 @@ macro_rules! impl_filtered {
 }
 
 impl_filtered!(
+    // Rank 1
+    AuthorizerWS,
     // Rank 2
-    (ParameterWS, Parameter),
-    (UnitWS, Peer),
-    (DomainWS, Domain),
-    (UnitWS, Account),
-    (AssetWS, Asset),
-    (NftWS, Nft),
-    (AccountAssetWS, AccountAsset),
-    (UnitWS, Role),
-    (PermissionWS, Permission),
-    (UnitWS, AccountRole),
-    (UnitWS, AccountPermission),
-    (UnitWS, RolePermission),
-    (CommandWS, Command),
-    (TriggerWS, Trigger),
-    (ExecutableWS, Executable),
-    (AuthorizerWS, Authorizer),
+    UnitWS,
+    ParameterWS,
+    DomainWS,
+    AssetWS,
+    NftWS,
+    AccountAssetWS,
+    PermissionWS,
+    CommandWS,
+    TriggerWS,
+    ExecutableWS,
     // Rank 3
-    (MetadataWS, Metadata),
+    MetadataWS,
 );
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(u8)]
+pub enum AuthorizerWS {
+    Set = 0b0000_0010,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum UnitWS {
     Create = 0b0000_0010,
     Delete = 0b0000_0100,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum ParameterWS {
     Set = 0b0000_0010,
     Unset = 0b0000_0100,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum DomainWS {
     Transfer = 0b0000_0010,
@@ -141,7 +103,7 @@ pub enum DomainWS {
     Delete = 0b0000_1000,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum AssetWS {
     Transfer = 0b0000_0010,
@@ -149,7 +111,7 @@ pub enum AssetWS {
     Delete = 0b0000_1000,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum NftWS {
     Transfer = 0b0000_0010,
@@ -157,7 +119,7 @@ pub enum NftWS {
     Delete = 0b0000_1000,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum AccountAssetWS {
     Receive = 0b0000_0010,
@@ -166,21 +128,21 @@ pub enum AccountAssetWS {
     Burn = 0b0001_0000,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum PermissionWS {
     Set = 0b0000_0010,
     Unset = 0b0000_0100,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum CommandWS {
     Set = 0b0000_0010,
     Unset = 0b0000_0100,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum TriggerWS {
     Increase = 0b0000_0010,
@@ -189,21 +151,14 @@ pub enum TriggerWS {
     Delete = 0b0001_0000,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum ExecutableWS {
     Set = 0b0000_0010,
     Unset = 0b0000_0100,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
-#[repr(u8)]
-pub enum AuthorizerWS {
-    Set = 0b0000_0010,
-    Unset = 0b0000_0100,
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum MetadataWS {
     Set = 0b0000_0010,
@@ -229,6 +184,8 @@ macro_rules! impl_from_write {
 }
 
 impl_from_write!(
+    // Rank 1
+    (AuthorizerWS, AuthorizerW: Set),
     // Rank 2
     (UnitWS, UnitW: Create | Delete),
     (ParameterWS, ParameterW: Set | Unset),
@@ -240,12 +197,11 @@ impl_from_write!(
     (CommandWS, CommandW: Set | Unset),
     (TriggerWS, TriggerW: Increase | Decrease | Create | Delete),
     (ExecutableWS, ExecutableW: Set | Unset),
-    (AuthorizerWS, AuthorizerW: Set | Unset),
     // Rank 3
     (MetadataWS, MetadataW: Set | Unset),
 );
 
-impl Filtered<Root> for Event {
+impl Filtered for Event {
     type Filter = receptor::Receptor;
 
     fn as_filter(&self) -> Self::Filter {

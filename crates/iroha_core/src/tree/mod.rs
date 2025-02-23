@@ -12,189 +12,175 @@
 
 #![allow(missing_docs)] // SATO disallow
 #![allow(dead_code)] // SATO disallow
+#![expect(clippy::disallowed_types)]
 
-use std::{cmp::Ordering, fmt::Debug, hash::Hash};
+use std::{cmp::Ordering, collections::HashMap, fmt::Debug, hash::Hash};
 
 use derive_more::From;
 
-#[derive(Debug, PartialEq)]
-enum Node<K, V>
-where
-    K: NodeKey,
-    V: NodeValue<K>,
-{
-    End(V),
-    #[expect(clippy::type_complexity)]
-    #[expect(clippy::disallowed_types)]
-    Ext(std::collections::HashMap<K::Ext, Node<K::Ext, V::Ext>>),
+mod changeset;
+mod event;
+mod permission;
+mod receptor;
+mod state;
+
+#[derive(Debug, PartialEq, Eq)]
+struct Tree<M: Mode>(HashMap<NodeKey, NodeValue<M>>);
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+enum NodeKey {
+    // Rank 1
+    Authorizer,
+    Parameters,
+    Peers,
+    Domains,
+    Accounts,
+    Assets,
+    Nfts,
+    AccountAssets,
+    Roles,
+    Permissions,
+    AccountRoles,
+    AccountPermissions,
+    RolePermissions,
+    Commands,
+    Triggers,
+    Executables,
+    // Rank 2
+    Parameter(ParameterKey),
+    Peer(PeerKey),
+    Domain(DomainKey),
+    Account(AccountKey),
+    Asset(AssetKey),
+    Nft(NftKey),
+    AccountAsset(AccountAssetKey),
+    Role(RoleKey),
+    Permission(PermissionKey),
+    AccountRole(AccountRoleKey),
+    AccountPermission(AccountPermissionKey),
+    RolePermission(RolePermissionKey),
+    Command(CommandKey),
+    Trigger(TriggerKey),
+    Executable(ExecutableKey),
+    // Rank 3
+    DomainMetadata(DomainMetadataKey),
+    AccountMetadata(AccountMetadataKey),
+    AssetMetadata(AssetMetadataKey),
+    NftData(NftDataKey),
+    TriggerMetadata(TriggerMetadataKey),
 }
 
-trait NodeKey: Debug + Eq + Hash {
-    type Ext: NodeKey;
-}
+// Rank 2
+type ParameterKey = tr::ParameterId;
+type PeerKey = dm::PeerId;
+type DomainKey = dm::DomainId;
+type AccountKey = dm::AccountId;
+type AssetKey = tr::AssetId;
+type NftKey = tr::NftId;
+type AccountAssetKey = (dm::AccountId, tr::AssetId);
+type RoleKey = dm::RoleId;
+type PermissionKey = tr::PermissionId;
+type AccountRoleKey = (dm::AccountId, dm::RoleId);
+type AccountPermissionKey = (dm::AccountId, tr::PermissionId);
+type RolePermissionKey = (dm::RoleId, tr::PermissionId);
+type CommandKey = tr::CommandId;
+type TriggerKey = dm::TriggerId;
+type ExecutableKey = tr::ExecutableId;
+// Rank 3
+type DomainMetadataKey = (DomainKey, dm::Name);
+type AccountMetadataKey = (AccountKey, dm::Name);
+type AssetMetadataKey = (AssetKey, dm::Name);
+type NftDataKey = (NftKey, dm::Name);
+type TriggerMetadataKey = (TriggerKey, dm::Name);
 
-trait NodeValue<K: NodeKey>: Debug + PartialEq {
-    type Ext: NodeValue<K::Ext>;
-}
-
-#[derive(Debug, PartialEq)]
-// SATO size = 768
-struct Tree<M: Mode> {
-    parameters: Node<Parameters, M::Parameters>,
-    peers: Node<Peers, M::Peers>,
-    domains: Node<Domains, M::Domains>,
-    accounts: Node<Accounts, M::Accounts>,
-    assets: Node<Assets, M::Assets>,
-    nfts: Node<Nfts, M::Nfts>,
-    account_assets: Node<AccountAssets, M::AccountAssets>,
-    roles: Node<Roles, M::Roles>,
-    permissions: Node<Permissions, M::Permissions>,
-    account_roles: Node<AccountRoles, M::AccountRoles>,
-    account_permissions: Node<AccountPermissions, M::AccountPermissions>,
-    role_permissions: Node<RolePermissions, M::RolePermissions>,
-    commands: Node<Commands, M::Commands>,
-    triggers: Node<Triggers, M::Triggers>,
-    executables: Node<Executables, M::Executables>,
-    authorizers: Node<Authorizers, M::Authorizers>,
+#[derive(Debug, PartialEq, Eq)]
+enum NodeValue<M: Mode> {
+    // Rank 1
+    Authorizer(M::Authorizer),
+    Parameters(M::Parameters),
+    Peers(M::Peers),
+    Domains(M::Domains),
+    Accounts(M::Accounts),
+    Assets(M::Assets),
+    Nfts(M::Nfts),
+    AccountAssets(M::AccountAssets),
+    Roles(M::Roles),
+    Permissions(M::Permissions),
+    AccountRoles(M::AccountRoles),
+    AccountPermissions(M::AccountPermissions),
+    RolePermissions(M::RolePermissions),
+    Commands(M::Commands),
+    Triggers(M::Triggers),
+    Executables(M::Executables),
+    // Rank 2
+    Parameter(M::Parameter),
+    Peer(M::Peer),
+    Domain(M::Domain),
+    Account(M::Account),
+    Asset(M::Asset),
+    Nft(M::Nft),
+    AccountAsset(M::AccountAsset),
+    Role(M::Role),
+    Permission(M::Permission),
+    AccountRole(M::AccountRole),
+    AccountPermission(M::AccountPermission),
+    RolePermission(M::RolePermission),
+    Command(M::Command),
+    Trigger(M::Trigger),
+    Executable(M::Executable),
+    // Rank 3
+    DomainMetadata(M::Metadata),
+    AccountMetadata(M::Metadata),
+    AssetMetadata(M::Metadata),
+    NftData(M::Metadata),
+    TriggerMetadata(M::Metadata),
 }
 
 trait Mode {
     // Rank 1
-    type Parameters: NodeValue<Parameters>;
-    type Peers: NodeValue<Peers>;
-    type Domains: NodeValue<Domains>;
-    type Accounts: NodeValue<Accounts>;
-    type Assets: NodeValue<Assets>;
-    type Nfts: NodeValue<Nfts>;
-    type AccountAssets: NodeValue<AccountAssets>;
-    type Roles: NodeValue<Roles>;
-    type Permissions: NodeValue<Permissions>;
-    type AccountRoles: NodeValue<AccountRoles>;
-    type AccountPermissions: NodeValue<AccountPermissions>;
-    type RolePermissions: NodeValue<RolePermissions>;
-    type Commands: NodeValue<Commands>;
-    type Triggers: NodeValue<Triggers>;
-    type Executables: NodeValue<Executables>;
-    type Authorizers: NodeValue<Authorizers>;
+    type Authorizer: Debug + PartialEq + Eq;
+    type Parameters: Debug + PartialEq + Eq;
+    type Peers: Debug + PartialEq + Eq;
+    type Domains: Debug + PartialEq + Eq;
+    type Accounts: Debug + PartialEq + Eq;
+    type Assets: Debug + PartialEq + Eq;
+    type Nfts: Debug + PartialEq + Eq;
+    type AccountAssets: Debug + PartialEq + Eq;
+    type Roles: Debug + PartialEq + Eq;
+    type Permissions: Debug + PartialEq + Eq;
+    type AccountRoles: Debug + PartialEq + Eq;
+    type AccountPermissions: Debug + PartialEq + Eq;
+    type RolePermissions: Debug + PartialEq + Eq;
+    type Commands: Debug + PartialEq + Eq;
+    type Triggers: Debug + PartialEq + Eq;
+    type Executables: Debug + PartialEq + Eq;
     // Rank 2
-    type Parameter: NodeValue<Parameter>;
-    type Peer: NodeValue<Peer>;
-    type Domain: NodeValue<Domain>;
-    type Account: NodeValue<Account>;
-    type Asset: NodeValue<Asset>;
-    type Nft: NodeValue<Nft>;
-    type AccountAsset: NodeValue<AccountAsset>;
-    type Role: NodeValue<Role>;
-    type Permission: NodeValue<Permission>;
-    type AccountRole: NodeValue<AccountRole>;
-    type AccountPermission: NodeValue<AccountPermission>;
-    type RolePermission: NodeValue<RolePermission>;
-    type Command: NodeValue<Command>;
-    type Trigger: NodeValue<Trigger>;
-    type Executable: NodeValue<Executable>;
-    type Authorizer: NodeValue<Authorizer>;
+    type Parameter: Debug + PartialEq + Eq;
+    type Peer: Debug + PartialEq + Eq;
+    type Domain: Debug + PartialEq + Eq;
+    type Account: Debug + PartialEq + Eq;
+    type Asset: Debug + PartialEq + Eq;
+    type Nft: Debug + PartialEq + Eq;
+    type AccountAsset: Debug + PartialEq + Eq;
+    type Role: Debug + PartialEq + Eq;
+    type Permission: Debug + PartialEq + Eq;
+    type AccountRole: Debug + PartialEq + Eq;
+    type AccountPermission: Debug + PartialEq + Eq;
+    type RolePermission: Debug + PartialEq + Eq;
+    type Command: Debug + PartialEq + Eq;
+    type Trigger: Debug + PartialEq + Eq;
+    type Executable: Debug + PartialEq + Eq;
     // Rank 3
-    type Metadata: NodeValue<Metadata>;
+    type Metadata: Debug + PartialEq + Eq;
 }
 
-macro_rules! declare_node_keys {
-    ($(($struct:ident, $ext:ty),)+) => {
-        $(
-        #[derive(Debug, PartialEq, Eq, Hash)]
-        struct $struct;
-
-        impl NodeKey for $struct {
-            type Ext = $ext;
-        }
-        )+
-    };
-}
-
-macro_rules! impl_node_keys {
-    ($(($alias:ident = $key:ty, $ext:ty),)+) => {
-        $(
-        type $alias = $key;
-
-        impl NodeKey for $alias {
-            type Ext = $ext;
-        }
-        )+
-    };
-}
-
-declare_node_keys!(
-    (Root, ()),
-    // Rank 1
-    (Parameters, Parameter),
-    (Peers, Peer),
-    (Domains, Domain),
-    (Accounts, Account),
-    (Assets, Asset),
-    (Nfts, Nft),
-    (AccountAssets, AccountAsset),
-    (Roles, Role),
-    (Permissions, Permission),
-    (AccountRoles, AccountRole),
-    (AccountPermissions, AccountPermission),
-    (RolePermissions, RolePermission),
-    (Commands, Command),
-    (Triggers, Trigger),
-    (Executables, Executable),
-    (Authorizers, Authorizer),
-);
-
-impl_node_keys!(
-    // Rank 2
-    (Parameter = tr::ParameterId, ()),
-    (Peer = dm::PeerId, ()),
-    (Domain = dm::DomainId, Metadata),
-    (Account = dm::AccountId, Metadata),
-    (Asset = tr::AssetId, Metadata),
-    (Nft = tr::NftId, Metadata),
-    (AccountAsset = (dm::AccountId, tr::AssetId), ()),
-    (Role = dm::RoleId, ()),
-    (Permission = tr::PermissionId, ()),
-    (AccountRole = (dm::AccountId, dm::RoleId), ()),
-    (AccountPermission = (dm::AccountId, tr::PermissionId), ()),
-    (RolePermission = (dm::RoleId, tr::PermissionId), ()),
-    (Command = tr::CommandId, ()),
-    (Trigger = dm::TriggerId, Metadata),
-    (Executable = tr::ExecutableId, ()),
-    (Authorizer = tr::AuthorizerId, ()),
-    // Rank 3
-    (Metadata = dm::Name, ()),
-);
-
-impl NodeKey for () {
-    type Ext = ();
-}
-
-impl<M> NodeValue<Root> for Tree<M>
-where
-    M: Mode + Debug + PartialEq,
-{
-    type Ext = ();
-}
-
-macro_rules! impl_node_values {
-    ($(($ty:ty, $key:ty, $ext:ty),)+) => {
-        $(
-        impl NodeValue<$key> for $ty {
-            type Ext = $ext;
-        }
-        )+
-    };
-}
-
-impl_node_values!(((), (), ()),);
-
-trait NodeWrite<K: NodeKey>: NodeValue<K> + Filtered<K> {
-    type Status: NodeValue<K> + Filtered<K>;
+trait NodeWrite: Filtered {
+    type Status: Filtered;
 
     fn as_status(&self) -> Self::Status;
 }
 
-trait Filtered<K: NodeKey> {
+trait Filtered {
     type Filter: PartialOrd;
 
     fn as_filter(&self) -> Self::Filter;
@@ -204,7 +190,7 @@ trait Filtered<K: NodeKey> {
     }
 }
 
-#[derive(Debug, PartialEq, From)]
+#[derive(Debug, PartialEq, Eq, From)]
 struct FilterU8(u8);
 
 impl PartialOrd for FilterU8 {
@@ -223,51 +209,6 @@ impl PartialOrd for FilterU8 {
         }
     }
 }
-
-impl_node_values!(
-    // Rank 1
-    (FilterU8, Parameters, FilterU8),
-    (FilterU8, Peers, FilterU8),
-    (FilterU8, Domains, FilterU8),
-    (FilterU8, Accounts, FilterU8),
-    (FilterU8, Assets, FilterU8),
-    (FilterU8, Nfts, FilterU8),
-    (FilterU8, AccountAssets, FilterU8),
-    (FilterU8, Roles, FilterU8),
-    (FilterU8, Permissions, FilterU8),
-    (FilterU8, AccountRoles, FilterU8),
-    (FilterU8, AccountPermissions, FilterU8),
-    (FilterU8, RolePermissions, FilterU8),
-    (FilterU8, Commands, FilterU8),
-    (FilterU8, Triggers, FilterU8),
-    (FilterU8, Executables, FilterU8),
-    (FilterU8, Authorizers, FilterU8),
-    // Rank 2
-    (FilterU8, Parameter, ()),
-    (FilterU8, Peer, ()),
-    (FilterU8, Domain, FilterU8),
-    (FilterU8, Account, FilterU8),
-    (FilterU8, Asset, FilterU8),
-    (FilterU8, Nft, FilterU8),
-    (FilterU8, AccountAsset, ()),
-    (FilterU8, Role, ()),
-    (FilterU8, Permission, ()),
-    (FilterU8, AccountRole, ()),
-    (FilterU8, AccountPermission, ()),
-    (FilterU8, RolePermission, ()),
-    (FilterU8, Command, ()),
-    (FilterU8, Trigger, FilterU8),
-    (FilterU8, Executable, ()),
-    (FilterU8, Authorizer, ()),
-    // Rank 3
-    (FilterU8, Metadata, ()),
-);
-
-mod changeset;
-mod event;
-mod permission;
-mod receptor;
-mod state;
 
 mod transitional {
     use super::*;
@@ -288,9 +229,6 @@ mod transitional {
 
     #[derive(Debug, PartialEq, Eq, Hash)]
     pub struct ExecutableId;
-
-    #[derive(Debug, PartialEq, Eq, Hash)]
-    pub struct AuthorizerId;
 }
 
 use transitional as tr;
