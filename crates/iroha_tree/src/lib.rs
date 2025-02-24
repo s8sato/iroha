@@ -149,7 +149,7 @@ trait Filtered {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, From, Default)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default, From)]
 struct FilterU8(u8);
 
 impl PartialOrd for FilterU8 {
@@ -206,6 +206,16 @@ macro_rules! impl_for_node_values {
                 match value {
                     $(
                     NodeValue::$ident(write) => Self::$ident(write.as_status().as_filter()),
+                    )+
+                }
+            }
+        }
+
+        impl From<&NodeValue<receptor::WriteStatusFilter>> for FilterU8 {
+            fn from(value: &NodeValue<receptor::WriteStatusFilter>) -> Self {
+                match value {
+                    $(
+                    NodeValue::$ident(filter_u8) => *filter_u8,
                     )+
                 }
             }

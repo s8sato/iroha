@@ -110,6 +110,7 @@ impl NodeWrite for ChangeSet {
 
     fn as_status(&self) -> Self::Status {
         self.iter()
+            // SATO remove clone
             .map(|(k, write)| (k.clone(), write.into()))
             .collect()
     }

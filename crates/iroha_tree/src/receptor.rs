@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use super::*;
 
 pub type Receptor = Tree<WriteStatusFilter>;
@@ -28,7 +30,30 @@ impl Mode for WriteStatusFilter {
 }
 
 impl PartialOrd for Receptor {
-    fn partial_cmp(&self, _other: &Self) -> Option<Ordering> {
+    /// Returns early with a simplified conclusion.
+    /// Note that `self` and `other` are asymmetric.
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        for (key, signal) in self.iter() {
+            let signal: FilterU8 = signal.into();
+            let receptor_keys = key.receptor_keys();
+            let Some(receptor_union) = other
+                .iter()
+                .filter_map(|(k, v)| receptor_keys.contains(k).then_some(v).map(FilterU8::from))
+                .reduce(|acc, x| acc + x)
+            else {
+                return Some(Ordering::Greater);
+            };
+            match signal.partial_cmp(&receptor_union) {
+                None | Some(Ordering::Greater) => return Some(Ordering::Greater),
+                Some(Ordering::Equal | Ordering::Less) => continue,
+            }
+        }
+        Some(Ordering::Less)
+    }
+}
+
+impl NodeKey {
+    fn receptor_keys(&self) -> HashSet<&NodeKey> {
         todo!()
     }
 }
