@@ -179,6 +179,106 @@ impl Add for FilterU8 {
     }
 }
 
+macro_rules! impl_for_node_values {
+    ($($ident:ident,)+) => {
+        impl From<&NodeValue<changeset::Write>> for NodeValue<event::WriteStatus> {
+            fn from(value: &NodeValue<changeset::Write>) -> Self {
+                match value {
+                    $(
+                    NodeValue::$ident(write) => Self::$ident(write.as_status()),
+                    )+
+                }
+            }
+        }
+
+        impl From<&NodeValue<event::WriteStatus>> for NodeValue<receptor::WriteStatusFilter> {
+            fn from(value: &NodeValue<event::WriteStatus>) -> Self {
+                match value {
+                    $(
+                    NodeValue::$ident(write_status) => Self::$ident(write_status.as_filter()),
+                    )+
+                }
+            }
+        }
+
+        impl From<&NodeValue<changeset::Write>> for NodeValue<permission::ReadWriteStatusFilter> {
+            fn from(value: &NodeValue<changeset::Write>) -> Self {
+                match value {
+                    $(
+                    NodeValue::$ident(write) => Self::$ident(write.as_status().as_filter()),
+                    )+
+                }
+            }
+        }
+
+        impl Add for NodeValue<changeset::Write> {
+            type Output = Result<Self, (Self, Self)>;
+
+            fn add(self, rhs: Self) -> Self::Output {
+                match (self, rhs) {
+                    $(
+                    (Self::$ident(l), Self::$ident(r)) => match l + r {
+                        Ok(add) => Ok(Self::$ident(add)),
+                        Err((l, r)) => Err((Self::$ident(l), Self::$ident(r))),
+                    },
+                    )+
+                    _ => unreachable!(),
+                }
+            }
+        }
+
+        impl Add for NodeValue<receptor::WriteStatusFilter> {
+            type Output = Self;
+
+            fn add(self, rhs: Self) -> Self::Output {
+                match (self, rhs) {
+                    $(
+                    (Self::$ident(l), Self::$ident(r)) => Self::$ident(l + r),
+                    )+
+                    _ => unreachable!(),
+                }
+            }
+        }
+
+        impl Add for NodeValue<permission::ReadWriteStatusFilter> {
+            type Output = Self;
+
+            fn add(self, rhs: Self) -> Self::Output {
+                match (self, rhs) {
+                    $(
+                    (Self::$ident(l), Self::$ident(r)) => Self::$ident(l + r),
+                    )+
+                    _ => unreachable!(),
+                }
+            }
+        }
+    };
+}
+
+impl_for_node_values!(
+    Authorizer,
+    Parameter,
+    Peer,
+    Domain,
+    Account,
+    Asset,
+    Nft,
+    AccountAsset,
+    Role,
+    Permission,
+    AccountRole,
+    AccountPermission,
+    RolePermission,
+    Command,
+    Trigger,
+    Executable,
+    DomainMetadata,
+    AccountMetadata,
+    AssetMetadata,
+    NftData,
+    TriggerMetadata,
+);
+
 impl<M: Mode> Default for Tree<M> {
     fn default() -> Self {
         Self(HashMap::default())

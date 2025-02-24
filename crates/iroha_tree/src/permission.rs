@@ -48,47 +48,6 @@ impl Add for Permission {
     }
 }
 
-macro_rules! impl_enum_add {
-    ($($ident:ident,)+) => {
-        impl Add for NodeValue<ReadWriteStatusFilter> {
-            type Output = Self;
-
-            fn add(self, rhs: Self) -> Self::Output {
-                match (self, rhs) {
-                    $(
-                    (Self::$ident(l), Self::$ident(r)) => Self::$ident(l + r),
-                    )+
-                    _ => unreachable!(),
-                }
-            }
-        }
-    }
-}
-
-impl_enum_add!(
-    Authorizer,
-    Parameter,
-    Peer,
-    Domain,
-    Account,
-    Asset,
-    Nft,
-    AccountAsset,
-    Role,
-    Permission,
-    AccountRole,
-    AccountPermission,
-    RolePermission,
-    Command,
-    Trigger,
-    Executable,
-    DomainMetadata,
-    AccountMetadata,
-    AssetMetadata,
-    NftData,
-    TriggerMetadata,
-);
-
 mod transitional {
     use iroha_executor_data_model::permission as xp;
 
