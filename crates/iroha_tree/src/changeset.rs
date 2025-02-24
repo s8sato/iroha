@@ -8,24 +8,7 @@ pub type ChangeSetRef<'a> = TreeRef<'a, Write>;
 pub struct Write;
 
 impl Mode for Write {
-    // Rank 1
     type Authorizer = AuthorizerW;
-    type Parameters = ();
-    type Peers = ();
-    type Domains = ();
-    type Accounts = ();
-    type Assets = ();
-    type Nfts = ();
-    type AccountAssets = ();
-    type Roles = ();
-    type Permissions = ();
-    type AccountRoles = ();
-    type AccountPermissions = ();
-    type RolePermissions = ();
-    type Commands = ();
-    type Triggers = ();
-    type Executables = ();
-    // Rank 2
     type Parameter = ParameterW;
     type Peer = UnitW;
     type Domain = DomainW;
@@ -41,7 +24,6 @@ impl Mode for Write {
     type Command = CommandW;
     type Trigger = TriggerW;
     type Executable = ExecutableW;
-    // Rank 3
     type Metadata = MetadataW;
 }
 
@@ -184,9 +166,7 @@ macro_rules! impl_node_write {
 }
 
 impl_node_write!(
-    // Rank 1
     (AuthorizerW, AuthorizerWS),
-    // Rank 2
     (UnitW, UnitWS),
     (ParameterW, ParameterWS),
     (DomainW, DomainWS),
@@ -197,7 +177,6 @@ impl_node_write!(
     (CommandW, CommandWS),
     (TriggerW, TriggerWS),
     (ExecutableW, ExecutableWS),
-    // Rank 3
     (MetadataW, MetadataWS),
 );
 
@@ -351,7 +330,6 @@ macro_rules! impl_enum_add_into {
                     $(
                     NodeValue::$ident(write) => Self::$ident(write.as_status()),
                     )+
-                    _ => unreachable!(),
                 }
             }
         }
@@ -362,7 +340,6 @@ macro_rules! impl_enum_add_into {
                     $(
                     NodeValue::$ident(write) => Self::$ident(write.as_status().as_filter()),
                     )+
-                    _ => unreachable!(),
                 }
             }
         }
@@ -373,7 +350,6 @@ macro_rules! impl_enum_add_into {
                     $(
                     NodeValue::$ident(write_status) => Self::$ident(write_status.as_filter()),
                     )+
-                    _ => unreachable!(),
                 }
             }
         }
@@ -381,9 +357,7 @@ macro_rules! impl_enum_add_into {
 }
 
 impl_enum_add_into!(
-    // Rank 1
     Authorizer,
-    // Rank 2
     Parameter,
     Peer,
     Domain,
@@ -399,7 +373,6 @@ impl_enum_add_into!(
     Command,
     Trigger,
     Executable,
-    // Rank 3
     DomainMetadata,
     AccountMetadata,
     AssetMetadata,

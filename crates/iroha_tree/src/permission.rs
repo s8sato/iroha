@@ -8,24 +8,7 @@ pub type PermissionRef<'a> = TreeRef<'a, ReadWriteStatusFilter>;
 pub struct ReadWriteStatusFilter;
 
 impl Mode for ReadWriteStatusFilter {
-    // Rank 1
     type Authorizer = FilterU8;
-    type Parameters = FilterU8;
-    type Peers = FilterU8;
-    type Domains = FilterU8;
-    type Accounts = FilterU8;
-    type Assets = FilterU8;
-    type Nfts = FilterU8;
-    type AccountAssets = FilterU8;
-    type Roles = FilterU8;
-    type Permissions = FilterU8;
-    type AccountRoles = FilterU8;
-    type AccountPermissions = FilterU8;
-    type RolePermissions = FilterU8;
-    type Commands = FilterU8;
-    type Triggers = FilterU8;
-    type Executables = FilterU8;
-    // Rank 2
     type Parameter = FilterU8;
     type Peer = FilterU8;
     type Domain = FilterU8;
@@ -41,7 +24,6 @@ impl Mode for ReadWriteStatusFilter {
     type Command = FilterU8;
     type Trigger = FilterU8;
     type Executable = FilterU8;
-    // Rank 3
     type Metadata = FilterU8;
 }
 
@@ -84,24 +66,7 @@ macro_rules! impl_enum_add {
 }
 
 impl_enum_add!(
-    // Rank 1
-    Parameters,
-    Peers,
     Authorizer,
-    Domains,
-    Accounts,
-    Assets,
-    Nfts,
-    AccountAssets,
-    Roles,
-    Permissions,
-    AccountRoles,
-    AccountPermissions,
-    RolePermissions,
-    Commands,
-    Triggers,
-    Executables,
-    // Rank 2
     Parameter,
     Peer,
     Domain,
@@ -117,7 +82,6 @@ impl_enum_add!(
     Command,
     Trigger,
     Executable,
-    // Rank 3
     DomainMetadata,
     AccountMetadata,
     AssetMetadata,

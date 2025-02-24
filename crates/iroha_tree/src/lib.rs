@@ -37,24 +37,7 @@ struct TreeRef<'a, M: Mode>(HashMap<&'a NodeKey, &'a NodeValue<M>>);
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 enum NodeKey {
-    // Rank 1
     Authorizer,
-    Parameters,
-    Peers,
-    Domains,
-    Accounts,
-    Assets,
-    Nfts,
-    AccountAssets,
-    Roles,
-    Permissions,
-    AccountRoles,
-    AccountPermissions,
-    RolePermissions,
-    Commands,
-    Triggers,
-    Executables,
-    // Rank 2
     Parameter(ParameterKey),
     Peer(PeerKey),
     Domain(DomainKey),
@@ -70,7 +53,6 @@ enum NodeKey {
     Command(CommandKey),
     Trigger(TriggerKey),
     Executable(ExecutableKey),
-    // Rank 3
     DomainMetadata(DomainMetadataKey),
     AccountMetadata(AccountMetadataKey),
     AssetMetadata(AssetMetadataKey),
@@ -78,49 +60,30 @@ enum NodeKey {
     TriggerMetadata(TriggerMetadataKey),
 }
 
-// Rank 2
-type ParameterKey = tr::ParameterId;
-type PeerKey = dm::PeerId;
-type DomainKey = dm::DomainId;
-type AccountKey = dm::AccountId;
-type AssetKey = tr::AssetId;
-type NftKey = tr::NftId;
-type AccountAssetKey = (dm::AccountId, tr::AssetId);
-type RoleKey = dm::RoleId;
-type PermissionKey = tr::PermissionId;
-type AccountRoleKey = (dm::AccountId, dm::RoleId);
-type AccountPermissionKey = (dm::AccountId, tr::PermissionId);
-type RolePermissionKey = (dm::RoleId, tr::PermissionId);
-type CommandKey = tr::CommandId;
-type TriggerKey = dm::TriggerId;
-type ExecutableKey = tr::ExecutableId;
-// Rank 3
-type DomainMetadataKey = (DomainKey, dm::Name);
-type AccountMetadataKey = (AccountKey, dm::Name);
-type AssetMetadataKey = (AssetKey, dm::Name);
-type NftDataKey = (NftKey, dm::Name);
-type TriggerMetadataKey = (TriggerKey, dm::Name);
+type ParameterKey = Option<tr::ParameterId>;
+type PeerKey = Option<dm::PeerId>;
+type DomainKey = Option<dm::DomainId>;
+type AccountKey = (Option<dm::PublicKey>, DomainKey);
+type AssetKey = (Option<dm::Name>, DomainKey);
+type NftKey = (Option<dm::Name>, DomainKey);
+type AccountAssetKey = (AccountKey, AssetKey);
+type RoleKey = Option<dm::RoleId>;
+type PermissionKey = Option<tr::PermissionId>;
+type AccountRoleKey = (AccountKey, RoleKey);
+type AccountPermissionKey = (AccountKey, PermissionKey);
+type RolePermissionKey = (RoleKey, PermissionKey);
+type CommandKey = Option<tr::CommandId>;
+type TriggerKey = Option<dm::TriggerId>;
+type ExecutableKey = Option<tr::ExecutableId>;
+type DomainMetadataKey = (DomainKey, Option<dm::Name>);
+type AccountMetadataKey = (AccountKey, Option<dm::Name>);
+type AssetMetadataKey = (AssetKey, Option<dm::Name>);
+type NftDataKey = (NftKey, Option<dm::Name>);
+type TriggerMetadataKey = (TriggerKey, Option<dm::Name>);
 
 #[derive(Debug, PartialEq, Eq)]
 enum NodeValue<M: Mode> {
-    // Rank 1
     Authorizer(M::Authorizer),
-    Parameters(M::Parameters),
-    Peers(M::Peers),
-    Domains(M::Domains),
-    Accounts(M::Accounts),
-    Assets(M::Assets),
-    Nfts(M::Nfts),
-    AccountAssets(M::AccountAssets),
-    Roles(M::Roles),
-    Permissions(M::Permissions),
-    AccountRoles(M::AccountRoles),
-    AccountPermissions(M::AccountPermissions),
-    RolePermissions(M::RolePermissions),
-    Commands(M::Commands),
-    Triggers(M::Triggers),
-    Executables(M::Executables),
-    // Rank 2
     Parameter(M::Parameter),
     Peer(M::Peer),
     Domain(M::Domain),
@@ -136,7 +99,6 @@ enum NodeValue<M: Mode> {
     Command(M::Command),
     Trigger(M::Trigger),
     Executable(M::Executable),
-    // Rank 3
     DomainMetadata(M::Metadata),
     AccountMetadata(M::Metadata),
     AssetMetadata(M::Metadata),
@@ -145,24 +107,7 @@ enum NodeValue<M: Mode> {
 }
 
 trait Mode {
-    // Rank 1
     type Authorizer: Debug + PartialEq + Eq;
-    type Parameters: Debug + PartialEq + Eq;
-    type Peers: Debug + PartialEq + Eq;
-    type Domains: Debug + PartialEq + Eq;
-    type Accounts: Debug + PartialEq + Eq;
-    type Assets: Debug + PartialEq + Eq;
-    type Nfts: Debug + PartialEq + Eq;
-    type AccountAssets: Debug + PartialEq + Eq;
-    type Roles: Debug + PartialEq + Eq;
-    type Permissions: Debug + PartialEq + Eq;
-    type AccountRoles: Debug + PartialEq + Eq;
-    type AccountPermissions: Debug + PartialEq + Eq;
-    type RolePermissions: Debug + PartialEq + Eq;
-    type Commands: Debug + PartialEq + Eq;
-    type Triggers: Debug + PartialEq + Eq;
-    type Executables: Debug + PartialEq + Eq;
-    // Rank 2
     type Parameter: Debug + PartialEq + Eq;
     type Peer: Debug + PartialEq + Eq;
     type Domain: Debug + PartialEq + Eq;
@@ -178,7 +123,6 @@ trait Mode {
     type Command: Debug + PartialEq + Eq;
     type Trigger: Debug + PartialEq + Eq;
     type Executable: Debug + PartialEq + Eq;
-    // Rank 3
     type Metadata: Debug + PartialEq + Eq;
 }
 
@@ -299,47 +243,29 @@ impl<'a, M: Mode> TreeRef<'a, M> {
 }
 
 fn consistent_key_value<M: Mode>(key: &NodeKey, value: &NodeValue<M>) -> bool {
-    match (key ,value) {
-        // Rank 1
-        (NodeKey::Authorizer, NodeValue::<M>::Authorizer(_)) |
-        (NodeKey::Parameters, NodeValue::<M>::Parameters(_)) |
-        (NodeKey::Peers, NodeValue::<M>::Peers(_)) |
-        (NodeKey::Domains, NodeValue::<M>::Domains(_)) |
-        (NodeKey::Accounts, NodeValue::<M>::Accounts(_)) |
-        (NodeKey::Assets, NodeValue::<M>::Assets(_)) |
-        (NodeKey::Nfts, NodeValue::<M>::Nfts(_)) |
-        (NodeKey::AccountAssets, NodeValue::<M>::AccountAssets(_)) |
-        (NodeKey::Roles, NodeValue::<M>::Roles(_)) |
-        (NodeKey::Permissions, NodeValue::<M>::Permissions(_)) |
-        (NodeKey::AccountRoles, NodeValue::<M>::AccountRoles(_)) |
-        (NodeKey::AccountPermissions, NodeValue::<M>::AccountPermissions(_)) |
-        (NodeKey::RolePermissions, NodeValue::<M>::RolePermissions(_)) |
-        (NodeKey::Commands, NodeValue::<M>::Commands(_)) |
-        (NodeKey::Triggers, NodeValue::<M>::Triggers(_)) |
-        (NodeKey::Executables, NodeValue::<M>::Executables(_)) |
-        // Rank 2
-        (NodeKey::Parameter(_), NodeValue::<M>::Parameter(_)) |
-        (NodeKey::Peer(_), NodeValue::<M>::Peer(_)) |
-        (NodeKey::Domain(_), NodeValue::<M>::Domain(_)) |
-        (NodeKey::Account(_), NodeValue::<M>::Account(_)) |
-        (NodeKey::Asset(_), NodeValue::<M>::Asset(_)) |
-        (NodeKey::Nft(_), NodeValue::<M>::Nft(_)) |
-        (NodeKey::AccountAsset(_), NodeValue::<M>::AccountAsset(_)) |
-        (NodeKey::Role(_), NodeValue::<M>::Role(_)) |
-        (NodeKey::Permission(_), NodeValue::<M>::Permission(_)) |
-        (NodeKey::AccountRole(_), NodeValue::<M>::AccountRole(_)) |
-        (NodeKey::AccountPermission(_), NodeValue::<M>::AccountPermission(_)) |
-        (NodeKey::RolePermission(_), NodeValue::<M>::RolePermission(_)) |
-        (NodeKey::Command(_), NodeValue::<M>::Command(_)) |
-        (NodeKey::Trigger(_), NodeValue::<M>::Trigger(_)) |
-        (NodeKey::Executable(_), NodeValue::<M>::Executable(_)) |
-        // Rank 3
-        (NodeKey::DomainMetadata(_), NodeValue::<M>::DomainMetadata(_)) |
-        (NodeKey::AccountMetadata(_), NodeValue::<M>::AccountMetadata(_)) |
-        (NodeKey::AssetMetadata(_), NodeValue::<M>::AssetMetadata(_)) |
-        (NodeKey::NftData(_), NodeValue::<M>::NftData(_)) |
-        (NodeKey::TriggerMetadata(_), NodeValue::<M>::TriggerMetadata(_)) => true,
-        (_, _) => false
+    match (key, value) {
+        (NodeKey::Authorizer, NodeValue::<M>::Authorizer(_))
+        | (NodeKey::Parameter(_), NodeValue::<M>::Parameter(_))
+        | (NodeKey::Peer(_), NodeValue::<M>::Peer(_))
+        | (NodeKey::Domain(_), NodeValue::<M>::Domain(_))
+        | (NodeKey::Account(_), NodeValue::<M>::Account(_))
+        | (NodeKey::Asset(_), NodeValue::<M>::Asset(_))
+        | (NodeKey::Nft(_), NodeValue::<M>::Nft(_))
+        | (NodeKey::AccountAsset(_), NodeValue::<M>::AccountAsset(_))
+        | (NodeKey::Role(_), NodeValue::<M>::Role(_))
+        | (NodeKey::Permission(_), NodeValue::<M>::Permission(_))
+        | (NodeKey::AccountRole(_), NodeValue::<M>::AccountRole(_))
+        | (NodeKey::AccountPermission(_), NodeValue::<M>::AccountPermission(_))
+        | (NodeKey::RolePermission(_), NodeValue::<M>::RolePermission(_))
+        | (NodeKey::Command(_), NodeValue::<M>::Command(_))
+        | (NodeKey::Trigger(_), NodeValue::<M>::Trigger(_))
+        | (NodeKey::Executable(_), NodeValue::<M>::Executable(_))
+        | (NodeKey::DomainMetadata(_), NodeValue::<M>::DomainMetadata(_))
+        | (NodeKey::AccountMetadata(_), NodeValue::<M>::AccountMetadata(_))
+        | (NodeKey::AssetMetadata(_), NodeValue::<M>::AssetMetadata(_))
+        | (NodeKey::NftData(_), NodeValue::<M>::NftData(_))
+        | (NodeKey::TriggerMetadata(_), NodeValue::<M>::TriggerMetadata(_)) => true,
+        (_, _) => false,
     }
 }
 
@@ -354,11 +280,6 @@ mod transitional {
 
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct PresetParameterId;
-
-    pub type AssetId = dm::AssetDefinitionId;
-
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-    pub struct NftId;
 
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct PermissionId;
