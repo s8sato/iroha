@@ -29,12 +29,17 @@ mod permission;
 mod receptor;
 mod state;
 
+/// A flattened node map with a fixed skeleton equivalent to the world state.
+/// Node values may vary by mode.
 #[derive(Debug, PartialEq, Eq, From)]
 struct Tree<M: Mode>(HashMap<NodeKey, NodeValue<M>>);
 
 #[derive(Debug, PartialEq, Eq, From)]
 struct TreeRef<'a, M: Mode>(HashMap<&'a NodeKey, &'a NodeValue<M>>);
 
+/// Full path to nodes.
+/// A `None` key represents __any__ node.
+/// For example, `(None, domain): AccountKey` represents any account within the specified `domain`.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 enum NodeKey {
     Authorizer,
@@ -81,6 +86,7 @@ type AssetMetadataKey = (AssetKey, Option<dm::Name>);
 type NftDataKey = (NftKey, Option<dm::Name>);
 type TriggerMetadataKey = (TriggerKey, Option<dm::Name>);
 
+/// Represents various states such as the current state, intention, result, or readiness at a given point in the world.
 #[derive(Debug, PartialEq, Eq)]
 enum NodeValue<M: Mode> {
     Authorizer(M::Authorizer),
@@ -106,6 +112,7 @@ enum NodeValue<M: Mode> {
     TriggerMetadata(M::Metadata),
 }
 
+/// This trait implementation serves as a declaration of node values.
 trait Mode {
     type Authorizer: Debug + PartialEq + Eq;
     type Parameter: Debug + PartialEq + Eq;
@@ -146,6 +153,7 @@ trait Filtered {
 struct FilterU8(u8);
 
 impl PartialOrd for FilterU8 {
+    /// Attempts to summarize bitwise comparisons.
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         let l = self.0;
         let r = other.0;
