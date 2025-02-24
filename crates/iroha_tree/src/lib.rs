@@ -30,25 +30,15 @@ mod receptor;
 mod state;
 
 #[derive(Debug, PartialEq, Eq, From)]
-struct Tree<M: NodeMode>(HashMap<NodeKey, NodeValue<M>>);
+struct Tree<M: Mode>(HashMap<NodeKey, NodeValue<M>>);
 
 #[derive(Debug, PartialEq, Eq, From)]
-struct Leaves<M: LeafMode>(HashMap<LeafKey, LeafValue<M>>);
-
-#[derive(Debug, PartialEq, Eq, From)]
-struct TreeRef<'a, M: NodeMode>(HashMap<&'a NodeKey, &'a NodeValue<M>>);
-
-#[derive(Debug, PartialEq, Eq, From)]
-struct LeavesRef<'a, M: LeafMode>(HashMap<&'a LeafKey, &'a LeafValue<M>>);
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, From)]
-enum NodeKey {
-    Branch(BranchKey),
-    Leaf(LeafKey),
-}
+struct TreeRef<'a, M: Mode>(HashMap<&'a NodeKey, &'a NodeValue<M>>);
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-enum BranchKey {
+enum NodeKey {
+    // Rank 1
+    Authorizer,
     Parameters,
     Peers,
     Domains,
@@ -64,11 +54,7 @@ enum BranchKey {
     Commands,
     Triggers,
     Executables,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-enum LeafKey {
-    Authorizer,
+    // Rank 2
     Parameter(ParameterKey),
     Peer(PeerKey),
     Domain(DomainKey),
@@ -84,6 +70,7 @@ enum LeafKey {
     Command(CommandKey),
     Trigger(TriggerKey),
     Executable(ExecutableKey),
+    // Rank 3
     DomainMetadata(DomainMetadataKey),
     AccountMetadata(AccountMetadataKey),
     AssetMetadata(AssetMetadataKey),
@@ -91,6 +78,7 @@ enum LeafKey {
     TriggerMetadata(TriggerMetadataKey),
 }
 
+// Rank 2
 type ParameterKey = tr::ParameterId;
 type PeerKey = dm::PeerId;
 type DomainKey = dm::DomainId;
@@ -106,20 +94,17 @@ type RolePermissionKey = (dm::RoleId, tr::PermissionId);
 type CommandKey = tr::CommandId;
 type TriggerKey = dm::TriggerId;
 type ExecutableKey = tr::ExecutableId;
+// Rank 3
 type DomainMetadataKey = (DomainKey, dm::Name);
 type AccountMetadataKey = (AccountKey, dm::Name);
 type AssetMetadataKey = (AssetKey, dm::Name);
 type NftDataKey = (NftKey, dm::Name);
 type TriggerMetadataKey = (TriggerKey, dm::Name);
 
-#[derive(Debug, PartialEq, Eq, From)]
-enum NodeValue<M: NodeMode> {
-    Branch(BranchValue<M>),
-    Leaf(LeafValue<M>),
-}
-
 #[derive(Debug, PartialEq, Eq)]
-enum BranchValue<M: BranchMode> {
+enum NodeValue<M: Mode> {
+    // Rank 1
+    Authorizer(M::Authorizer),
     Parameters(M::Parameters),
     Peers(M::Peers),
     Domains(M::Domains),
@@ -135,11 +120,7 @@ enum BranchValue<M: BranchMode> {
     Commands(M::Commands),
     Triggers(M::Triggers),
     Executables(M::Executables),
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum LeafValue<M: LeafMode> {
-    Authorizer(M::Authorizer),
+    // Rank 2
     Parameter(M::Parameter),
     Peer(M::Peer),
     Domain(M::Domain),
@@ -155,6 +136,7 @@ enum LeafValue<M: LeafMode> {
     Command(M::Command),
     Trigger(M::Trigger),
     Executable(M::Executable),
+    // Rank 3
     DomainMetadata(M::Metadata),
     AccountMetadata(M::Metadata),
     AssetMetadata(M::Metadata),
@@ -162,9 +144,9 @@ enum LeafValue<M: LeafMode> {
     TriggerMetadata(M::Metadata),
 }
 
-trait NodeMode: LeafMode + BranchMode {}
-
-trait BranchMode {
+trait Mode {
+    // Rank 1
+    type Authorizer: Debug + PartialEq + Eq;
     type Parameters: Debug + PartialEq + Eq;
     type Peers: Debug + PartialEq + Eq;
     type Domains: Debug + PartialEq + Eq;
@@ -180,10 +162,7 @@ trait BranchMode {
     type Commands: Debug + PartialEq + Eq;
     type Triggers: Debug + PartialEq + Eq;
     type Executables: Debug + PartialEq + Eq;
-}
-
-trait LeafMode {
-    type Authorizer: Debug + PartialEq + Eq;
+    // Rank 2
     type Parameter: Debug + PartialEq + Eq;
     type Peer: Debug + PartialEq + Eq;
     type Domain: Debug + PartialEq + Eq;
@@ -199,6 +178,7 @@ trait LeafMode {
     type Command: Debug + PartialEq + Eq;
     type Trigger: Debug + PartialEq + Eq;
     type Executable: Debug + PartialEq + Eq;
+    // Rank 3
     type Metadata: Debug + PartialEq + Eq;
 }
 
@@ -247,157 +227,120 @@ impl Add for FilterU8 {
     }
 }
 
-macro_rules! impl_tree_leaves {
-    ($(($ty:ident, $ref:ident, $mode:ident, $key:ty, $value:ident),)+) => {
-        $(
-        impl<M: $mode> Default for $ty<M> {
-            fn default() -> Self {
-                Self(HashMap::default())
-            }
-        }
-
-        impl<M: $mode> FromIterator<($key, $value<M>)> for $ty<M> {
-            fn from_iter<I: IntoIterator<Item = ($key, $value<M>)>>(iter: I) -> Self {
-                $ty::from(iter.into_iter().collect::<HashMap<_, _>>())
-            }
-        }
-
-        impl<'a, M: $mode> FromIterator<(&'a $key, &'a $value<M>)> for $ref<'a, M> {
-            fn from_iter<I: IntoIterator<Item = (&'a $key, &'a $value<M>)>>(iter: I) -> Self {
-                $ref::from(iter.into_iter().collect::<HashMap<_, _>>())
-            }
-        }
-
-        impl<M: $mode> $ty<M> {
-            fn get(&self, key: &$key) -> Option<&$value<M>> {
-                self.0.get(key)
-            }
-
-            fn remove(&mut self, key: &$key) -> Option<$value<M>> {
-                self.0.remove(key)
-            }
-
-            fn iter(&self) -> impl Iterator<Item = (&$key, &$value<M>)> {
-                self.0.iter()
-            }
-
-            fn into_iter(self) -> impl Iterator<Item = ($key, $value<M>)> {
-                self.0.into_iter()
-            }
-
-            fn map<N, F>(self, f: F) -> $ty<N>
-            where
-                N: $mode,
-                F: Fn($value<M>) -> $value<N>,
-            {
-                self.into_iter().map(|(k, v)| (k, f(v))).collect()
-            }
-
-            fn as_ref(&self) -> $ref<M> {
-                self.iter().collect()
-            }
-        }
-
-        impl<'a, M: $mode> $ref<'a, M> {
-            fn get(&self, key: &$key) -> Option<&$value<M>> {
-                self.0.get(key).map(Deref::deref)
-            }
-
-            fn into_iter(self) -> impl Iterator<Item = (&'a $key, &'a $value<M>)> {
-                self.0.into_iter()
-            }
-
-            fn map<N, F>(self, f: F) -> $ref<'a, N>
-            where
-                N: $mode,
-                F: Fn(&$value<M>) -> &$value<N>,
-            {
-                self.into_iter().map(|(k, v)| (k, f(v))).collect()
-            }
-        }
-        )+
-    };
+impl<M: Mode> Default for Tree<M> {
+    fn default() -> Self {
+        Self(HashMap::default())
+    }
 }
 
-impl_tree_leaves!(
-    (Tree, TreeRef, NodeMode, NodeKey, NodeValue),
-    (Leaves, LeavesRef, LeafMode, LeafKey, LeafValue),
-);
+impl<M: Mode> FromIterator<(NodeKey, NodeValue<M>)> for Tree<M> {
+    fn from_iter<I: IntoIterator<Item = (NodeKey, NodeValue<M>)>>(iter: I) -> Self {
+        Tree::from(iter.into_iter().collect::<HashMap<_, _>>())
+    }
+}
 
-impl<M: NodeMode> Tree<M> {
+impl<'a, M: Mode> FromIterator<(&'a NodeKey, &'a NodeValue<M>)> for TreeRef<'a, M> {
+    fn from_iter<I: IntoIterator<Item = (&'a NodeKey, &'a NodeValue<M>)>>(iter: I) -> Self {
+        TreeRef::from(iter.into_iter().collect::<HashMap<_, _>>())
+    }
+}
+
+impl<M: Mode> Tree<M> {
+    fn get(&self, key: &NodeKey) -> Option<&NodeValue<M>> {
+        self.0.get(key)
+    }
+
     fn insert(&mut self, key: NodeKey, value: NodeValue<M>) -> Option<NodeValue<M>> {
-        debug_assert!(consistent_node(&key, &value));
+        debug_assert!(consistent_key_value(&key, &value));
         self.0.insert(key, value)
     }
-}
 
-impl<M: LeafMode> Leaves<M> {
-    fn insert(&mut self, key: LeafKey, value: LeafValue<M>) -> Option<LeafValue<M>> {
-        debug_assert!(consistent_leaf(&key, &value));
-        self.0.insert(key, value)
+    fn remove(&mut self, key: &NodeKey) -> Option<NodeValue<M>> {
+        self.0.remove(key)
+    }
+
+    fn iter(&self) -> impl Iterator<Item = (&NodeKey, &NodeValue<M>)> {
+        self.0.iter()
+    }
+
+    fn into_iter(self) -> impl Iterator<Item = (NodeKey, NodeValue<M>)> {
+        self.0.into_iter()
+    }
+
+    fn map<N, F>(self, f: F) -> Tree<N>
+    where
+        N: Mode,
+        F: Fn(NodeValue<M>) -> NodeValue<N>,
+    {
+        self.into_iter().map(|(k, v)| (k, f(v))).collect()
+    }
+
+    fn as_ref(&self) -> TreeRef<M> {
+        self.iter().collect()
     }
 }
 
-fn consistent_node<M: NodeMode>(key: &NodeKey, value: &NodeValue<M>) -> bool {
-    match (key, value) {
-        (NodeKey::Branch(key), NodeValue::Branch(value)) => consistent_branch(key, value),
-        (NodeKey::Leaf(key), NodeValue::Leaf(value)) => consistent_leaf(key, value),
-        _ => false,
+impl<'a, M: Mode> TreeRef<'a, M> {
+    fn get(&self, key: &NodeKey) -> Option<&NodeValue<M>> {
+        self.0.get(key).map(Deref::deref)
+    }
+
+    fn into_iter(self) -> impl Iterator<Item = (&'a NodeKey, &'a NodeValue<M>)> {
+        self.0.into_iter()
+    }
+
+    fn map<N, F>(self, f: F) -> TreeRef<'a, N>
+    where
+        N: Mode,
+        F: Fn(&NodeValue<M>) -> &NodeValue<N>,
+    {
+        self.into_iter().map(|(k, v)| (k, f(v))).collect()
     }
 }
 
-fn consistent_branch<M: BranchMode>(key: &BranchKey, value: &BranchValue<M>) -> bool {
-    matches!(
-        (key, value),
-        (BranchKey::Parameters, BranchValue::Parameters(_))
-            | (BranchKey::Peers, BranchValue::Peers(_))
-            | (BranchKey::Domains, BranchValue::Domains(_))
-            | (BranchKey::Accounts, BranchValue::Accounts(_))
-            | (BranchKey::Assets, BranchValue::Assets(_))
-            | (BranchKey::Nfts, BranchValue::Nfts(_))
-            | (BranchKey::AccountAssets, BranchValue::AccountAssets(_))
-            | (BranchKey::Roles, BranchValue::Roles(_))
-            | (BranchKey::Permissions, BranchValue::Permissions(_))
-            | (BranchKey::AccountRoles, BranchValue::AccountRoles(_))
-            | (
-                BranchKey::AccountPermissions,
-                BranchValue::AccountPermissions(_)
-            )
-            | (BranchKey::RolePermissions, BranchValue::RolePermissions(_))
-            | (BranchKey::Commands, BranchValue::Commands(_))
-            | (BranchKey::Triggers, BranchValue::Triggers(_))
-            | (BranchKey::Executables, BranchValue::Executables(_))
-    )
-}
-
-fn consistent_leaf<M: LeafMode>(key: &LeafKey, value: &LeafValue<M>) -> bool {
-    matches!(
-        (key, value),
-        (LeafKey::Authorizer, LeafValue::Authorizer(_))
-            | (LeafKey::Parameter(_), LeafValue::Parameter(_))
-            | (LeafKey::Peer(_), LeafValue::Peer(_))
-            | (LeafKey::Domain(_), LeafValue::Domain(_))
-            | (LeafKey::Account(_), LeafValue::Account(_))
-            | (LeafKey::Asset(_), LeafValue::Asset(_))
-            | (LeafKey::Nft(_), LeafValue::Nft(_))
-            | (LeafKey::AccountAsset(_), LeafValue::AccountAsset(_))
-            | (LeafKey::Role(_), LeafValue::Role(_))
-            | (LeafKey::Permission(_), LeafValue::Permission(_))
-            | (LeafKey::AccountRole(_), LeafValue::AccountRole(_))
-            | (
-                LeafKey::AccountPermission(_),
-                LeafValue::AccountPermission(_)
-            )
-            | (LeafKey::RolePermission(_), LeafValue::RolePermission(_))
-            | (LeafKey::Command(_), LeafValue::Command(_))
-            | (LeafKey::Trigger(_), LeafValue::Trigger(_))
-            | (LeafKey::Executable(_), LeafValue::Executable(_))
-            | (LeafKey::DomainMetadata(_), LeafValue::DomainMetadata(_))
-            | (LeafKey::AccountMetadata(_), LeafValue::AccountMetadata(_))
-            | (LeafKey::AssetMetadata(_), LeafValue::AssetMetadata(_))
-            | (LeafKey::NftData(_), LeafValue::NftData(_))
-            | (LeafKey::TriggerMetadata(_), LeafValue::TriggerMetadata(_))
-    )
+fn consistent_key_value<M: Mode>(key: &NodeKey, value: &NodeValue<M>) -> bool {
+    match (key ,value) {
+        // Rank 1
+        (NodeKey::Authorizer, NodeValue::<M>::Authorizer(_)) |
+        (NodeKey::Parameters, NodeValue::<M>::Parameters(_)) |
+        (NodeKey::Peers, NodeValue::<M>::Peers(_)) |
+        (NodeKey::Domains, NodeValue::<M>::Domains(_)) |
+        (NodeKey::Accounts, NodeValue::<M>::Accounts(_)) |
+        (NodeKey::Assets, NodeValue::<M>::Assets(_)) |
+        (NodeKey::Nfts, NodeValue::<M>::Nfts(_)) |
+        (NodeKey::AccountAssets, NodeValue::<M>::AccountAssets(_)) |
+        (NodeKey::Roles, NodeValue::<M>::Roles(_)) |
+        (NodeKey::Permissions, NodeValue::<M>::Permissions(_)) |
+        (NodeKey::AccountRoles, NodeValue::<M>::AccountRoles(_)) |
+        (NodeKey::AccountPermissions, NodeValue::<M>::AccountPermissions(_)) |
+        (NodeKey::RolePermissions, NodeValue::<M>::RolePermissions(_)) |
+        (NodeKey::Commands, NodeValue::<M>::Commands(_)) |
+        (NodeKey::Triggers, NodeValue::<M>::Triggers(_)) |
+        (NodeKey::Executables, NodeValue::<M>::Executables(_)) |
+        // Rank 2
+        (NodeKey::Parameter(_), NodeValue::<M>::Parameter(_)) |
+        (NodeKey::Peer(_), NodeValue::<M>::Peer(_)) |
+        (NodeKey::Domain(_), NodeValue::<M>::Domain(_)) |
+        (NodeKey::Account(_), NodeValue::<M>::Account(_)) |
+        (NodeKey::Asset(_), NodeValue::<M>::Asset(_)) |
+        (NodeKey::Nft(_), NodeValue::<M>::Nft(_)) |
+        (NodeKey::AccountAsset(_), NodeValue::<M>::AccountAsset(_)) |
+        (NodeKey::Role(_), NodeValue::<M>::Role(_)) |
+        (NodeKey::Permission(_), NodeValue::<M>::Permission(_)) |
+        (NodeKey::AccountRole(_), NodeValue::<M>::AccountRole(_)) |
+        (NodeKey::AccountPermission(_), NodeValue::<M>::AccountPermission(_)) |
+        (NodeKey::RolePermission(_), NodeValue::<M>::RolePermission(_)) |
+        (NodeKey::Command(_), NodeValue::<M>::Command(_)) |
+        (NodeKey::Trigger(_), NodeValue::<M>::Trigger(_)) |
+        (NodeKey::Executable(_), NodeValue::<M>::Executable(_)) |
+        // Rank 3
+        (NodeKey::DomainMetadata(_), NodeValue::<M>::DomainMetadata(_)) |
+        (NodeKey::AccountMetadata(_), NodeValue::<M>::AccountMetadata(_)) |
+        (NodeKey::AssetMetadata(_), NodeValue::<M>::AssetMetadata(_)) |
+        (NodeKey::NftData(_), NodeValue::<M>::NftData(_)) |
+        (NodeKey::TriggerMetadata(_), NodeValue::<M>::TriggerMetadata(_)) => true,
+        (_, _) => false
+    }
 }
 
 mod transitional {

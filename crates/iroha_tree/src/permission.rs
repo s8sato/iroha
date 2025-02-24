@@ -7,9 +7,9 @@ pub type PermissionRef<'a> = TreeRef<'a, ReadWriteStatusFilter>;
 #[derive(Debug, PartialEq, Eq)]
 pub struct ReadWriteStatusFilter;
 
-impl NodeMode for ReadWriteStatusFilter {}
-
-impl BranchMode for ReadWriteStatusFilter {
+impl Mode for ReadWriteStatusFilter {
+    // Rank 1
+    type Authorizer = FilterU8;
     type Parameters = FilterU8;
     type Peers = FilterU8;
     type Domains = FilterU8;
@@ -25,10 +25,7 @@ impl BranchMode for ReadWriteStatusFilter {
     type Commands = FilterU8;
     type Triggers = FilterU8;
     type Executables = FilterU8;
-}
-
-impl LeafMode for ReadWriteStatusFilter {
-    type Authorizer = FilterU8;
+    // Rank 2
     type Parameter = FilterU8;
     type Peer = FilterU8;
     type Domain = FilterU8;
@@ -44,6 +41,7 @@ impl LeafMode for ReadWriteStatusFilter {
     type Command = FilterU8;
     type Trigger = FilterU8;
     type Executable = FilterU8;
+    // Rank 3
     type Metadata = FilterU8;
 }
 
@@ -68,21 +66,9 @@ impl Add for Permission {
     }
 }
 
-impl Add for NodeValue<ReadWriteStatusFilter> {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
-            (Self::Branch(l), Self::Branch(r)) => Self::Branch(l + r),
-            (Self::Leaf(l), Self::Leaf(r)) => Self::Leaf(l + r),
-            _ => unreachable!(),
-        }
-    }
-}
-
 macro_rules! impl_enum_add {
-    ($value:ident: $($ident:ident,)+) => {
-        impl Add for $value<ReadWriteStatusFilter> {
+    ($($ident:ident,)+) => {
+        impl Add for NodeValue<ReadWriteStatusFilter> {
             type Output = Self;
 
             fn add(self, rhs: Self) -> Self::Output {
@@ -97,9 +83,11 @@ macro_rules! impl_enum_add {
     }
 }
 
-impl_enum_add!(BranchValue:
+impl_enum_add!(
+    // Rank 1
     Parameters,
     Peers,
+    Authorizer,
     Domains,
     Accounts,
     Assets,
@@ -113,10 +101,7 @@ impl_enum_add!(BranchValue:
     Commands,
     Triggers,
     Executables,
-);
-
-impl_enum_add!(LeafValue:
-    Authorizer,
+    // Rank 2
     Parameter,
     Peer,
     Domain,
@@ -132,6 +117,7 @@ impl_enum_add!(LeafValue:
     Command,
     Trigger,
     Executable,
+    // Rank 3
     DomainMetadata,
     AccountMetadata,
     AssetMetadata,
