@@ -252,27 +252,27 @@ impl<'a, M: Mode> TreeRef<'a, M> {
 
 fn consistent_key_value<M: Mode>(key: &NodeKey, value: &NodeValue<M>) -> bool {
     match (key, value) {
-        (NodeKey::Authorizer, NodeValue::<M>::Authorizer(_))
-        | (NodeKey::Parameter(_), NodeValue::<M>::Parameter(_))
-        | (NodeKey::Peer(_), NodeValue::<M>::Peer(_))
-        | (NodeKey::Domain(_), NodeValue::<M>::Domain(_))
-        | (NodeKey::Account(_), NodeValue::<M>::Account(_))
-        | (NodeKey::Asset(_), NodeValue::<M>::Asset(_))
-        | (NodeKey::Nft(_), NodeValue::<M>::Nft(_))
-        | (NodeKey::AccountAsset(_), NodeValue::<M>::AccountAsset(_))
-        | (NodeKey::Role(_), NodeValue::<M>::Role(_))
-        | (NodeKey::Permission(_), NodeValue::<M>::Permission(_))
-        | (NodeKey::AccountRole(_), NodeValue::<M>::AccountRole(_))
-        | (NodeKey::AccountPermission(_), NodeValue::<M>::AccountPermission(_))
-        | (NodeKey::RolePermission(_), NodeValue::<M>::RolePermission(_))
-        | (NodeKey::Command(_), NodeValue::<M>::Command(_))
-        | (NodeKey::Trigger(_), NodeValue::<M>::Trigger(_))
-        | (NodeKey::Executable(_), NodeValue::<M>::Executable(_))
-        | (NodeKey::DomainMetadata(_), NodeValue::<M>::DomainMetadata(_))
-        | (NodeKey::AccountMetadata(_), NodeValue::<M>::AccountMetadata(_))
-        | (NodeKey::AssetMetadata(_), NodeValue::<M>::AssetMetadata(_))
-        | (NodeKey::NftData(_), NodeValue::<M>::NftData(_))
-        | (NodeKey::TriggerMetadata(_), NodeValue::<M>::TriggerMetadata(_)) => true,
+        (NodeKey::Authorizer, NodeValue::Authorizer(_))
+        | (NodeKey::Parameter(_), NodeValue::Parameter(_))
+        | (NodeKey::Peer(_), NodeValue::Peer(_))
+        | (NodeKey::Domain(_), NodeValue::Domain(_))
+        | (NodeKey::Account(_), NodeValue::Account(_))
+        | (NodeKey::Asset(_), NodeValue::Asset(_))
+        | (NodeKey::Nft(_), NodeValue::Nft(_))
+        | (NodeKey::AccountAsset(_), NodeValue::AccountAsset(_))
+        | (NodeKey::Role(_), NodeValue::Role(_))
+        | (NodeKey::Permission(_), NodeValue::Permission(_))
+        | (NodeKey::AccountRole(_), NodeValue::AccountRole(_))
+        | (NodeKey::AccountPermission(_), NodeValue::AccountPermission(_))
+        | (NodeKey::RolePermission(_), NodeValue::RolePermission(_))
+        | (NodeKey::Command(_), NodeValue::Command(_))
+        | (NodeKey::Trigger(_), NodeValue::Trigger(_))
+        | (NodeKey::Executable(_), NodeValue::Executable(_))
+        | (NodeKey::DomainMetadata(_), NodeValue::DomainMetadata(_))
+        | (NodeKey::AccountMetadata(_), NodeValue::AccountMetadata(_))
+        | (NodeKey::AssetMetadata(_), NodeValue::AssetMetadata(_))
+        | (NodeKey::NftData(_), NodeValue::NftData(_))
+        | (NodeKey::TriggerMetadata(_), NodeValue::TriggerMetadata(_)) => true,
         (_, _) => false,
     }
 }
