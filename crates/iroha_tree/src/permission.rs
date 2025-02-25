@@ -4,34 +4,7 @@ pub type Permission = Tree<ReadWriteStatusFilter>;
 
 pub type PermissionRef<'a> = TreeRef<'a, ReadWriteStatusFilter>;
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct ReadWriteStatusFilter;
-
-impl Mode for ReadWriteStatusFilter {
-    type Authorizer = FilterU8;
-    type Parameter = FilterU8;
-    type Peer = FilterU8;
-    type Domain = FilterU8;
-    type Account = FilterU8;
-    type Asset = FilterU8;
-    type Nft = FilterU8;
-    type AccountAsset = FilterU8;
-    type Role = FilterU8;
-    type Permission = FilterU8;
-    type AccountRole = FilterU8;
-    type AccountPermission = FilterU8;
-    type RolePermission = FilterU8;
-    type Command = FilterU8;
-    type Trigger = FilterU8;
-    type Executable = FilterU8;
-    type Metadata = FilterU8;
-}
-
-impl PartialOrd for Permission {
-    fn partial_cmp(&self, _other: &Self) -> Option<Ordering> {
-        todo!()
-    }
-}
+pub type ReadWriteStatusFilter = receptor::WriteStatusFilter;
 
 impl Add for Permission {
     type Output = Self;

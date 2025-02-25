@@ -237,19 +237,6 @@ macro_rules! impl_for_node_values {
             }
         }
 
-        impl Add for NodeValue<receptor::WriteStatusFilter> {
-            type Output = Self;
-
-            fn add(self, rhs: Self) -> Self::Output {
-                match (self, rhs) {
-                    $(
-                    (Self::$ident(l), Self::$ident(r)) => Self::$ident(l + r),
-                    )+
-                    _ => unreachable!(),
-                }
-            }
-        }
-
         impl Add for NodeValue<permission::ReadWriteStatusFilter> {
             type Output = Self;
 
