@@ -22,181 +22,111 @@ impl Add for Permission {
 }
 
 mod transitional {
+    use event::*;
     use iroha_executor_data_model::permission as xp;
 
     use super::*;
 
-    impl From<xp::peer::CanManagePeers> for Permission {
-        fn from(_value: xp::peer::CanManagePeers) -> Self {
-            todo!()
-        }
+    macro_rules! impl_into_permission {
+        ($mod:ident::$can:ident, $path:ident, |$value:ident| $key:expr, $values:expr) => {
+            impl From<xp::$mod::$can> for Permission {
+                fn from($value: xp::$mod::$can) -> Self {
+                    HashMap::from([(
+                        NodeKey::$path($key),
+                        NodeValue::$path(
+                            $values
+                                .iter()
+                                .map(Filtered::as_filter)
+                                .reduce(|acc, x| acc + x)
+                                .unwrap(),
+                        ),
+                    )])
+                    .into()
+                }
+            }
+        };
     }
 
-    impl From<xp::domain::CanRegisterDomain> for Permission {
-        fn from(_value: xp::domain::CanRegisterDomain) -> Self {
-            todo!()
-        }
-    }
+    impl_into_permission!(
+        peer::CanManagePeers,
+        Peer,
+        |_v| None,
+        [UnitWS::Create, UnitWS::Delete]
+    );
 
-    impl From<xp::domain::CanUnregisterDomain> for Permission {
-        fn from(_value: xp::domain::CanUnregisterDomain) -> Self {
-            todo!()
-        }
-    }
+    impl_into_permission!(
+        domain::CanRegisterDomain,
+        Domain,
+        |_v| None,
+        [DomainWS::Create]
+    );
 
-    impl From<xp::domain::CanModifyDomainMetadata> for Permission {
-        fn from(_value: xp::domain::CanModifyDomainMetadata) -> Self {
-            todo!()
-        }
-    }
+    impl_into_permission!(
+        domain::CanUnregisterDomain,
+        Domain,
+        |v| Some(v.domain),
+        [DomainWS::Delete]
+    );
 
-    impl From<xp::account::CanRegisterAccount> for Permission {
-        fn from(_value: xp::account::CanRegisterAccount) -> Self {
-            todo!()
-        }
-    }
+    impl_into_permission!(
+        domain::CanModifyDomainMetadata,
+        DomainMetadata,
+        |v| (Some(v.domain), None),
+        [MetadataWS::Set, MetadataWS::Unset]
+    );
 
-    impl From<xp::account::CanUnregisterAccount> for Permission {
-        fn from(_value: xp::account::CanUnregisterAccount) -> Self {
-            todo!()
-        }
-    }
+    impl_into_permission!(
+        account::CanRegisterAccount,
+        Account,
+        |v| (None, Some(v.domain)),
+        [UnitWS::Create]
+    );
 
-    impl From<xp::account::CanModifyAccountMetadata> for Permission {
-        fn from(_value: xp::account::CanModifyAccountMetadata) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(account::CanUnregisterAccount, Account, |v| (), [WS::]);
 
-    impl From<xp::asset_definition::CanRegisterAssetDefinition> for Permission {
-        fn from(_value: xp::asset_definition::CanRegisterAssetDefinition) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(account::CanModifyAccountMetadata, Account, |v| (), [WS::]);
 
-    impl From<xp::asset_definition::CanUnregisterAssetDefinition> for Permission {
-        fn from(_value: xp::asset_definition::CanUnregisterAssetDefinition) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(asset_definition::CanRegisterAssetDefinition, AssetDefinition, |v| (), [WS::]);
 
-    impl From<xp::asset_definition::CanModifyAssetDefinitionMetadata> for Permission {
-        fn from(_value: xp::asset_definition::CanModifyAssetDefinitionMetadata) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(asset_definition::CanUnregisterAssetDefinition, AssetDefinition, |v| (), [WS::]);
 
-    impl From<xp::asset::CanRegisterAssetWithDefinition> for Permission {
-        fn from(_value: xp::asset::CanRegisterAssetWithDefinition) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(asset_definition::CanModifyAssetDefinitionMetadata, AssetDefinition, |v| (), [WS::]);
 
-    impl From<xp::asset::CanUnregisterAssetWithDefinition> for Permission {
-        fn from(_value: xp::asset::CanUnregisterAssetWithDefinition) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(asset::CanRegisterAssetWithDefinition, Asset, |v| (), [WS::]);
 
-    impl From<xp::asset::CanMintAssetWithDefinition> for Permission {
-        fn from(_value: xp::asset::CanMintAssetWithDefinition) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(asset::CanUnregisterAssetWithDefinition, Asset, |v| (), [WS::]);
 
-    impl From<xp::asset::CanBurnAssetWithDefinition> for Permission {
-        fn from(_value: xp::asset::CanBurnAssetWithDefinition) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(asset::CanMintAssetWithDefinition, Asset, |v| (), [WS::]);
 
-    impl From<xp::asset::CanTransferAssetWithDefinition> for Permission {
-        fn from(_value: xp::asset::CanTransferAssetWithDefinition) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(asset::CanBurnAssetWithDefinition, Asset, |v| (), [WS::]);
 
-    impl From<xp::asset::CanRegisterAsset> for Permission {
-        fn from(_value: xp::asset::CanRegisterAsset) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(asset::CanTransferAssetWithDefinition, Asset, |v| (), [WS::]);
 
-    impl From<xp::asset::CanUnregisterAsset> for Permission {
-        fn from(_value: xp::asset::CanUnregisterAsset) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(asset::CanRegisterAsset, Asset, |v| (), [WS::]);
 
-    impl From<xp::asset::CanMintAsset> for Permission {
-        fn from(_value: xp::asset::CanMintAsset) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(asset::CanUnregisterAsset, Asset, |v| (), [WS::]);
 
-    impl From<xp::asset::CanBurnAsset> for Permission {
-        fn from(_value: xp::asset::CanBurnAsset) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(asset::CanMintAsset, Asset, |v| (), [WS::]);
 
-    impl From<xp::asset::CanTransferAsset> for Permission {
-        fn from(_value: xp::asset::CanTransferAsset) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(asset::CanBurnAsset, Asset, |v| (), [WS::]);
 
-    impl From<xp::asset::CanModifyAssetMetadata> for Permission {
-        fn from(_value: xp::asset::CanModifyAssetMetadata) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(asset::CanTransferAsset, Asset, |v| (), [WS::]);
 
-    impl From<xp::parameter::CanSetParameters> for Permission {
-        fn from(_value: xp::parameter::CanSetParameters) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(asset::CanModifyAssetMetadata, Asset, |v| (), [WS::]);
 
-    impl From<xp::role::CanManageRoles> for Permission {
-        fn from(_value: xp::role::CanManageRoles) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(parameter::CanSetParameters, Parameter, |v| (), [WS::]);
 
-    impl From<xp::trigger::CanRegisterTrigger> for Permission {
-        fn from(_value: xp::trigger::CanRegisterTrigger) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(role::CanManageRoles, Role, |v| (), [WS::]);
 
-    impl From<xp::trigger::CanExecuteTrigger> for Permission {
-        fn from(_value: xp::trigger::CanExecuteTrigger) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(trigger::CanRegisterTrigger, Trigger, |v| (), [WS::]);
 
-    impl From<xp::trigger::CanUnregisterTrigger> for Permission {
-        fn from(_value: xp::trigger::CanUnregisterTrigger) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(trigger::CanExecuteTrigger, Trigger, |v| (), [WS::]);
 
-    impl From<xp::trigger::CanModifyTrigger> for Permission {
-        fn from(_value: xp::trigger::CanModifyTrigger) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(trigger::CanUnregisterTrigger, Trigger, |v| (), [WS::]);
 
-    impl From<xp::trigger::CanModifyTriggerMetadata> for Permission {
-        fn from(_value: xp::trigger::CanModifyTriggerMetadata) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(trigger::CanModifyTrigger, Trigger, |v| (), [WS::]);
 
-    impl From<xp::executor::CanUpgradeExecutor> for Permission {
-        fn from(_value: xp::executor::CanUpgradeExecutor) -> Self {
-            todo!()
-        }
-    }
+    // impl_into_permission!(trigger::CanModifyTriggerMetadata, Trigger, |v| (), [WS::]);
+
+    // impl_into_permission!(executor::CanUpgradeExecutor, Executor, |v| (), [WS::]);
 }
