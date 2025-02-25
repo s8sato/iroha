@@ -27,6 +27,8 @@ impl Mode for () {
 pub mod transitional {
     use std::collections::HashSet;
 
+    use iroha_core::state::StateReadOnly;
+
     use super::*;
 
     #[derive(Debug, PartialEq, Eq)]
@@ -95,10 +97,19 @@ pub mod transitional {
 
     impl State {
         fn triggers(&self) -> HashMap<dm::TriggerId, &TriggerValue> {
+            // self
+            //     .iter()
+            //     .filter_by(NodeKey::Trigger(None))
+            //     .map(|(NodeKey::Trigger(Some(k)), NodeValue::Trigger(v))| (k, v))
+            //     .collect()
             todo!()
         }
 
         fn command(&self, _id: &crate::tr::CommandId) -> Option<&CommandValue> {
+            todo!()
+        }
+
+        fn load(_state: &impl StateReadOnly, _keys: impl Iterator<Item = NodeKey>) -> Self {
             todo!()
         }
     }
@@ -121,7 +132,7 @@ pub mod transitional {
                     &state.command(cmd_id).unwrap().changeset
                 };
                 // TODO update detection of trigger mutations
-                // if changeset.iter().any(|(path, _change)| 100 <= *path) {
+                // if changeset.iter().any(|(path, _change)| path.is_trigger()) {
                 //     return true;
                 // }
                 let next_trigger_ids = triggers
