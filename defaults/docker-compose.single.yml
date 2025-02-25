@@ -9,7 +9,7 @@ networks:
 
 services:
   irohad9:
-    image: hyperledger/iroha:2.0.0-rc.1.0
+    image: hyperledger/iroha:dev
     environment:
       CHAIN: 00000000-0000-0000-0000-000000000000
       # set a unique key pair
