@@ -167,18 +167,18 @@ macro_rules! impl_node_write {
 }
 
 impl_node_write!(
-    (AuthorizerW, AuthorizerWS),
-    (UnitW, UnitWS),
-    (ParameterW, ParameterWS),
-    (DomainW, DomainWS),
-    (AssetW, AssetWS),
-    (NftW, NftWS),
-    (AccountAssetW, AccountAssetWS),
-    (PermissionW, PermissionWS),
-    (CommandW, CommandWS),
-    (TriggerW, TriggerWS),
-    (ExecutableW, ExecutableWS),
-    (MetadataW, MetadataWS),
+    (AuthorizerW, AuthorizerS),
+    (UnitW, UnitS),
+    (ParameterW, ParameterS),
+    (DomainW, DomainS),
+    (AssetW, AssetS),
+    (NftW, NftS),
+    (AccountAssetW, AccountAssetS),
+    (PermissionW, PermissionS),
+    (CommandW, CommandS),
+    (TriggerW, TriggerS),
+    (ExecutableW, ExecutableS),
+    (MetadataW, MetadataS),
 );
 
 impl Add for AuthorizerW {

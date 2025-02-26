@@ -8,23 +8,23 @@ pub type EventRef<'a> = TreeRef<'a, WriteStatus>;
 pub struct WriteStatus;
 
 impl Mode for WriteStatus {
-    type Authorizer = AuthorizerWS;
-    type Parameter = ParameterWS;
-    type Peer = UnitWS;
-    type Domain = DomainWS;
-    type Account = UnitWS;
-    type Asset = AssetWS;
-    type Nft = NftWS;
-    type AccountAsset = AccountAssetWS;
-    type Role = UnitWS;
-    type Permission = PermissionWS;
-    type AccountRole = UnitWS;
-    type AccountPermission = UnitWS;
-    type RolePermission = UnitWS;
-    type Command = CommandWS;
-    type Trigger = TriggerWS;
-    type Executable = ExecutableWS;
-    type Metadata = MetadataWS;
+    type Authorizer = AuthorizerS;
+    type Parameter = ParameterS;
+    type Peer = UnitS;
+    type Domain = DomainS;
+    type Account = UnitS;
+    type Asset = AssetS;
+    type Nft = NftS;
+    type AccountAsset = AccountAssetS;
+    type Role = UnitS;
+    type Permission = PermissionS;
+    type AccountRole = UnitS;
+    type AccountPermission = UnitS;
+    type RolePermission = UnitS;
+    type Command = CommandS;
+    type Trigger = TriggerS;
+    type Executable = ExecutableS;
+    type Metadata = MetadataS;
 }
 
 /// - Delete
@@ -58,34 +58,41 @@ macro_rules! u8_status {
     };
     (i) => {
         0b0000_0010
-    }; // (r) => { 0b0000_0001 };
+    };
+    (r) => {
+        0b0000_0001
+    };
 }
 
-// TODO impl SerializeDisplay and DeserializeFromStr for *WS
+// TODO impl SerializeDisplay and DeserializeFromStr for *S
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
-pub enum AuthorizerWS {
+pub enum AuthorizerS {
+    Read = u8_status!(r),
     Set = u8_status!(c),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
-pub enum UnitWS {
+pub enum UnitS {
+    Read = u8_status!(r),
     Create = u8_status!(c),
     Delete = u8_status!(d),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
-pub enum ParameterWS {
+pub enum ParameterS {
+    Read = u8_status!(r),
     Set = u8_status!(c),
     Unset = u8_status!(d),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
-pub enum DomainWS {
+pub enum DomainS {
+    Read = u8_status!(r),
     Transfer = u8_status!(t),
     Create = u8_status!(c),
     Delete = u8_status!(d),
@@ -93,7 +100,8 @@ pub enum DomainWS {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
-pub enum AssetWS {
+pub enum AssetS {
+    Read = u8_status!(r),
     Transfer = u8_status!(t),
     Create = u8_status!(c),
     Delete = u8_status!(d),
@@ -101,7 +109,8 @@ pub enum AssetWS {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
-pub enum NftWS {
+pub enum NftS {
+    Read = u8_status!(r),
     Transfer = u8_status!(t),
     Create = u8_status!(c),
     Delete = u8_status!(d),
@@ -109,7 +118,8 @@ pub enum NftWS {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
-pub enum AccountAssetWS {
+pub enum AccountAssetS {
+    Read = u8_status!(r),
     Receive = u8_status!(i),
     Send = u8_status!(o),
     Mint = u8_status!(m),
@@ -118,21 +128,24 @@ pub enum AccountAssetWS {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
-pub enum PermissionWS {
+pub enum PermissionS {
+    Read = u8_status!(r),
     Set = u8_status!(c),
     Unset = u8_status!(d),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
-pub enum CommandWS {
+pub enum CommandS {
+    Read = u8_status!(r),
     Set = u8_status!(c),
     Unset = u8_status!(d),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
-pub enum TriggerWS {
+pub enum TriggerS {
+    Read = u8_status!(r),
     Increase = u8_status!(m),
     Decrease = u8_status!(b),
     Create = u8_status!(c),
@@ -141,14 +154,16 @@ pub enum TriggerWS {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
-pub enum ExecutableWS {
+pub enum ExecutableS {
+    Read = u8_status!(r),
     Set = u8_status!(c),
     Unset = u8_status!(d),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
-pub enum MetadataWS {
+pub enum MetadataS {
+    Read = u8_status!(r),
     Set = u8_status!(c),
     Unset = u8_status!(d),
 }
@@ -190,18 +205,18 @@ macro_rules! impl_from_write_filtered {
 }
 
 impl_from_write_filtered!(
-    (AuthorizerWS, AuthorizerW: Set),
-    (UnitWS, UnitW: Create | Delete),
-    (ParameterWS, ParameterW: Set | Unset),
-    (DomainWS, DomainW: Transfer | Create | Delete),
-    (AssetWS, AssetW: Transfer | Create | Delete),
-    (NftWS, NftW: Transfer | Create | Delete),
-    (AccountAssetWS, AccountAssetW: Receive | Send | Mint | Burn),
-    (PermissionWS, PermissionW: Set | Unset),
-    (CommandWS, CommandW: Set | Unset),
-    (TriggerWS, TriggerW: Increase | Decrease | Create | Delete),
-    (ExecutableWS, ExecutableW: Set | Unset),
-    (MetadataWS, MetadataW: Set | Unset),
+    (AuthorizerS, AuthorizerW: Set),
+    (UnitS, UnitW: Create | Delete),
+    (ParameterS, ParameterW: Set | Unset),
+    (DomainS, DomainW: Transfer | Create | Delete),
+    (AssetS, AssetW: Transfer | Create | Delete),
+    (NftS, NftW: Transfer | Create | Delete),
+    (AccountAssetS, AccountAssetW: Receive | Send | Mint | Burn),
+    (PermissionS, PermissionW: Set | Unset),
+    (CommandS, CommandW: Set | Unset),
+    (TriggerS, TriggerW: Increase | Decrease | Create | Delete),
+    (ExecutableS, ExecutableW: Set | Unset),
+    (MetadataS, MetadataW: Set | Unset),
 );
 
 mod transitional {

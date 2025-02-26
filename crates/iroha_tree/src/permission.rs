@@ -51,82 +51,82 @@ mod transitional {
         peer::CanManagePeers,
         Peer,
         |_v| None,
-        [UnitWS::Create, UnitWS::Delete]
+        [UnitS::Create, UnitS::Delete]
     );
 
     impl_into_permission!(
         domain::CanRegisterDomain,
         Domain,
         |_v| None,
-        [DomainWS::Create]
+        [DomainS::Create]
     );
 
     impl_into_permission!(
         domain::CanUnregisterDomain,
         Domain,
         |v| Some(v.domain),
-        [DomainWS::Delete]
+        [DomainS::Delete]
     );
 
     impl_into_permission!(
         domain::CanModifyDomainMetadata,
         DomainMetadata,
         |v| (Some(v.domain), None),
-        [MetadataWS::Set, MetadataWS::Unset]
+        [MetadataS::Set, MetadataS::Unset]
     );
 
     impl_into_permission!(
         account::CanRegisterAccount,
         Account,
         |v| (None, Some(v.domain)),
-        [UnitWS::Create]
+        [UnitS::Create]
     );
 
-    // impl_into_permission!(account::CanUnregisterAccount, Account, |v| (), [WS::]);
+    // impl_into_permission!(account::CanUnregisterAccount, Account, |v| (), [S::]);
 
-    // impl_into_permission!(account::CanModifyAccountMetadata, Account, |v| (), [WS::]);
+    // impl_into_permission!(account::CanModifyAccountMetadata, Account, |v| (), [S::]);
 
-    // impl_into_permission!(asset_definition::CanRegisterAssetDefinition, AssetDefinition, |v| (), [WS::]);
+    // impl_into_permission!(asset_definition::CanRegisterAssetDefinition, AssetDefinition, |v| (), [S::]);
 
-    // impl_into_permission!(asset_definition::CanUnregisterAssetDefinition, AssetDefinition, |v| (), [WS::]);
+    // impl_into_permission!(asset_definition::CanUnregisterAssetDefinition, AssetDefinition, |v| (), [S::]);
 
-    // impl_into_permission!(asset_definition::CanModifyAssetDefinitionMetadata, AssetDefinition, |v| (), [WS::]);
+    // impl_into_permission!(asset_definition::CanModifyAssetDefinitionMetadata, AssetDefinition, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanRegisterAssetWithDefinition, Asset, |v| (), [WS::]);
+    // impl_into_permission!(asset::CanRegisterAssetWithDefinition, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanUnregisterAssetWithDefinition, Asset, |v| (), [WS::]);
+    // impl_into_permission!(asset::CanUnregisterAssetWithDefinition, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanMintAssetWithDefinition, Asset, |v| (), [WS::]);
+    // impl_into_permission!(asset::CanMintAssetWithDefinition, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanBurnAssetWithDefinition, Asset, |v| (), [WS::]);
+    // impl_into_permission!(asset::CanBurnAssetWithDefinition, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanTransferAssetWithDefinition, Asset, |v| (), [WS::]);
+    // impl_into_permission!(asset::CanTransferAssetWithDefinition, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanRegisterAsset, Asset, |v| (), [WS::]);
+    // impl_into_permission!(asset::CanRegisterAsset, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanUnregisterAsset, Asset, |v| (), [WS::]);
+    // impl_into_permission!(asset::CanUnregisterAsset, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanMintAsset, Asset, |v| (), [WS::]);
+    // impl_into_permission!(asset::CanMintAsset, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanBurnAsset, Asset, |v| (), [WS::]);
+    // impl_into_permission!(asset::CanBurnAsset, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanTransferAsset, Asset, |v| (), [WS::]);
+    // impl_into_permission!(asset::CanTransferAsset, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanModifyAssetMetadata, Asset, |v| (), [WS::]);
+    // impl_into_permission!(asset::CanModifyAssetMetadata, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(parameter::CanSetParameters, Parameter, |v| (), [WS::]);
+    // impl_into_permission!(parameter::CanSetParameters, Parameter, |v| (), [S::]);
 
-    // impl_into_permission!(role::CanManageRoles, Role, |v| (), [WS::]);
+    // impl_into_permission!(role::CanManageRoles, Role, |v| (), [S::]);
 
-    // impl_into_permission!(trigger::CanRegisterTrigger, Trigger, |v| (), [WS::]);
+    // impl_into_permission!(trigger::CanRegisterTrigger, Trigger, |v| (), [S::]);
 
-    // impl_into_permission!(trigger::CanExecuteTrigger, Trigger, |v| (), [WS::]);
+    // impl_into_permission!(trigger::CanExecuteTrigger, Trigger, |v| (), [S::]);
 
-    // impl_into_permission!(trigger::CanUnregisterTrigger, Trigger, |v| (), [WS::]);
+    // impl_into_permission!(trigger::CanUnregisterTrigger, Trigger, |v| (), [S::]);
 
-    // impl_into_permission!(trigger::CanModifyTrigger, Trigger, |v| (), [WS::]);
+    // impl_into_permission!(trigger::CanModifyTrigger, Trigger, |v| (), [S::]);
 
-    // impl_into_permission!(trigger::CanModifyTriggerMetadata, Trigger, |v| (), [WS::]);
+    // impl_into_permission!(trigger::CanModifyTriggerMetadata, Trigger, |v| (), [S::]);
 
-    // impl_into_permission!(executor::CanUpgradeExecutor, Executor, |v| (), [WS::]);
+    // impl_into_permission!(executor::CanUpgradeExecutor, Executor, |v| (), [S::]);
 }
