@@ -30,45 +30,45 @@ impl Mode for WriteStatus {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum AuthorizerWS {
-    Set = 0b0000_0010,
+    Set = 0b0100_0000,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum UnitWS {
-    Create = 0b0000_0010,
-    Delete = 0b0000_0100,
+    Create = 0b0100_0000,
+    Delete = 0b1000_0000,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum ParameterWS {
-    Set = 0b0000_0010,
-    Unset = 0b0000_0100,
+    Set = 0b0100_0000,
+    Unset = 0b1000_0000,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum DomainWS {
-    Transfer = 0b0000_0010,
-    Create = 0b0000_0100,
-    Delete = 0b0000_1000,
+    Transfer = 0b0000_1000,
+    Create = 0b0100_0000,
+    Delete = 0b1000_0000,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum AssetWS {
-    Transfer = 0b0000_0010,
-    Create = 0b0000_0100,
-    Delete = 0b0000_1000,
+    Transfer = 0b0000_1000,
+    Create = 0b0100_0000,
+    Delete = 0b1000_0000,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum NftWS {
-    Transfer = 0b0000_0010,
-    Create = 0b0000_0100,
-    Delete = 0b0000_1000,
+    Transfer = 0b0000_1000,
+    Create = 0b0100_0000,
+    Delete = 0b1000_0000,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -76,45 +76,45 @@ pub enum NftWS {
 pub enum AccountAssetWS {
     Receive = 0b0000_0010,
     Send = 0b0000_0100,
-    Mint = 0b0000_1000,
-    Burn = 0b0001_0000,
+    Mint = 0b0001_0000,
+    Burn = 0b0010_0000,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum PermissionWS {
-    Set = 0b0000_0010,
-    Unset = 0b0000_0100,
+    Set = 0b0100_0000,
+    Unset = 0b1000_0000,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum CommandWS {
-    Set = 0b0000_0010,
-    Unset = 0b0000_0100,
+    Set = 0b0100_0000,
+    Unset = 0b1000_0000,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum TriggerWS {
-    Increase = 0b0000_0010,
-    Decrease = 0b0000_0100,
-    Create = 0b0000_1000,
-    Delete = 0b0001_0000,
+    Increase = 0b0001_0000,
+    Decrease = 0b0010_0000,
+    Create = 0b0100_0000,
+    Delete = 0b1000_0000,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum ExecutableWS {
-    Set = 0b0000_0010,
-    Unset = 0b0000_0100,
+    Set = 0b0100_0000,
+    Unset = 0b1000_0000,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum MetadataWS {
-    Set = 0b0000_0010,
-    Unset = 0b0000_0100,
+    Set = 0b0100_0000,
+    Unset = 0b1000_0000,
 }
 
 impl Filtered for Event {
