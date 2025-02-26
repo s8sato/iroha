@@ -28,12 +28,12 @@ mod transitional {
     use super::*;
 
     macro_rules! impl_into_permission {
-        ($mod:ident::$can:ident, $path:ident, |$value:ident| $key:expr, $values:expr) => {
-            impl From<xp::$mod::$can> for Permission {
-                fn from($value: xp::$mod::$can) -> Self {
+        ($can:path, $node:ident, |$source:ident| $key:expr, $values:expr) => {
+            impl From<$can> for Permission {
+                fn from($source: $can) -> Self {
                     HashMap::from([(
-                        NodeKey::$path($key),
-                        NodeValue::$path(
+                        NodeKey::$node($key),
+                        NodeValue::$node(
                             $values
                                 .iter()
                                 .map(Filtered::as_filter)
@@ -48,85 +48,85 @@ mod transitional {
     }
 
     impl_into_permission!(
-        peer::CanManagePeers,
+        xp::peer::CanManagePeers,
         Peer,
         |_v| None,
         [UnitS::Create, UnitS::Delete]
     );
 
     impl_into_permission!(
-        domain::CanRegisterDomain,
+        xp::domain::CanRegisterDomain,
         Domain,
         |_v| None,
         [DomainS::Create]
     );
 
     impl_into_permission!(
-        domain::CanUnregisterDomain,
+        xp::domain::CanUnregisterDomain,
         Domain,
         |v| Some(v.domain),
         [DomainS::Delete]
     );
 
     impl_into_permission!(
-        domain::CanModifyDomainMetadata,
+        xp::domain::CanModifyDomainMetadata,
         DomainMetadata,
         |v| (Some(v.domain), None),
         [MetadataS::Set, MetadataS::Unset]
     );
 
     impl_into_permission!(
-        account::CanRegisterAccount,
+        xp::account::CanRegisterAccount,
         Account,
         |v| (None, Some(v.domain)),
         [UnitS::Create]
     );
 
-    // impl_into_permission!(account::CanUnregisterAccount, Account, |v| (), [S::]);
+    // impl_into_permission!(xp::account::CanUnregisterAccount, Account, |v| (), [S::]);
 
-    // impl_into_permission!(account::CanModifyAccountMetadata, Account, |v| (), [S::]);
+    // impl_into_permission!(xp::account::CanModifyAccountMetadata, Account, |v| (), [S::]);
 
-    // impl_into_permission!(asset_definition::CanRegisterAssetDefinition, AssetDefinition, |v| (), [S::]);
+    // impl_into_permission!(xp::asset_definition::CanRegisterAssetDefinition, AssetDefinition, |v| (), [S::]);
 
-    // impl_into_permission!(asset_definition::CanUnregisterAssetDefinition, AssetDefinition, |v| (), [S::]);
+    // impl_into_permission!(xp::asset_definition::CanUnregisterAssetDefinition, AssetDefinition, |v| (), [S::]);
 
-    // impl_into_permission!(asset_definition::CanModifyAssetDefinitionMetadata, AssetDefinition, |v| (), [S::]);
+    // impl_into_permission!(xp::asset_definition::CanModifyAssetDefinitionMetadata, AssetDefinition, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanRegisterAssetWithDefinition, Asset, |v| (), [S::]);
+    // impl_into_permission!(xp::asset::CanRegisterAssetWithDefinition, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanUnregisterAssetWithDefinition, Asset, |v| (), [S::]);
+    // impl_into_permission!(xp::asset::CanUnregisterAssetWithDefinition, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanMintAssetWithDefinition, Asset, |v| (), [S::]);
+    // impl_into_permission!(xp::asset::CanMintAssetWithDefinition, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanBurnAssetWithDefinition, Asset, |v| (), [S::]);
+    // impl_into_permission!(xp::asset::CanBurnAssetWithDefinition, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanTransferAssetWithDefinition, Asset, |v| (), [S::]);
+    // impl_into_permission!(xp::asset::CanTransferAssetWithDefinition, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanRegisterAsset, Asset, |v| (), [S::]);
+    // impl_into_permission!(xp::asset::CanRegisterAsset, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanUnregisterAsset, Asset, |v| (), [S::]);
+    // impl_into_permission!(xp::asset::CanUnregisterAsset, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanMintAsset, Asset, |v| (), [S::]);
+    // impl_into_permission!(xp::asset::CanMintAsset, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanBurnAsset, Asset, |v| (), [S::]);
+    // impl_into_permission!(xp::asset::CanBurnAsset, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanTransferAsset, Asset, |v| (), [S::]);
+    // impl_into_permission!(xp::asset::CanTransferAsset, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(asset::CanModifyAssetMetadata, Asset, |v| (), [S::]);
+    // impl_into_permission!(xp::asset::CanModifyAssetMetadata, Asset, |v| (), [S::]);
 
-    // impl_into_permission!(parameter::CanSetParameters, Parameter, |v| (), [S::]);
+    // impl_into_permission!(xp::parameter::CanSetParameters, Parameter, |v| (), [S::]);
 
-    // impl_into_permission!(role::CanManageRoles, Role, |v| (), [S::]);
+    // impl_into_permission!(xp::role::CanManageRoles, Role, |v| (), [S::]);
 
-    // impl_into_permission!(trigger::CanRegisterTrigger, Trigger, |v| (), [S::]);
+    // impl_into_permission!(xp::trigger::CanRegisterTrigger, Trigger, |v| (), [S::]);
 
-    // impl_into_permission!(trigger::CanExecuteTrigger, Trigger, |v| (), [S::]);
+    // impl_into_permission!(xp::trigger::CanExecuteTrigger, Trigger, |v| (), [S::]);
 
-    // impl_into_permission!(trigger::CanUnregisterTrigger, Trigger, |v| (), [S::]);
+    // impl_into_permission!(xp::trigger::CanUnregisterTrigger, Trigger, |v| (), [S::]);
 
-    // impl_into_permission!(trigger::CanModifyTrigger, Trigger, |v| (), [S::]);
+    // impl_into_permission!(xp::trigger::CanModifyTrigger, Trigger, |v| (), [S::]);
 
-    // impl_into_permission!(trigger::CanModifyTriggerMetadata, Trigger, |v| (), [S::]);
+    // impl_into_permission!(xp::trigger::CanModifyTriggerMetadata, Trigger, |v| (), [S::]);
 
-    // impl_into_permission!(executor::CanUpgradeExecutor, Executor, |v| (), [S::]);
+    // impl_into_permission!(xp::executor::CanUpgradeExecutor, Executor, |v| (), [S::]);
 }
