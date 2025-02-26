@@ -370,6 +370,7 @@ mod transitional {
 
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum ParameterId {
+        Any, // TODO remove ParameterId::Any
         Preset(PresetParameterId),
         Custom(dm::CustomParameterId),
     }
@@ -377,8 +378,7 @@ mod transitional {
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct PresetParameterId;
 
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-    pub struct PermissionId;
+    pub type PermissionId = String;
 
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct CommandId;
