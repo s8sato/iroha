@@ -27,6 +27,18 @@ impl Mode for WriteStatus {
     type Metadata = MetadataWS;
 }
 
+/// - Delete
+/// - Create
+/// - Burn
+/// - Mint
+/// - Transfer
+/// - Out
+/// - In
+/// - Read
+const STATUS_CHARS: [char; 8] = ['d', 'c', 'b', 'm', 't', 'o', 'i', 'r'];
+
+// TODO impl SerializeDisplay and DeserializeFromStr for *WS
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum AuthorizerWS {
