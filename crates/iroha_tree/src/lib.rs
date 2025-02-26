@@ -18,10 +18,10 @@ use std::{
     collections::HashMap,
     fmt::Debug,
     hash::Hash,
-    ops::{Add, Deref},
+    ops::{Add, BitOr, Deref},
 };
 
-use derive_more::From;
+use derive_more::{BitOr, From};
 
 mod changeset;
 mod event;
@@ -149,7 +149,7 @@ trait Filtered {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Default, From)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default, From, BitOr)]
 struct FilterU8(u8);
 
 impl PartialOrd for FilterU8 {
@@ -167,15 +167,6 @@ impl PartialOrd for FilterU8 {
         } else {
             None
         }
-    }
-}
-
-impl Add for FilterU8 {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        #[expect(clippy::suspicious_arithmetic_impl)]
-        Self(self.0 | rhs.0)
     }
 }
 
@@ -237,13 +228,13 @@ macro_rules! impl_for_node_values {
             }
         }
 
-        impl Add for NodeValue<permission::ReadWriteStatusFilter> {
+        impl BitOr for NodeValue<permission::ReadWriteStatusFilter> {
             type Output = Self;
 
-            fn add(self, rhs: Self) -> Self::Output {
+            fn bitor(self, rhs: Self) -> Self::Output {
                 match (self, rhs) {
                     $(
-                    (Self::$ident(l), Self::$ident(r)) => Self::$ident(l + r),
+                    (Self::$ident(l), Self::$ident(r)) => Self::$ident(l | r),
                     )+
                     _ => unreachable!(),
                 }

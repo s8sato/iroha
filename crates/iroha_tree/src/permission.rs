@@ -13,7 +13,7 @@ impl Add for Permission {
         for (k, v0) in self.into_iter() {
             let v = match rhs.remove(&k) {
                 None => v0,
-                Some(v1) => v0 + v1,
+                Some(v1) => v0 | v1,
             };
             rhs.insert(k, v);
         }
@@ -37,7 +37,7 @@ mod transitional {
                             $values
                                 .iter()
                                 .map(Filtered::as_filter)
-                                .reduce(|acc, x| acc + x)
+                                .reduce(|acc, x| acc | x)
                                 .unwrap(),
                         ),
                     )])

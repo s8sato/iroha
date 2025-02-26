@@ -39,7 +39,7 @@ impl PartialOrd for Receptor {
             let Some(receptor_union) = other
                 .iter()
                 .filter_map(|(k, v)| receptor_keys.contains(k).then_some(v).map(FilterU8::from))
-                .reduce(|acc, x| acc + x)
+                .reduce(|acc, x| acc | x)
             else {
                 return Some(Ordering::Greater);
             };
