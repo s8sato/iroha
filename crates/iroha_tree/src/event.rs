@@ -37,96 +37,120 @@ impl Mode for WriteStatus {
 /// - Read
 const STATUS_CHARS: [char; 8] = ['d', 'c', 'b', 'm', 't', 'o', 'i', 'r'];
 
+macro_rules! u8_status {
+    (d) => {
+        0b1000_0000
+    };
+    (c) => {
+        0b0100_0000
+    };
+    (b) => {
+        0b0010_0000
+    };
+    (m) => {
+        0b0001_0000
+    };
+    (t) => {
+        0b0000_1000
+    };
+    (o) => {
+        0b0000_0100
+    };
+    (i) => {
+        0b0000_0010
+    }; // (r) => { 0b0000_0001 };
+}
+
 // TODO impl SerializeDisplay and DeserializeFromStr for *WS
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum AuthorizerWS {
-    Set = 0b0100_0000,
+    Set = u8_status!(c),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum UnitWS {
-    Create = 0b0100_0000,
-    Delete = 0b1000_0000,
+    Create = u8_status!(c),
+    Delete = u8_status!(d),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum ParameterWS {
-    Set = 0b0100_0000,
-    Unset = 0b1000_0000,
+    Set = u8_status!(c),
+    Unset = u8_status!(d),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum DomainWS {
-    Transfer = 0b0000_1000,
-    Create = 0b0100_0000,
-    Delete = 0b1000_0000,
+    Transfer = u8_status!(t),
+    Create = u8_status!(c),
+    Delete = u8_status!(d),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum AssetWS {
-    Transfer = 0b0000_1000,
-    Create = 0b0100_0000,
-    Delete = 0b1000_0000,
+    Transfer = u8_status!(t),
+    Create = u8_status!(c),
+    Delete = u8_status!(d),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum NftWS {
-    Transfer = 0b0000_1000,
-    Create = 0b0100_0000,
-    Delete = 0b1000_0000,
+    Transfer = u8_status!(t),
+    Create = u8_status!(c),
+    Delete = u8_status!(d),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum AccountAssetWS {
-    Receive = 0b0000_0010,
-    Send = 0b0000_0100,
-    Mint = 0b0001_0000,
-    Burn = 0b0010_0000,
+    Receive = u8_status!(i),
+    Send = u8_status!(o),
+    Mint = u8_status!(m),
+    Burn = u8_status!(b),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum PermissionWS {
-    Set = 0b0100_0000,
-    Unset = 0b1000_0000,
+    Set = u8_status!(c),
+    Unset = u8_status!(d),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum CommandWS {
-    Set = 0b0100_0000,
-    Unset = 0b1000_0000,
+    Set = u8_status!(c),
+    Unset = u8_status!(d),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum TriggerWS {
-    Increase = 0b0001_0000,
-    Decrease = 0b0010_0000,
-    Create = 0b0100_0000,
-    Delete = 0b1000_0000,
+    Increase = u8_status!(m),
+    Decrease = u8_status!(b),
+    Create = u8_status!(c),
+    Delete = u8_status!(d),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum ExecutableWS {
-    Set = 0b0100_0000,
-    Unset = 0b1000_0000,
+    Set = u8_status!(c),
+    Unset = u8_status!(d),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum MetadataWS {
-    Set = 0b0100_0000,
-    Unset = 0b1000_0000,
+    Set = u8_status!(c),
+    Unset = u8_status!(d),
 }
 
 impl Filtered for Event {
