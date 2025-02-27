@@ -72,7 +72,7 @@ type AccountKey = (Option<dm::PublicKey>, DomainKey);
 type AssetKey = (Option<dm::Name>, DomainKey);
 type NftKey = (Option<dm::Name>, DomainKey);
 type AccountAssetKey = (AccountKey, AssetKey);
-type RoleKey = Option<dm::RoleId>;
+type RoleKey = Option<tr::RoleId>;
 type PermissionKey = Option<tr::PermissionId>;
 type AccountRoleKey = (AccountKey, RoleKey);
 type AccountPermissionKey = (AccountKey, PermissionKey);
@@ -377,6 +377,15 @@ mod transitional {
 
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct PresetParameterId;
+
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    pub enum RoleId {
+        Named(dm::Name),
+        DomainAdmin(dm::DomainId),
+        AssetAdmin(dm::AssetDefinitionId),
+        NftAdmin(dm::AssetDefinitionId),
+        MultisigSignatory(dm::AccountId),
+    }
 
     pub type PermissionId = String;
 

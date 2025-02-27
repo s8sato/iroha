@@ -27,18 +27,17 @@ impl Mode for WriteStatus {
     type Metadata = MetadataS;
 }
 
-/// SATO move ownerships to roles and replace Transfer with AssetSpecChange (for mint-ability)
 /// An expansion of the CRUD status of the target node.
 ///
 /// - Delete: removing something, either allowing repetition (Unset) or not (Delete)
 /// - Create: creating something, either allowing repetition (Set) or not (Create)
 /// - Burn or Decrease: reducing something, breaking total balance
 /// - Mint or Increase: adding something, breaking total balance
-/// - Transfer: changing ownerships
+/// - Update: utility slot for various updates
 /// - Out, effectively Send: reducing something without breaking total balance
 /// - In, effectively Receive: adding something without breaking total balance
-/// - Read: reading something without modifying it
-const STATUS_CHARS: [char; 8] = ['d', 'c', 'b', 'm', 't', 'o', 'i', 'r'];
+/// - Read: accessing something without modifying it
+const STATUS_CHARS: [char; 8] = ['d', 'c', 'b', 'm', 'u', 'o', 'i', 'r'];
 
 macro_rules! u8_status {
     (d) => {
@@ -53,7 +52,7 @@ macro_rules! u8_status {
     (m) => {
         0b0001_0000
     };
-    (t) => {
+    (u) => {
         0b0000_1000
     };
     (o) => {
@@ -96,7 +95,6 @@ pub enum ParameterS {
 #[repr(u8)]
 pub enum DomainS {
     Read = u8_status!(r),
-    Transfer = u8_status!(t),
     Create = u8_status!(c),
     Delete = u8_status!(d),
 }
@@ -105,7 +103,7 @@ pub enum DomainS {
 #[repr(u8)]
 pub enum AssetS {
     Read = u8_status!(r),
-    Transfer = u8_status!(t),
+    MintabilityUpdate = u8_status!(u),
     Create = u8_status!(c),
     Delete = u8_status!(d),
 }
@@ -114,7 +112,6 @@ pub enum AssetS {
 #[repr(u8)]
 pub enum NftS {
     Read = u8_status!(r),
-    Transfer = u8_status!(t),
     Create = u8_status!(c),
     Delete = u8_status!(d),
 }
@@ -211,9 +208,9 @@ impl_from_write_filtered!(
     (AuthorizerS, AuthorizerW: Set),
     (UnitS, UnitW: Create | Delete),
     (ParameterS, ParameterW: Set | Unset),
-    (DomainS, DomainW: Transfer | Create | Delete),
-    (AssetS, AssetW: Transfer | Create | Delete),
-    (NftS, NftW: Transfer | Create | Delete),
+    (DomainS, DomainW: Create | Delete),
+    (AssetS, AssetW: MintabilityUpdate | Create | Delete),
+    (NftS, NftW: Create | Delete),
     (AccountAssetS, AccountAssetW: Receive | Send | Mint | Burn),
     (PermissionS, PermissionW: Set | Unset),
     (CommandS, CommandW: Set | Unset),
@@ -267,10 +264,8 @@ mod transitional {
                         AssetDefinitionEvent::Deleted(_k) => unimplemented!("ambiguous sources: FT/NFT Unregister<AssetDefinition>"),
                         AssetDefinitionEvent::MetadataInserted(m) => [node_key_status!(AssetMetadata, m.target.name, m.target.domain, m.key, MetadataS::Set)].into(),
                         AssetDefinitionEvent::MetadataRemoved(m) => [node_key_status!(AssetMetadata, m.target.name, m.target.domain, m.key, MetadataS::Unset)].into(),
-                        // SATO MintabilityChanged
-                        // AssetDefinitionEvent::MintabilityChanged(k) => [node_key_status!(Asset, k, AssetS::Update)].into(),
-                        // SATO TotalQuantityChanged
-                        // AssetDefinitionEvent::TotalQuantityChanged(v) => [node_key_status!(Asset, v.asset_definition.name, v.asset_definition.domain, AssetS::Mint | AssetS::Burn)].into(),
+                        AssetDefinitionEvent::MintabilityChanged(k) => [node_key_status!(Asset, k.name, k.domain, AssetS::MintabilityUpdate)].into(),
+                        AssetDefinitionEvent::TotalQuantityChanged(_v) => unimplemented!("total quantities are a secondary state: listen for minting/burning instead"),
                         AssetDefinitionEvent::OwnerChanged(_v) => unimplemented!("ambiguous sources: FT/NFT Transfer<Account, AssetDefinitionId, Account>"),
                         _ => unreachable!(),
                     },
@@ -289,17 +284,20 @@ mod transitional {
                         },
                         AccountEvent::PermissionAdded(v) => [node_key_status!(AccountPermission, v.account.signatory, v.account.domain, v.permission.name, UnitS::Create)].into(),
                         AccountEvent::PermissionRemoved(v) => [node_key_status!(AccountPermission, v.account.signatory, v.account.domain, v.permission.name, UnitS::Delete)].into(),
-                        AccountEvent::RoleGranted(v) => [node_key_status!(AccountRole, v.account.signatory, v.account.domain, v.role, UnitS::Create)].into(),
-                        AccountEvent::RoleRevoked(v) => [node_key_status!(AccountRole, v.account.signatory, v.account.domain, v.role, UnitS::Delete)].into(),
+                        AccountEvent::RoleGranted(v) => [node_key_status!(AccountRole, v.account.signatory, v.account.domain, tr::RoleId::Named(v.role.name), UnitS::Create)].into(),
+                        AccountEvent::RoleRevoked(v) => [node_key_status!(AccountRole, v.account.signatory, v.account.domain, tr::RoleId::Named(v.role.name), UnitS::Delete)].into(),
                         AccountEvent::MetadataInserted(m) => [node_key_status!(AccountMetadata, m.target.signatory, m.target.domain, m.key, MetadataS::Set)].into(),
                         AccountEvent::MetadataRemoved(m) => [node_key_status!(AccountMetadata, m.target.signatory, m.target.domain, m.key, MetadataS::Unset)].into(),
                         _ => unreachable!(),
                     },
                     DomainEvent::MetadataInserted(m) => [node_key_status!(DomainMetadata, m.target, m.key, MetadataS::Set)].into(),
                     DomainEvent::MetadataRemoved(m) => [node_key_status!(DomainMetadata, m.target, m.key, MetadataS::Unset)].into(),
-                    // SATO OwnerChanged
                     // Ownership is now implemented as roles.
-                    DomainEvent::OwnerChanged(_v) => todo!(),
+                    DomainEvent::OwnerChanged(v) => [
+                        // Not implemented because there is no such field as `DomainOwnerChanged::old_owner`.
+                        // node_key_status!(AccountRole, v.old_owner.signatory, v.old_owner.domain, tr::RoleId::DomainAdmin(v.domain), UnitS::Delete),
+                        node_key_status!(AccountRole, v.new_owner.signatory, v.new_owner.domain, tr::RoleId::DomainAdmin(v.domain), UnitS::Create),
+                    ].into(),
                     _ => unreachable!(),
                 },
                 Trigger(event) => match event {
@@ -312,10 +310,10 @@ mod transitional {
                     _ => unreachable!(),
                 },
                 Role(event) => match event {
-                    RoleEvent::Created(v) => [node_key_status!(Role, v.id, UnitS::Create)].into(),
-                    RoleEvent::Deleted(k) => [node_key_status!(Role, k, UnitS::Delete)].into(),
-                    RoleEvent::PermissionAdded(v) => [node_key_status!(RolePermission, v.role, v.permission.name, UnitS::Create)].into(),
-                    RoleEvent::PermissionRemoved(v) => [node_key_status!(RolePermission, v.role, v.permission.name, UnitS::Delete)].into(),
+                    RoleEvent::Created(v) => [node_key_status!(Role, tr::RoleId::Named(v.id.name), UnitS::Create)].into(),
+                    RoleEvent::Deleted(k) => [node_key_status!(Role, tr::RoleId::Named(k.name), UnitS::Delete)].into(),
+                    RoleEvent::PermissionAdded(v) => [node_key_status!(RolePermission, tr::RoleId::Named(v.role.name), v.permission.name, UnitS::Create)].into(),
+                    RoleEvent::PermissionRemoved(v) => [node_key_status!(RolePermission, tr::RoleId::Named(v.role.name), v.permission.name, UnitS::Delete)].into(),
                     _ => unreachable!(),
                 },
                 Configuration(event) => match event {

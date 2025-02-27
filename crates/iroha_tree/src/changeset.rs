@@ -46,21 +46,19 @@ pub enum ParameterW {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum DomainW {
-    Transfer(dm::AccountId),
     Create(state::tr::DomainValue),
     Delete(()),
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum AssetW {
-    Transfer(dm::AccountId),
+    MintabilityUpdate(dm::Mintable),
     Create(state::tr::AssetValue),
     Delete(()),
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum NftW {
-    Transfer(dm::AccountId),
     Create(state::tr::NftValue),
     Delete(()),
 }
