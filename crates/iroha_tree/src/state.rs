@@ -18,9 +18,8 @@ impl Mode for () {
     type AccountRole = ();
     type AccountPermission = ();
     type RolePermission = ();
-    type Command = tr::CommandValue;
     type Trigger = tr::TriggerValue;
-    type Executable = tr::ExecutableValue;
+    type Executable = tr::WasmExecutableValue;
     type Metadata = tr::MetadataValue;
 }
 
@@ -34,63 +33,53 @@ pub mod transitional {
     #[derive(Debug, PartialEq, Eq)]
     pub struct AuthorizerValue;
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq, From)]
     pub struct ParameterValue {
         pub(crate) parameter: dm::Parameter,
     }
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq, From)]
     pub struct DomainValue {
         pub(crate) logo: Option<dm::IpfsPath>,
-        pub(crate) admin: dm::AccountId,
     }
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq, Constructor)]
     pub struct AssetValue {
         pub(crate) total_quantity: dm::Numeric,
         pub(crate) mintable: dm::Mintable,
         pub(crate) logo: Option<dm::IpfsPath>,
-        pub(crate) admin: dm::AccountId,
     }
 
     #[derive(Debug, PartialEq, Eq)]
-    pub struct NftValue {
-        pub(crate) owner: dm::AccountId,
-    }
+    pub struct NftValue;
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq, From)]
     pub struct AccountAssetValue {
         pub(crate) balance: dm::Numeric,
     }
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq, From)]
     pub struct PermissionValue {
         pub(crate) permission: permission::Permission,
     }
 
-    #[derive(Debug, PartialEq, Eq)]
-    pub struct CommandValue {
-        pub(crate) changeset: changeset::ChangeSet,
-    }
-
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq, Constructor)]
     pub struct TriggerValue {
         pub(crate) receptor: receptor::Receptor,
-        pub(crate) executable: self::TriggerExecutable,
+        pub(crate) executable: TriggerExecutable,
         pub(crate) repeats: dm::Repeats,
         pub(crate) authority: dm::AccountId,
     }
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq, From)]
     pub enum TriggerExecutable {
-        Cmd(crate::tr::CommandId),
-        Exe(crate::tr::ExecutableId),
+        Static(changeset::ChangeSet),
+        Dynamic(crate::tr::WasmExecutableId),
     }
 
-    #[derive(Debug, PartialEq, Eq)]
-    pub struct ExecutableValue;
+    pub type WasmExecutableValue = dm::WasmSmartContract;
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq, From)]
     pub struct MetadataValue {
         pub(crate) json: dm::Json,
     }
@@ -102,10 +91,6 @@ pub mod transitional {
             //     .filter_by(NodeKey::Trigger(None))
             //     .map(|(NodeKey::Trigger(Some(k)), NodeValue::Trigger(v))| (k, v))
             //     .collect()
-            todo!()
-        }
-
-        fn command(&self, _id: &crate::tr::CommandId) -> Option<&CommandValue> {
             todo!()
         }
 
@@ -125,19 +110,17 @@ pub mod transitional {
                     return true;
                 }
                 seen.insert(trigger_id);
-                let changeset = {
-                    let TriggerExecutable::Cmd(cmd_id) = &triggers[trigger_id].executable else {
-                        unimplemented!()
-                    };
-                    &state.command(cmd_id).unwrap().changeset
+                let event_expected = match &triggers[trigger_id].executable {
+                    state::tr::TriggerExecutable::Static(changeset) => changeset.as_status(),
+                    state::tr::TriggerExecutable::Dynamic(_wasm) => todo!(),
                 };
                 // TODO update detection of trigger mutations
-                // if changeset.iter().any(|(path, _change)| path.is_trigger()) {
+                // if event_expected.iter().any(|(k, _v)| k.is_trigger()) {
                 //     return true;
                 // }
                 let next_trigger_ids = triggers
                     .iter()
-                    .filter_map(|(id, v)| changeset.as_status().passes(&v.receptor).then_some(id));
+                    .filter_map(|(id, v)| event_expected.passes(&v.receptor).then_some(id));
                 stack.extend(next_trigger_ids);
             }
             false

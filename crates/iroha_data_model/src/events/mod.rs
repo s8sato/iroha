@@ -46,8 +46,10 @@ mod model {
         /// Time event.
         Time(time::TimeEvent),
         /// Trigger execution event.
+        // TODO #4968 Remove as it is no longer needed.
         ExecuteTrigger(execute_trigger::ExecuteTriggerEvent),
         /// Trigger completion event.
+        // TODO #4968 Merge into pipeline events as an internal transaction.
         TriggerCompleted(trigger_completed::TriggerCompletedEvent),
     }
 
@@ -187,11 +189,9 @@ impl EventFilter for EventFilterBox {
             // },
             // SATO end
             (EventBox::Time(event), Self::Time(filter)) => filter.matches(event),
-            // SATO will be removed since the instruction should immediately execute without any events
             (EventBox::ExecuteTrigger(event), Self::ExecuteTrigger(filter)) => {
                 filter.matches(event)
             }
-            // SATO will be merged into pipeline events as an internal transaction
             (EventBox::TriggerCompleted(event), Self::TriggerCompleted(filter)) => {
                 filter.matches(event)
             }

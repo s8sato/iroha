@@ -23,7 +23,6 @@ impl Mode for WriteStatusFilter {
     type AccountRole = FilterU8;
     type AccountPermission = FilterU8;
     type RolePermission = FilterU8;
-    type Command = FilterU8;
     type Trigger = FilterU8;
     type Executable = FilterU8;
     type Metadata = FilterU8;
@@ -149,7 +148,6 @@ impl NodeKey {
             AccountRole(key) => receptor_keys!(2-1 AccountRole, key),
             AccountPermission(key) => receptor_keys!(2-1 AccountPermission, key),
             RolePermission(key) => receptor_keys!(2 RolePermission, key),
-            Command(key) => receptor_keys!(1 Command, key),
             Trigger(key) => receptor_keys!(1 Trigger, key),
             Executable(key) => receptor_keys!(1 Executable, key),
             DomainMetadata(key) => receptor_keys!(2 DomainMetadata, key),

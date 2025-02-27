@@ -21,13 +21,7 @@ use std::{
     ops::{Add, BitOr, Deref},
 };
 
-use derive_more::{BitOr, From};
-
-mod changeset;
-mod event;
-mod permission;
-mod receptor;
-mod state;
+use derive_more::{BitOr, Constructor, From};
 
 /// A flattened node map with a fixed skeleton equivalent to the world state.
 /// Node values may vary by mode.
@@ -55,7 +49,6 @@ enum NodeKey {
     AccountRole(AccountRoleKey),
     AccountPermission(AccountPermissionKey),
     RolePermission(RolePermissionKey),
-    Command(CommandKey),
     Trigger(TriggerKey),
     Executable(ExecutableKey),
     DomainMetadata(DomainMetadataKey),
@@ -77,9 +70,8 @@ type PermissionKey = Option<tr::PermissionId>;
 type AccountRoleKey = (AccountKey, RoleKey);
 type AccountPermissionKey = (AccountKey, PermissionKey);
 type RolePermissionKey = (RoleKey, PermissionKey);
-type CommandKey = Option<tr::CommandId>;
 type TriggerKey = Option<dm::TriggerId>;
-type ExecutableKey = Option<tr::ExecutableId>;
+type ExecutableKey = Option<tr::WasmExecutableId>;
 type DomainMetadataKey = (DomainKey, Option<dm::Name>);
 type AccountMetadataKey = (AccountKey, Option<dm::Name>);
 type AssetMetadataKey = (AssetKey, Option<dm::Name>);
@@ -102,7 +94,6 @@ enum NodeValue<M: Mode> {
     AccountRole(M::AccountRole),
     AccountPermission(M::AccountPermission),
     RolePermission(M::RolePermission),
-    Command(M::Command),
     Trigger(M::Trigger),
     Executable(M::Executable),
     DomainMetadata(M::Metadata),
@@ -127,7 +118,6 @@ trait Mode {
     type AccountRole: Debug + PartialEq + Eq;
     type AccountPermission: Debug + PartialEq + Eq;
     type RolePermission: Debug + PartialEq + Eq;
-    type Command: Debug + PartialEq + Eq;
     type Trigger: Debug + PartialEq + Eq;
     type Executable: Debug + PartialEq + Eq;
     type Metadata: Debug + PartialEq + Eq;
@@ -257,7 +247,6 @@ impl_for_node_values!(
     AccountRole,
     AccountPermission,
     RolePermission,
-    Command,
     Trigger,
     Executable,
     DomainMetadata,
@@ -353,7 +342,6 @@ fn consistent_key_value<M: Mode>(key: &NodeKey, value: &NodeValue<M>) -> bool {
         | (NodeKey::AccountRole(_), NodeValue::AccountRole(_))
         | (NodeKey::AccountPermission(_), NodeValue::AccountPermission(_))
         | (NodeKey::RolePermission(_), NodeValue::RolePermission(_))
-        | (NodeKey::Command(_), NodeValue::Command(_))
         | (NodeKey::Trigger(_), NodeValue::Trigger(_))
         | (NodeKey::Executable(_), NodeValue::Executable(_))
         | (NodeKey::DomainMetadata(_), NodeValue::DomainMetadata(_))
@@ -364,6 +352,33 @@ fn consistent_key_value<M: Mode>(key: &NodeKey, value: &NodeValue<M>) -> bool {
         (_, _) => false,
     }
 }
+
+macro_rules! node_key_value {
+    (_ $node:ident, $key:expr, $value:expr) => {
+        (NodeKey::$node($key), NodeValue::$node($value))
+    };
+    ($node:ident, $value:expr) => {
+        (NodeKey::$node, NodeValue::$node($value))
+    };
+    ($node:ident, $k0:expr, $value:expr) => {
+        node_key_value!(_ $node, Some($k0), $value)
+    };
+    ($node:ident, $k0:expr, $k1:expr, $value:expr) => {
+        node_key_value!(_ $node, (Some($k0), Some($k1)), $value)
+    };
+    ($node:ident, $k0:expr, $k1:expr, $k2:expr, $value:expr) => {
+        node_key_value!(_ $node, ((Some($k0), Some($k1)), Some($k2)), $value)
+    };
+    ($node:ident, $k0:expr, $k1:expr, $k2:expr, $k3:expr, $value:expr) => {
+        node_key_value!(_ $node, ((Some($k0), Some($k1)), (Some($k2), Some($k3))), $value)
+    };
+}
+
+mod changeset;
+mod event;
+mod permission;
+mod receptor;
+mod state;
 
 mod transitional {
     use super::*;
@@ -387,17 +402,15 @@ mod transitional {
         MultisigSignatory(dm::AccountId),
     }
 
-    pub type PermissionId = String;
+    #[derive(Debug, PartialEq, Eq, Hash, Clone, From)]
+    pub struct PermissionId(String);
 
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-    pub struct CommandId;
-
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-    pub struct ExecutableId;
+    #[derive(Debug, PartialEq, Eq, Hash, Clone, From)]
+    pub struct WasmExecutableId(dm::HashOf<state::tr::WasmExecutableValue>);
 }
 
 use transitional as tr;
 
 mod dm {
-    pub use iroha_data_model::{ipfs::IpfsPath, parameter::CustomParameterId, prelude::*};
+    pub use iroha_data_model::{ipfs::IpfsPath, parameter::CustomParameterId, prelude::*, Level};
 }

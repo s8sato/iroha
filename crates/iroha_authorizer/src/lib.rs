@@ -6,7 +6,7 @@
 #![allow(dead_code)] // SATO disallow
 #![allow(missing_copy_implementations)] // SATO disallow
 
-// SATO implement an equivalent logic to the following in wasm
+// SATO # Implement equivalent logic to the following in Wasm.
 
 pub struct DefaultAuthorizer;
 
@@ -16,4 +16,5 @@ trait Authorizer {
 
 impl Authorizer for DefaultAuthorizer {
     // TODO
+    // SATO Add an instant permission for domain, asset, and NFT admins.
 }
