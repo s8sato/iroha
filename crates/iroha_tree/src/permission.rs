@@ -82,51 +82,5 @@ mod transitional {
         [UnitS::Create]
     );
 
-    // impl_into_permission!(xp::account::CanUnregisterAccount, Account, |v| (), [S::]);
-
-    // impl_into_permission!(xp::account::CanModifyAccountMetadata, Account, |v| (), [S::]);
-
-    // impl_into_permission!(xp::asset_definition::CanRegisterAssetDefinition, AssetDefinition, |v| (), [S::]);
-
-    // impl_into_permission!(xp::asset_definition::CanUnregisterAssetDefinition, AssetDefinition, |v| (), [S::]);
-
-    // impl_into_permission!(xp::asset_definition::CanModifyAssetDefinitionMetadata, AssetDefinition, |v| (), [S::]);
-
-    // impl_into_permission!(xp::asset::CanRegisterAssetWithDefinition, Asset, |v| (), [S::]);
-
-    // impl_into_permission!(xp::asset::CanUnregisterAssetWithDefinition, Asset, |v| (), [S::]);
-
-    // impl_into_permission!(xp::asset::CanMintAssetWithDefinition, Asset, |v| (), [S::]);
-
-    // impl_into_permission!(xp::asset::CanBurnAssetWithDefinition, Asset, |v| (), [S::]);
-
-    // impl_into_permission!(xp::asset::CanTransferAssetWithDefinition, Asset, |v| (), [S::]);
-
-    // impl_into_permission!(xp::asset::CanRegisterAsset, Asset, |v| (), [S::]);
-
-    // impl_into_permission!(xp::asset::CanUnregisterAsset, Asset, |v| (), [S::]);
-
-    // impl_into_permission!(xp::asset::CanMintAsset, Asset, |v| (), [S::]);
-
-    // impl_into_permission!(xp::asset::CanBurnAsset, Asset, |v| (), [S::]);
-
-    // impl_into_permission!(xp::asset::CanTransferAsset, Asset, |v| (), [S::]);
-
-    // impl_into_permission!(xp::asset::CanModifyAssetMetadata, Asset, |v| (), [S::]);
-
-    // impl_into_permission!(xp::parameter::CanSetParameters, Parameter, |v| (), [S::]);
-
-    // impl_into_permission!(xp::role::CanManageRoles, Role, |v| (), [S::]);
-
-    // impl_into_permission!(xp::trigger::CanRegisterTrigger, Trigger, |v| (), [S::]);
-
-    // impl_into_permission!(xp::trigger::CanExecuteTrigger, Trigger, |v| (), [S::]);
-
-    // impl_into_permission!(xp::trigger::CanUnregisterTrigger, Trigger, |v| (), [S::]);
-
-    // impl_into_permission!(xp::trigger::CanModifyTrigger, Trigger, |v| (), [S::]);
-
-    // impl_into_permission!(xp::trigger::CanModifyTriggerMetadata, Trigger, |v| (), [S::]);
-
-    // impl_into_permission!(xp::executor::CanUpgradeExecutor, Executor, |v| (), [S::]);
+    // SATO impl for the rest of permissions
 }

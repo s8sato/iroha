@@ -399,7 +399,8 @@ mod transitional {
         Named(dm::Name),
         DomainAdmin(dm::DomainId),
         AssetAdmin(dm::AssetDefinitionId),
-        NftAdmin(dm::AssetDefinitionId),
+        NftAdmin(dm::NftId),
+        NftOwner(dm::NftId),
         MultisigSignatory(dm::AccountId),
     }
 

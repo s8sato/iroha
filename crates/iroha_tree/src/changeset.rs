@@ -330,9 +330,9 @@ mod transitional {
             (auth, instruction): (dm::AccountId, dm::InstructionBox),
         ) -> Result<Self, Self::Error> {
             use dm::{
-                numeric, AssetTransferBox, AssetType, BurnBox, EventFilterBox, GrantBox,
-                InstructionBox, MintBox, Numeric, RegisterBox, RemoveKeyValueBox, RevokeBox,
-                SetKeyValueBox, TransferBox, UnregisterBox,
+                numeric, BurnBox, EventFilterBox, GrantBox, InstructionBox, MintBox, Numeric,
+                RegisterBox, RemoveKeyValueBox, RevokeBox, SetKeyValueBox, TransferBox,
+                UnregisterBox,
             };
 
             let map: HashMap<_, _> = match instruction {
@@ -362,58 +362,59 @@ mod transitional {
                         UnitW::Create(())
                     )]
                     .into(),
-                    RegisterBox::AssetDefinition(inst) => match inst.object.type_ {
-                        AssetType::Numeric(_) => [
-                            node_key_value!(
-                                AccountRole,
-                                auth.signatory,
-                                auth.domain,
-                                tr::RoleId::AssetAdmin(inst.object.id.clone()),
-                                UnitW::Create(())
-                            ),
-                            node_key_value!(
-                                Asset,
-                                inst.object.id.name,
-                                inst.object.id.domain,
-                                AssetW::Create(state::tr::AssetValue::new(
-                                    numeric!(0),
-                                    inst.object.mintable,
-                                    inst.object.logo
-                                ))
-                            ),
-                        ]
-                        .into(),
-                        AssetType::Store => {
-                            let object_id = inst.object.id;
-                            [
-                                node_key_value!(
-                                    AccountRole,
-                                    auth.signatory,
-                                    auth.domain,
-                                    tr::RoleId::NftAdmin(object_id.clone()),
-                                    UnitW::Create(())
-                                ),
-                                node_key_value!(
-                                    Nft,
-                                    object_id.clone().name,
-                                    object_id.clone().domain,
-                                    NftW::Create(state::tr::NftValue)
-                                ),
-                            ]
-                            .into_iter()
-                            .chain(inst.object.metadata.iter().map(|(k, v)| {
-                                node_key_value!(
-                                    NftData,
-                                    object_id.clone().name,
-                                    object_id.clone().domain,
-                                    k.clone(),
-                                    MetadataW::Set(v.clone().into())
-                                )
-                            }))
-                            .collect()
-                        }
-                    },
-                    RegisterBox::Asset(_inst) => unimplemented!("deprecated #5308"),
+                    RegisterBox::AssetDefinition(inst) => [
+                        node_key_value!(
+                            AccountRole,
+                            auth.signatory,
+                            auth.domain,
+                            tr::RoleId::AssetAdmin(inst.object.id.clone()),
+                            UnitW::Create(())
+                        ),
+                        node_key_value!(
+                            Asset,
+                            inst.object.id.name,
+                            inst.object.id.domain,
+                            AssetW::Create(state::tr::AssetValue::new(
+                                numeric!(0),
+                                inst.object.mintable,
+                                inst.object.logo
+                            ))
+                        ),
+                    ]
+                    .into(),
+                    RegisterBox::Nft(inst) => [
+                        node_key_value!(
+                            AccountRole,
+                            auth.signatory.clone(),
+                            auth.domain.clone(),
+                            tr::RoleId::NftAdmin(inst.object.id.clone()),
+                            UnitW::Create(())
+                        ),
+                        node_key_value!(
+                            AccountRole,
+                            auth.signatory,
+                            auth.domain,
+                            tr::RoleId::NftOwner(inst.object.id.clone()),
+                            UnitW::Create(())
+                        ),
+                        node_key_value!(
+                            Nft,
+                            inst.object.id.clone().name,
+                            inst.object.id.clone().domain,
+                            NftW::Create(state::tr::NftValue)
+                        ),
+                    ]
+                    .into_iter()
+                    .chain(inst.object.content.iter().map(|(k, v)| {
+                        node_key_value!(
+                            NftData,
+                            inst.object.id.clone().name,
+                            inst.object.id.clone().domain,
+                            k.clone(),
+                            MetadataW::Set(v.clone().into())
+                        )
+                    }))
+                    .collect(),
                     RegisterBox::Role(inst) => [node_key_value!(
                         Role,
                         tr::RoleId::Named(inst.object.inner.id.name),
@@ -477,10 +478,20 @@ mod transitional {
                         UnitW::Delete(())
                     )]
                     .into(),
-                    UnregisterBox::AssetDefinition(_inst) => {
-                        unimplemented!("ambiguous sources: FT/NFT Unregister<AssetDefinition>")
-                    }
-                    UnregisterBox::Asset(_inst) => unimplemented!("deprecated #5308"),
+                    UnregisterBox::AssetDefinition(inst) => [node_key_value!(
+                        Asset,
+                        inst.object.name,
+                        inst.object.domain,
+                        AssetW::Delete(())
+                    )]
+                    .into(),
+                    UnregisterBox::Nft(inst) => [node_key_value!(
+                        Nft,
+                        inst.object.name,
+                        inst.object.domain,
+                        NftW::Delete(())
+                    )]
+                    .into(),
                     UnregisterBox::Role(inst) => [node_key_value!(
                         Role,
                         tr::RoleId::Named(inst.object.name),
@@ -543,47 +554,59 @@ mod transitional {
                         ),
                     ]
                     .into(),
-                    TransferBox::AssetDefinition(_inst) => unimplemented!(
-                        "ambiguous sources: FT/NFT Transfer<Account, AssetDefinitionId, Account>"
-                    ),
-                    TransferBox::Asset(inst) => match inst {
-                        AssetTransferBox::Numeric(inst) => [
-                            node_key_value!(
-                                AccountAsset,
-                                inst.source.account.signatory.clone(),
-                                inst.source.account.domain.clone(),
-                                inst.source.definition.name.clone(),
-                                inst.source.definition.domain.clone(),
-                                AccountAssetW::Send(inst.object)
-                            ),
-                            node_key_value!(
-                                AccountAsset,
-                                inst.source.account.signatory,
-                                inst.source.account.domain,
-                                inst.source.definition.name,
-                                inst.source.definition.domain,
-                                AccountAssetW::Receive(inst.object)
-                            ),
-                        ]
-                        .into(),
-                        AssetTransferBox::Store(inst) => [
-                            node_key_value!(
-                                AccountRole,
-                                inst.source.account.signatory,
-                                inst.source.account.domain,
-                                tr::RoleId::NftAdmin(inst.source.definition.clone()),
-                                UnitW::Delete(())
-                            ),
-                            node_key_value!(
-                                AccountRole,
-                                inst.destination.signatory,
-                                inst.destination.domain,
-                                tr::RoleId::NftAdmin(inst.source.definition),
-                                UnitW::Create(())
-                            ),
-                        ]
-                        .into(),
-                    },
+                    TransferBox::AssetDefinition(inst) => [
+                        node_key_value!(
+                            AccountRole,
+                            inst.source.signatory,
+                            inst.source.domain,
+                            tr::RoleId::AssetAdmin(inst.object.clone()),
+                            UnitW::Delete(())
+                        ),
+                        node_key_value!(
+                            AccountRole,
+                            inst.destination.signatory,
+                            inst.destination.domain,
+                            tr::RoleId::AssetAdmin(inst.object),
+                            UnitW::Create(())
+                        ),
+                    ]
+                    .into(),
+                    TransferBox::Nft(inst) => [
+                        node_key_value!(
+                            AccountRole,
+                            inst.source.signatory,
+                            inst.source.domain,
+                            tr::RoleId::NftOwner(inst.object.clone()),
+                            UnitW::Delete(())
+                        ),
+                        node_key_value!(
+                            AccountRole,
+                            inst.destination.signatory,
+                            inst.destination.domain,
+                            tr::RoleId::NftOwner(inst.object),
+                            UnitW::Create(())
+                        ),
+                    ]
+                    .into(),
+                    TransferBox::Asset(inst) => [
+                        node_key_value!(
+                            AccountAsset,
+                            inst.source.account.signatory.clone(),
+                            inst.source.account.domain.clone(),
+                            inst.source.definition.name.clone(),
+                            inst.source.definition.domain.clone(),
+                            AccountAssetW::Send(inst.object)
+                        ),
+                        node_key_value!(
+                            AccountAsset,
+                            inst.source.account.signatory,
+                            inst.source.account.domain,
+                            inst.source.definition.name,
+                            inst.source.definition.domain,
+                            AccountAssetW::Receive(inst.object)
+                        ),
+                    ]
+                    .into(),
                 },
                 InstructionBox::SetKeyValue(inst) => match inst {
                     SetKeyValueBox::Domain(inst) => [node_key_value!(
@@ -601,8 +624,22 @@ mod transitional {
                         MetadataW::Set(inst.value.into())
                     )]
                     .into(),
-                    SetKeyValueBox::AssetDefinition(_inst) => todo!(),
-                    SetKeyValueBox::Asset(_inst) => todo!(),
+                    SetKeyValueBox::AssetDefinition(inst) => [node_key_value!(
+                        AssetMetadata,
+                        inst.object.name,
+                        inst.object.domain,
+                        inst.key,
+                        MetadataW::Set(inst.value.into())
+                    )]
+                    .into(),
+                    SetKeyValueBox::Nft(inst) => [node_key_value!(
+                        NftData,
+                        inst.object.name,
+                        inst.object.domain,
+                        inst.key,
+                        MetadataW::Set(inst.value.into())
+                    )]
+                    .into(),
                     SetKeyValueBox::Trigger(inst) => [node_key_value!(
                         TriggerMetadata,
                         inst.object,
@@ -627,8 +664,22 @@ mod transitional {
                         MetadataW::Unset(())
                     )]
                     .into(),
-                    RemoveKeyValueBox::AssetDefinition(_inst) => todo!(),
-                    RemoveKeyValueBox::Asset(_inst) => todo!(),
+                    RemoveKeyValueBox::AssetDefinition(inst) => [node_key_value!(
+                        AssetMetadata,
+                        inst.object.name,
+                        inst.object.domain,
+                        inst.key,
+                        MetadataW::Unset(())
+                    )]
+                    .into(),
+                    RemoveKeyValueBox::Nft(inst) => [node_key_value!(
+                        NftData,
+                        inst.object.name,
+                        inst.object.domain,
+                        inst.key,
+                        MetadataW::Unset(())
+                    )]
+                    .into(),
                     RemoveKeyValueBox::Trigger(inst) => [node_key_value!(
                         TriggerMetadata,
                         inst.object,

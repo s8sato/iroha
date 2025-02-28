@@ -214,45 +214,53 @@ mod transitional {
 
     impl From<dm::DataEvent> for Event {
         // Other information besides the identifier is abstracted into a status code, but that should be fine since events should be lightweight. Retrieving details should be the role of queries.
-        // TODO Remove unreachable match arms required by #[non_exhaustive] attributes.
         fn from(value: dm::DataEvent) -> Self {
             use dm::{
                 AccountEvent, AssetDefinitionEvent, AssetEvent, ConfigurationEvent, DataEvent::*,
-                DomainEvent, ExecutorEvent, PeerEvent, RoleEvent, TriggerEvent,
+                DomainEvent, ExecutorEvent, NftEvent, PeerEvent, RoleEvent, TriggerEvent,
             };
 
             let map: HashMap<_, _> = match value {
                 Peer(event) => match event {
                     PeerEvent::Added(k) => [node_key_value!(Peer, k, UnitS::Create)].into(),
                     PeerEvent::Removed(k) => [node_key_value!(Peer, k, UnitS::Delete)].into(),
-                    _ => unreachable!(),
                 },
                 Domain(event) => match event {
-                    // TODO Resolve ambiguous sources once #5308 is merged.
                     DomainEvent::Created(v) => [node_key_value!(Domain, v.id, DomainS::Create)].into(),
                     DomainEvent::Deleted(k) => [node_key_value!(Domain, k, DomainS::Delete)].into(),
                     DomainEvent::AssetDefinition(event) => match event {
-                        AssetDefinitionEvent::Created(_v) => unimplemented!("ambiguous sources: FT/NFT Register<AssetDefinition>"),
-                        AssetDefinitionEvent::Deleted(_k) => unimplemented!("ambiguous sources: FT/NFT Unregister<AssetDefinition>"),
+                        AssetDefinitionEvent::Created(v) => [node_key_value!(Asset, v.id.name, v.id.domain, AssetS::Create)].into(),
+                        AssetDefinitionEvent::Deleted(k) => [node_key_value!(Asset, k.name, k.domain, AssetS::Delete)].into(),
                         AssetDefinitionEvent::MetadataInserted(m) => [node_key_value!(AssetMetadata, m.target.name, m.target.domain, m.key, MetadataS::Set)].into(),
                         AssetDefinitionEvent::MetadataRemoved(m) => [node_key_value!(AssetMetadata, m.target.name, m.target.domain, m.key, MetadataS::Unset)].into(),
                         AssetDefinitionEvent::MintabilityChanged(k) => [node_key_value!(Asset, k.name, k.domain, AssetS::MintabilityUpdate)].into(),
                         AssetDefinitionEvent::TotalQuantityChanged(_v) => unimplemented!("total quantities are a secondary state: listen for minting/burning instead"),
-                        AssetDefinitionEvent::OwnerChanged(_v) => unimplemented!("ambiguous sources: FT/NFT Transfer<Account, AssetDefinitionId, Account>"),
-                        _ => unreachable!(),
+                        // Ownership is now implemented as roles.
+                        AssetDefinitionEvent::OwnerChanged(v) => [
+                            // Not implemented because there is no such field as `AssetDefinitionOwnerChanged::old_owner`.
+                            // node_key_status!(AccountRole, v.old_owner.signatory, v.old_owner.domain, tr::RoleId::AssetAdmin(v.asset_definition), UnitS::Delete),
+                            node_key_value!(AccountRole, v.new_owner.signatory, v.new_owner.domain, tr::RoleId::AssetAdmin(v.asset_definition), UnitS::Create),
+                        ].into(),
+                    },
+                    DomainEvent::Nft(event) => match event {
+                        NftEvent::Created(v) => [node_key_value!(Nft, v.id.name, v.id.domain, NftS::Create)].into(),
+                        NftEvent::Deleted(k) => [node_key_value!(Nft, k.name, k.domain, NftS::Delete)].into(),
+                        NftEvent::MetadataInserted(m) => [node_key_value!(NftData, m.target.name, m.target.domain, m.key, MetadataS::Set)].into(),
+                        NftEvent::MetadataRemoved(m) => [node_key_value!(NftData, m.target.name, m.target.domain, m.key, MetadataS::Unset)].into(),
+                        NftEvent::OwnerChanged(v) => [
+                            // Not implemented because there is no such field as `NftOwnerChanged::old_owner`.
+                            // node_key_status!(AccountRole, v.old_owner.signatory, v.old_owner.domain, tr::RoleId::NftOwner(v.nft), UnitS::Delete),
+                            node_key_value!(AccountRole, v.new_owner.signatory, v.new_owner.domain, tr::RoleId::NftOwner(v.nft), UnitS::Create),
+                        ].into(),
                     },
                     DomainEvent::Account(event) => match event {
                         AccountEvent::Created(v) => [node_key_value!(Account, v.id.signatory, v.id.domain, UnitS::Create)].into(),
                         AccountEvent::Deleted(k) => [node_key_value!(Account, k.signatory, k.domain, UnitS::Delete)].into(),
                         AccountEvent::Asset(event) => match event {
-                            // This section highlights one of the reasons why the current asset and event structures should be reorganized.
-                            AssetEvent::Created(_v) => unimplemented!("ambiguous sources: Transfer<Asset, Metadata, Account>, SetKeyValue<Asset>, Register<Asset>, Mint<Numeric, Asset>, Transfer<Asset, Numeric, Account>"),
-                            AssetEvent::Deleted(_k) => unimplemented!("ambiguous sources: Transfer<Asset, Metadata, Account>, Unregister<AssetDefinition>"),
-                            AssetEvent::Added(_v) => unimplemented!("ambiguous sources: Transfer<Asset, Numeric, Account>, Mint<Numeric, Asset>"),
-                            AssetEvent::Removed(_v) => unimplemented!("ambiguous sources: Transfer<Asset, Numeric, Account>, Burn<Numeric, Asset>, Unregister<Asset>"),
-                            AssetEvent::MetadataInserted(m) => [node_key_value!(NftData, m.target.definition.name, m.target.definition.domain, m.key, MetadataS::Set)].into(),
-                            AssetEvent::MetadataRemoved(m) => [node_key_value!(NftData, m.target.definition.name, m.target.definition.domain, m.key, MetadataS::Unset)].into(),
-                            _ => unreachable!(),
+                            AssetEvent::Created(_v) => unimplemented!("ambiguous sources: Mint<Numeric, Asset>, Transfer<Asset, Numeric, Account>"),
+                            AssetEvent::Deleted(_k) => unimplemented!("ambiguous sources: Unregister<AssetDefinition>"),
+                            AssetEvent::Added(_v) => unimplemented!("ambiguous sources: Mint<Numeric, Asset>, Transfer<Asset, Numeric, Account>"),
+                            AssetEvent::Removed(_v) => unimplemented!("ambiguous sources: Burn<Numeric, Asset>, Transfer<Asset, Numeric, Account>"),
                         },
                         AccountEvent::PermissionAdded(v) => [node_key_value!(AccountPermission, v.account.signatory, v.account.domain, v.permission.name.into(), UnitS::Create)].into(),
                         AccountEvent::PermissionRemoved(v) => [node_key_value!(AccountPermission, v.account.signatory, v.account.domain, v.permission.name.into(), UnitS::Delete)].into(),
@@ -260,17 +268,14 @@ mod transitional {
                         AccountEvent::RoleRevoked(v) => [node_key_value!(AccountRole, v.account.signatory, v.account.domain, tr::RoleId::Named(v.role.name), UnitS::Delete)].into(),
                         AccountEvent::MetadataInserted(m) => [node_key_value!(AccountMetadata, m.target.signatory, m.target.domain, m.key, MetadataS::Set)].into(),
                         AccountEvent::MetadataRemoved(m) => [node_key_value!(AccountMetadata, m.target.signatory, m.target.domain, m.key, MetadataS::Unset)].into(),
-                        _ => unreachable!(),
                     },
                     DomainEvent::MetadataInserted(m) => [node_key_value!(DomainMetadata, m.target, m.key, MetadataS::Set)].into(),
                     DomainEvent::MetadataRemoved(m) => [node_key_value!(DomainMetadata, m.target, m.key, MetadataS::Unset)].into(),
-                    // Ownership is now implemented as roles.
                     DomainEvent::OwnerChanged(v) => [
                         // Not implemented because there is no such field as `DomainOwnerChanged::old_owner`.
                         // node_key_status!(AccountRole, v.old_owner.signatory, v.old_owner.domain, tr::RoleId::DomainAdmin(v.domain), UnitS::Delete),
                         node_key_value!(AccountRole, v.new_owner.signatory, v.new_owner.domain, tr::RoleId::DomainAdmin(v.domain), UnitS::Create),
                     ].into(),
-                    _ => unreachable!(),
                 },
                 Trigger(event) => match event {
                     TriggerEvent::Created(k) => [node_key_value!(Trigger, k, TriggerS::Create)].into(),
@@ -279,14 +284,12 @@ mod transitional {
                     TriggerEvent::Shortened(v) => [node_key_value!(Trigger, v.trigger, TriggerS::Decrease)].into(),
                     TriggerEvent::MetadataInserted(m) => [node_key_value!(TriggerMetadata, m.target, m.key, MetadataS::Set)].into(),
                     TriggerEvent::MetadataRemoved(m) => [node_key_value!(TriggerMetadata, m.target, m.key, MetadataS::Unset)].into(),
-                    _ => unreachable!(),
                 },
                 Role(event) => match event {
                     RoleEvent::Created(v) => [node_key_value!(Role, tr::RoleId::Named(v.id.name), UnitS::Create)].into(),
                     RoleEvent::Deleted(k) => [node_key_value!(Role, tr::RoleId::Named(k.name), UnitS::Delete)].into(),
                     RoleEvent::PermissionAdded(v) => [node_key_value!(RolePermission, tr::RoleId::Named(v.role.name), v.permission.name.into(), UnitS::Create)].into(),
                     RoleEvent::PermissionRemoved(v) => [node_key_value!(RolePermission, tr::RoleId::Named(v.role.name), v.permission.name.into(), UnitS::Delete)].into(),
-                    _ => unreachable!(),
                 },
                 Configuration(event) => match event {
                     ConfigurationEvent::Changed(_v) => [node_key_value!(Parameter, tr::ParameterId::Any, ParameterS::Set)].into(),
@@ -294,7 +297,6 @@ mod transitional {
                 // The executor is planned to be replaced with the authorizer. See the `iroha_authorizer` crate documentation for details.
                 Executor(event) => match event {
                     ExecutorEvent::Upgraded(_v) => [node_key_value!(Authorizer, AuthorizerS::Set)].into(),
-                    _ => unreachable!(),
                 },
             };
 
