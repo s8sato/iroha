@@ -94,7 +94,7 @@ pub mod transitional {
             todo!()
         }
 
-        fn load(_state: &impl StateReadOnly, _keys: impl Iterator<Item = NodeKey>) -> Self {
+        fn load(_state: &impl StateReadOnly, _keys: &impl Iterator<Item = NodeKey>) -> Self {
             todo!()
         }
     }

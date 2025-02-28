@@ -325,6 +325,7 @@ mod transitional {
     impl TryFrom<(dm::AccountId, dm::InstructionBox)> for ChangeSet {
         type Error = (NodeKey, NodeValue<Write>, NodeValue<Write>);
 
+        #[expect(clippy::too_many_lines)]
         fn try_from(
             (auth, instruction): (dm::AccountId, dm::InstructionBox),
         ) -> Result<Self, Self::Error> {
@@ -426,7 +427,9 @@ mod transitional {
                             EventFilterBox::Time(_filter) => {
                                 todo!("extend receptors to accommodate time events?")
                             }
-                            _ => unimplemented!("other event types should not be for triggers"),
+                            _ => {
+                                unimplemented!("other event types should not be used for triggers")
+                            }
                         };
                         let executable: state::tr::TriggerExecutable =
                             match inst.object.action.executable {

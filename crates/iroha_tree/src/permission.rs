@@ -6,10 +6,10 @@ pub type PermissionRef<'a> = TreeRef<'a, ReadWriteStatusFilter>;
 
 pub type ReadWriteStatusFilter = receptor::WriteStatusFilter;
 
-impl Add for Permission {
+impl BitOr for Permission {
     type Output = Self;
 
-    fn add(self, mut rhs: Self) -> Self::Output {
+    fn bitor(self, mut rhs: Self) -> Self::Output {
         for (k, v0) in self.into_iter() {
             let v = match rhs.remove(&k) {
                 None => v0,

@@ -280,7 +280,8 @@ impl<M: Mode> Tree<M> {
     }
 
     fn insert(&mut self, key: NodeKey, value: NodeValue<M>) -> Option<NodeValue<M>> {
-        debug_assert!(consistent_key_value(&key, &value));
+        // SATO Type safety was lost while reducing tree size.
+        assert!(consistent_key_value(&key, &value));
         self.0.insert(key, value)
     }
 
