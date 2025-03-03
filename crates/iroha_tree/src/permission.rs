@@ -47,6 +47,12 @@ mod transitional {
         };
     }
 
+    macro_rules! some {
+        ($key_element:expr) => {
+            Some(Rc::new($key_element))
+        };
+    }
+
     impl_into_permission!(
         xp::peer::CanManagePeers,
         Peer,
@@ -64,21 +70,21 @@ mod transitional {
     impl_into_permission!(
         xp::domain::CanUnregisterDomain,
         Domain,
-        |v| Some(v.domain),
+        |v| some!(v.domain),
         [DomainS::Delete]
     );
 
     impl_into_permission!(
         xp::domain::CanModifyDomainMetadata,
         DomainMetadata,
-        |v| (Some(v.domain), None),
+        |v| (some!(v.domain), None),
         [MetadataS::Set, MetadataS::Unset]
     );
 
     impl_into_permission!(
         xp::account::CanRegisterAccount,
         Account,
-        |v| (None, Some(v.domain)),
+        |v| (None, some!(v.domain)),
         [UnitS::Create]
     );
 

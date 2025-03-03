@@ -19,6 +19,7 @@ use std::{
     fmt::Debug,
     hash::Hash,
     ops::{Add, BitOr, Deref},
+    rc::Rc,
 };
 
 use derive_more::{BitOr, Constructor, From};
@@ -31,97 +32,79 @@ struct Tree<M: Mode>(HashMap<NodeKey, NodeValue<M>>);
 #[derive(Debug, PartialEq, Eq, From)]
 struct TreeRef<'a, M: Mode>(HashMap<&'a NodeKey, &'a NodeValue<M>>);
 
-/// Full path to nodes.
-/// A `None` key represents __any__ node.
-/// For example, `(None, domain): AccountKey` represents any account within the specified `domain`.
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-enum NodeKey {
-    Authorizer,
-    Parameter(ParameterKey),
-    Peer(PeerKey),
-    Domain(DomainKey),
-    Account(AccountKey),
-    Asset(AssetKey),
-    Nft(NftKey),
-    AccountAsset(AccountAssetKey),
-    Role(RoleKey),
-    Permission(PermissionKey),
-    AccountRole(AccountRoleKey),
-    AccountPermission(AccountPermissionKey),
-    RolePermission(RolePermissionKey),
-    Trigger(TriggerKey),
-    Executable(ExecutableKey),
-    DomainMetadata(DomainMetadataKey),
-    AccountMetadata(AccountMetadataKey),
-    AssetMetadata(AssetMetadataKey),
-    NftData(NftDataKey),
-    TriggerMetadata(TriggerMetadataKey),
+macro_rules! declare_nodes {
+    ($(($variant:ident, $key:ident: $($key_element:ty),*),)+) => {
+        /// Full path to nodes.
+        /// A `None` key element represents __any__ node.
+        /// For example, `(None, domain): AccountKey` represents any account within the specified `domain`.
+        #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+        enum NodeKey {
+            $(
+            $variant($key),
+            )+
+        }
+
+        $(
+        declare_nodes!(_key_alias $key: $($key_element),*);
+        )+
+
+        /// Represents various states such as the current state, intention, result, or readiness at a given point in the world.
+        #[derive(Debug, PartialEq, Eq)]
+        enum NodeValue<M: Mode> {
+            $(
+            $variant(M::$variant),
+            )+
+        }
+
+        /// This trait implementation serves as a declaration of node values.
+        trait Mode {
+            $(
+            type $variant: Debug + PartialEq + Eq;
+            )+
+        }
+
+        fn consistent_key_value<M: Mode>(key: &NodeKey, value: &NodeValue<M>) -> bool {
+            match (key, value) {
+                $(
+                (NodeKey::$variant(_), NodeValue::$variant(_))
+                )|+ => true,
+                (_, _) => false,
+            }
+        }
+    };
+    (_key_alias $key:ident:) => {
+        type $key = ();
+    };
+    (_key_alias $key:ident: $key_element:ty) => {
+        type $key = Option<Rc<$key_element>>;
+    };
+    (_key_alias $key:ident: $key_element_head:ty, $($key_element:ty),+) => {
+        type $key = (Option<Rc<$key_element_head>>, $(Option<Rc<$key_element>>),+);
+    };
 }
 
-type ParameterKey = Option<tr::ParameterId>;
-type PeerKey = Option<dm::PeerId>;
-type DomainKey = Option<dm::DomainId>;
-type AccountKey = (Option<dm::PublicKey>, DomainKey);
-type AssetKey = (Option<dm::Name>, DomainKey);
-type NftKey = (Option<dm::Name>, DomainKey);
-type AccountAssetKey = (AccountKey, AssetKey);
-type RoleKey = Option<tr::RoleId>;
-type PermissionKey = Option<tr::PermissionId>;
-type AccountRoleKey = (AccountKey, RoleKey);
-type AccountPermissionKey = (AccountKey, PermissionKey);
-type RolePermissionKey = (RoleKey, PermissionKey);
-type TriggerKey = Option<dm::TriggerId>;
-type ExecutableKey = Option<tr::WasmExecutableId>;
-type DomainMetadataKey = (DomainKey, Option<dm::Name>);
-type AccountMetadataKey = (AccountKey, Option<dm::Name>);
-type AssetMetadataKey = (AssetKey, Option<dm::Name>);
-type NftDataKey = (NftKey, Option<dm::Name>);
-type TriggerMetadataKey = (TriggerKey, Option<dm::Name>);
-
-/// Represents various states such as the current state, intention, result, or readiness at a given point in the world.
-#[derive(Debug, PartialEq, Eq)]
-enum NodeValue<M: Mode> {
-    Authorizer(M::Authorizer),
-    Parameter(M::Parameter),
-    Peer(M::Peer),
-    Domain(M::Domain),
-    Account(M::Account),
-    Asset(M::Asset),
-    Nft(M::Nft),
-    AccountAsset(M::AccountAsset),
-    Role(M::Role),
-    Permission(M::Permission),
-    AccountRole(M::AccountRole),
-    AccountPermission(M::AccountPermission),
-    RolePermission(M::RolePermission),
-    Trigger(M::Trigger),
-    Executable(M::Executable),
-    DomainMetadata(M::Metadata),
-    AccountMetadata(M::Metadata),
-    AssetMetadata(M::Metadata),
-    NftData(M::Metadata),
-    TriggerMetadata(M::Metadata),
-}
-
-/// This trait implementation serves as a declaration of node values.
-trait Mode {
-    type Authorizer: Debug + PartialEq + Eq;
-    type Parameter: Debug + PartialEq + Eq;
-    type Peer: Debug + PartialEq + Eq;
-    type Domain: Debug + PartialEq + Eq;
-    type Account: Debug + PartialEq + Eq;
-    type Asset: Debug + PartialEq + Eq;
-    type Nft: Debug + PartialEq + Eq;
-    type AccountAsset: Debug + PartialEq + Eq;
-    type Role: Debug + PartialEq + Eq;
-    type Permission: Debug + PartialEq + Eq;
-    type AccountRole: Debug + PartialEq + Eq;
-    type AccountPermission: Debug + PartialEq + Eq;
-    type RolePermission: Debug + PartialEq + Eq;
-    type Trigger: Debug + PartialEq + Eq;
-    type Executable: Debug + PartialEq + Eq;
-    type Metadata: Debug + PartialEq + Eq;
-}
+declare_nodes!(
+    (Authorizer, AuthorizerKey:),
+    (Parameter, ParameterKey: tr::ParameterId),
+    (Peer, PeerKey: dm::PeerId),
+    (Domain, DomainKey: dm::DomainId),
+    (Account, AccountKey: dm::PublicKey, dm::DomainId),
+    (Asset, AssetKey: dm::Name, dm::DomainId),
+    (Nft, NftKey: dm::Name, dm::DomainId),
+    (AccountAsset, AccountAssetKey: dm::PublicKey, dm::DomainId, dm::Name, dm::DomainId),
+    (Role, RoleKey: tr::RoleId),
+    (Permission, PermissionKey: tr::PermissionId),
+    (AccountRole, AccountRoleKey: dm::PublicKey, dm::DomainId, tr::RoleId),
+    (AccountPermission, AccountPermissionKey: dm::PublicKey, dm::DomainId, tr::PermissionId),
+    (RolePermission, RolePermissionKey: tr::RoleId, tr::PermissionId),
+    (Trigger, TriggerKey: dm::TriggerId),
+    (Executable, ExecutableKey: tr::WasmExecutableId),
+    (DomainMetadata, DomainMetadataKey: dm::DomainId, dm::Name),
+    (AccountMetadata, AccountMetadataKey: dm::PublicKey, dm::DomainId, dm::Name),
+    (AssetMetadata, AssetMetadataKey: dm::Name, dm::DomainId, dm::Name),
+    (NftData, NftDataKey: dm::Name, dm::DomainId, dm::Name),
+    (TriggerMetadata, TriggerMetadataKey: dm::TriggerId, dm::Name),
+);
 
 trait NodeWrite: Filtered {
     type Status: Filtered;
@@ -328,50 +311,24 @@ impl<'a, M: Mode> TreeRef<'a, M> {
     }
 }
 
-fn consistent_key_value<M: Mode>(key: &NodeKey, value: &NodeValue<M>) -> bool {
-    match (key, value) {
-        (NodeKey::Authorizer, NodeValue::Authorizer(_))
-        | (NodeKey::Parameter(_), NodeValue::Parameter(_))
-        | (NodeKey::Peer(_), NodeValue::Peer(_))
-        | (NodeKey::Domain(_), NodeValue::Domain(_))
-        | (NodeKey::Account(_), NodeValue::Account(_))
-        | (NodeKey::Asset(_), NodeValue::Asset(_))
-        | (NodeKey::Nft(_), NodeValue::Nft(_))
-        | (NodeKey::AccountAsset(_), NodeValue::AccountAsset(_))
-        | (NodeKey::Role(_), NodeValue::Role(_))
-        | (NodeKey::Permission(_), NodeValue::Permission(_))
-        | (NodeKey::AccountRole(_), NodeValue::AccountRole(_))
-        | (NodeKey::AccountPermission(_), NodeValue::AccountPermission(_))
-        | (NodeKey::RolePermission(_), NodeValue::RolePermission(_))
-        | (NodeKey::Trigger(_), NodeValue::Trigger(_))
-        | (NodeKey::Executable(_), NodeValue::Executable(_))
-        | (NodeKey::DomainMetadata(_), NodeValue::DomainMetadata(_))
-        | (NodeKey::AccountMetadata(_), NodeValue::AccountMetadata(_))
-        | (NodeKey::AssetMetadata(_), NodeValue::AssetMetadata(_))
-        | (NodeKey::NftData(_), NodeValue::NftData(_))
-        | (NodeKey::TriggerMetadata(_), NodeValue::TriggerMetadata(_)) => true,
-        (_, _) => false,
-    }
-}
-
 macro_rules! node_key_value {
     (_ $node:ident, $key:expr, $value:expr) => {
         (NodeKey::$node($key), NodeValue::$node($value))
     };
     ($node:ident, $value:expr) => {
-        (NodeKey::$node, NodeValue::$node($value))
+        node_key_value!(_ $node, (), $value)
     };
     ($node:ident, $k0:expr, $value:expr) => {
-        node_key_value!(_ $node, Some($k0), $value)
+        node_key_value!(_ $node, Some(Rc::new($k0)), $value)
     };
     ($node:ident, $k0:expr, $k1:expr, $value:expr) => {
-        node_key_value!(_ $node, (Some($k0), Some($k1)), $value)
+        node_key_value!(_ $node, (Some(Rc::new($k0)), Some(Rc::new($k1))), $value)
     };
     ($node:ident, $k0:expr, $k1:expr, $k2:expr, $value:expr) => {
-        node_key_value!(_ $node, ((Some($k0), Some($k1)), Some($k2)), $value)
+        node_key_value!(_ $node, (Some(Rc::new($k0)), Some(Rc::new($k1)), Some(Rc::new($k2))), $value)
     };
     ($node:ident, $k0:expr, $k1:expr, $k2:expr, $k3:expr, $value:expr) => {
-        node_key_value!(_ $node, ((Some($k0), Some($k1)), (Some($k2), Some($k3))), $value)
+        node_key_value!(_ $node, (Some(Rc::new($k0)), Some(Rc::new($k1)), Some(Rc::new($k2)), Some(Rc::new($k3))), $value)
     };
 }
 

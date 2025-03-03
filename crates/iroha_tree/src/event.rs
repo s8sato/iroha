@@ -23,7 +23,11 @@ impl Mode for WriteStatus {
     type RolePermission = UnitS;
     type Trigger = TriggerS;
     type Executable = ExecutableS;
-    type Metadata = MetadataS;
+    type DomainMetadata = MetadataS;
+    type AccountMetadata = MetadataS;
+    type AssetMetadata = MetadataS;
+    type NftData = MetadataS;
+    type TriggerMetadata = MetadataS;
 }
 
 /// An expansion of the CRUD status of the target node.

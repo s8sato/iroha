@@ -20,7 +20,11 @@ impl Mode for () {
     type RolePermission = ();
     type Trigger = tr::TriggerValue;
     type Executable = tr::WasmExecutableValue;
-    type Metadata = tr::MetadataValue;
+    type DomainMetadata = tr::MetadataValue;
+    type AccountMetadata = tr::MetadataValue;
+    type AssetMetadata = tr::MetadataValue;
+    type NftData = tr::MetadataValue;
+    type TriggerMetadata = tr::MetadataValue;
 }
 
 pub mod transitional {

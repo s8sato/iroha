@@ -23,7 +23,11 @@ impl Mode for Write {
     type RolePermission = UnitW;
     type Trigger = TriggerW;
     type Executable = ExecutableW;
-    type Metadata = MetadataW;
+    type DomainMetadata = MetadataW;
+    type AccountMetadata = MetadataW;
+    type AssetMetadata = MetadataW;
+    type NftData = MetadataW;
+    type TriggerMetadata = MetadataW;
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -101,7 +105,6 @@ impl NodeWrite for ChangeSet {
 
     fn as_status(&self) -> Self::Status {
         self.iter()
-            // SATO remove clone
             .map(|(k, write)| (k.clone(), write.into()))
             .collect()
     }
