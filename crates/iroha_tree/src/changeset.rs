@@ -402,8 +402,8 @@ mod transitional {
                         ),
                         node_key_value!(
                             Nft,
-                            inst.object.id.clone().name,
-                            inst.object.id.clone().domain,
+                            inst.object.id.name.clone(),
+                            inst.object.id.domain.clone(),
                             NftW::Create(state::tr::NftValue)
                         ),
                     ]
@@ -411,8 +411,8 @@ mod transitional {
                     .chain(inst.object.content.iter().map(|(k, v)| {
                         node_key_value!(
                             NftData,
-                            inst.object.id.clone().name,
-                            inst.object.id.clone().domain,
+                            inst.object.id.name.clone(),
+                            inst.object.id.domain.clone(),
                             k.clone(),
                             MetadataW::Set(v.clone().into())
                         )
@@ -594,16 +594,16 @@ mod transitional {
                     TransferBox::Asset(inst) => [
                         node_key_value!(
                             AccountAsset,
-                            inst.source.account.signatory.clone(),
-                            inst.source.account.domain.clone(),
+                            inst.source.account.signatory,
+                            inst.source.account.domain,
                             inst.source.definition.name.clone(),
                             inst.source.definition.domain.clone(),
                             AccountAssetW::Send(inst.object)
                         ),
                         node_key_value!(
                             AccountAsset,
-                            inst.source.account.signatory,
-                            inst.source.account.domain,
+                            inst.destination.signatory,
+                            inst.destination.domain,
                             inst.source.definition.name,
                             inst.source.definition.domain,
                             AccountAssetW::Receive(inst.object)
