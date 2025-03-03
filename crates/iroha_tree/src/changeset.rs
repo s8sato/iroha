@@ -302,14 +302,123 @@ mod transitional {
     impl<'block, 'state> ChangeSet {
         fn apply(
             self,
+            state: &mut State<'block, 'state>,
+        ) -> Result<event::Event, ChangeSetApplyError> {
+            let event = self.as_status();
+
+            for (k, v) in self.into_iter() {
+                match (k, v) {
+                    (NodeKey::Authorizer(_k), NodeValue::Authorizer(v)) => match v {
+                        AuthorizerW::Set(_v) => todo!(),
+                    },
+                    (NodeKey::Parameter(_k), NodeValue::Parameter(v)) => match v {
+                        ParameterW::Set(_v) => todo!(),
+                        ParameterW::Unset(()) => todo!(),
+                    },
+                    (NodeKey::Peer(_k), NodeValue::Peer(v)) => match v {
+                        UnitW::Create(_v) => todo!(),
+                        UnitW::Delete(()) => todo!(),
+                    },
+                    (NodeKey::Domain(_k), NodeValue::Domain(v)) => match v {
+                        DomainW::Create(_v) => todo!(),
+                        DomainW::Delete(()) => todo!(),
+                    },
+                    (NodeKey::Account(_k), NodeValue::Account(v)) => match v {
+                        UnitW::Create(_v) => todo!(),
+                        UnitW::Delete(()) => todo!(),
+                    },
+                    (NodeKey::Asset(_k), NodeValue::Asset(v)) => match v {
+                        AssetW::MintabilityUpdate(_u) => todo!(),
+                        AssetW::Create(_v) => todo!(),
+                        AssetW::Delete(()) => todo!(),
+                    },
+                    (NodeKey::Nft(_k), NodeValue::Nft(v)) => match v {
+                        NftW::Create(_v) => todo!(),
+                        NftW::Delete(()) => todo!(),
+                    },
+                    (NodeKey::AccountAsset(_k), NodeValue::AccountAsset(v)) => match v {
+                        AccountAssetW::Receive(_n) => todo!(),
+                        AccountAssetW::Send(_n) => todo!(),
+                        AccountAssetW::Mint(_n) => todo!(),
+                        AccountAssetW::Burn(_n) => todo!(),
+                    },
+                    (NodeKey::Role(_k), NodeValue::Role(v)) => match v {
+                        UnitW::Create(_v) => todo!(),
+                        UnitW::Delete(()) => todo!(),
+                    },
+                    (NodeKey::Permission(_k), NodeValue::Permission(v)) => match v {
+                        PermissionW::Set(_v) => todo!(),
+                        PermissionW::Unset(()) => todo!(),
+                    },
+                    (NodeKey::AccountRole(_k), NodeValue::AccountRole(v)) => match v {
+                        UnitW::Create(_v) => todo!(),
+                        UnitW::Delete(()) => todo!(),
+                    },
+                    (NodeKey::AccountPermission(_k), NodeValue::AccountPermission(v)) => match v {
+                        UnitW::Create(_v) => todo!(),
+                        UnitW::Delete(()) => todo!(),
+                    },
+                    (NodeKey::RolePermission(_k), NodeValue::RolePermission(v)) => match v {
+                        UnitW::Create(_v) => todo!(),
+                        UnitW::Delete(()) => todo!(),
+                    },
+                    (NodeKey::Trigger(_k), NodeValue::Trigger(v)) => match v {
+                        TriggerW::Increase(_n) => todo!(),
+                        TriggerW::Decrease(_n) => todo!(),
+                        TriggerW::Create(_v) => todo!(),
+                        TriggerW::Delete(()) => todo!(),
+                    },
+                    (NodeKey::Executable(_k), NodeValue::Executable(v)) => match v {
+                        ExecutableW::Set(_v) => todo!(),
+                        ExecutableW::Unset(()) => todo!(),
+                    },
+                    (NodeKey::DomainMetadata(_k), NodeValue::DomainMetadata(v)) => match v {
+                        MetadataW::Set(_v) => todo!(),
+                        MetadataW::Unset(()) => todo!(),
+                    },
+                    (NodeKey::AccountMetadata(_k), NodeValue::AccountMetadata(v)) => match v {
+                        MetadataW::Set(_v) => todo!(),
+                        MetadataW::Unset(()) => todo!(),
+                    },
+                    (NodeKey::AssetMetadata(_k), NodeValue::AssetMetadata(v)) => match v {
+                        MetadataW::Set(_v) => todo!(),
+                        MetadataW::Unset(()) => todo!(),
+                    },
+                    (NodeKey::NftData(_k), NodeValue::NftData(v)) => match v {
+                        MetadataW::Set(_v) => todo!(),
+                        MetadataW::Unset(()) => todo!(),
+                    },
+                    (NodeKey::TriggerMetadata(_k), NodeValue::TriggerMetadata(v)) => match v {
+                        MetadataW::Set(_v) => todo!(),
+                        MetadataW::Unset(()) => todo!(),
+                    },
+                    _ => unreachable!(),
+                }
+            }
+
+            event.sanitize(state)?;
+            Ok(event)
+        }
+    }
+
+    impl<'block, 'state> event::Event {
+        fn sanitize(
+            &self,
             _state: &mut State<'block, 'state>,
-        ) -> Result<event::Event, InvariantsViolation> {
+        ) -> Result<event::Event, ChangeSetApplyError> {
             // TODO #4672 Cascade or restrict on delete.
             todo!()
         }
     }
 
-    struct InvariantsViolation;
+    struct ChangeSetApplyError;
+
+    // TODO Provide more accurate diagnosis.
+    impl<E: std::error::Error> From<E> for ChangeSetApplyError {
+        fn from(_value: E) -> Self {
+            Self
+        }
+    }
 
     impl TryFrom<(dm::AccountId, Vec<dm::InstructionBox>)> for ChangeSet {
         type Error = (NodeKey, NodeValue<Write>, NodeValue<Write>);
