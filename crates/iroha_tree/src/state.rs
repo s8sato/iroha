@@ -1,8 +1,8 @@
 use super::*;
 
-pub type State = Tree<()>;
+pub type PartialState = Tree<()>;
 
-pub type StateRef<'a> = TreeRef<'a, ()>;
+pub type PartialStateRef<'a> = TreeRef<'a, ()>;
 
 impl Mode for () {
     type Authorizer = tr::AuthorizerValue;
@@ -88,7 +88,7 @@ pub mod transitional {
         pub(crate) json: dm::Json,
     }
 
-    impl State {
+    impl PartialState {
         fn triggers(&self) -> HashMap<dm::TriggerId, &TriggerValue> {
             // self
             //     .iter()
@@ -104,7 +104,7 @@ pub mod transitional {
     }
 
     impl TriggerValue {
-        fn leads_event_loops(&self, candidate_id: &dm::TriggerId, state: &State) -> bool {
+        fn leads_event_loops(&self, candidate_id: &dm::TriggerId, state: &PartialState) -> bool {
             let mut triggers = state.triggers();
             triggers.insert(candidate_id.clone(), self);
             let mut stack = vec![candidate_id];
