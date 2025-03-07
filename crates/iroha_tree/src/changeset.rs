@@ -174,53 +174,32 @@ impl_node_write!(
     (MetadataW, MetadataS),
 );
 
-impl Add for AuthorizerW {
-    type Output = Result<Self, (Self, Self)>;
+macro_rules! impl_add_err {
+    ($($ty:ty,)+) => {
+        $(
+        impl Add for $ty {
+            type Output = Result<Self, (Self, Self)>;
 
-    fn add(self, rhs: Self) -> Self::Output {
-        Ok(rhs)
-    }
+            fn add(self, rhs: Self) -> Self::Output {
+                Err((self, rhs))
+            }
+        }
+        )+
+    };
 }
 
-impl Add for UnitW {
-    type Output = Result<Self, (Self, Self)>;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Err((self, rhs))
-    }
-}
-
-impl Add for ParameterW {
-    type Output = Result<Self, (Self, Self)>;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Ok(rhs)
-    }
-}
-
-impl Add for DomainW {
-    type Output = Result<Self, (Self, Self)>;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Err((self, rhs))
-    }
-}
-
-impl Add for AssetW {
-    type Output = Result<Self, (Self, Self)>;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Err((self, rhs))
-    }
-}
-
-impl Add for NftW {
-    type Output = Result<Self, (Self, Self)>;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Err((self, rhs))
-    }
-}
+// Multiple modifications to the same node within a single transaction are generally not allowed.
+impl_add_err!(
+    AuthorizerW,
+    UnitW,
+    ParameterW,
+    DomainW,
+    AssetW,
+    NftW,
+    PermissionW,
+    ExecutableW,
+    MetadataW,
+);
 
 impl Add for AccountAssetW {
     type Output = Result<Self, (Self, Self)>;
@@ -249,14 +228,6 @@ impl Add for AccountAssetW {
     }
 }
 
-impl Add for PermissionW {
-    type Output = Result<Self, (Self, Self)>;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Ok(rhs)
-    }
-}
-
 impl Add for TriggerW {
     type Output = Result<Self, (Self, Self)>;
 
@@ -273,22 +244,6 @@ impl Add for TriggerW {
             (l, r) => return Err((l, r)),
         };
         Ok(add)
-    }
-}
-
-impl Add for ExecutableW {
-    type Output = Result<Self, (Self, Self)>;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Ok(rhs)
-    }
-}
-
-impl Add for MetadataW {
-    type Output = Result<Self, (Self, Self)>;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Ok(rhs)
     }
 }
 
