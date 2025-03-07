@@ -300,12 +300,31 @@ mod transitional {
     type State<'block, 'state> = iroha_core::state::StateTransaction<'block, 'state>;
 
     impl<'block, 'state> ChangeSet {
+        /// Unordered reflection to state, allowing inconsistencies between nodes.
         fn apply(
             self,
-            _state: &mut State<'block, 'state>,
+            state: &mut State<'block, 'state>,
         ) -> Result<event::Event, InvariantsViolation> {
+            let event = self.as_status();
+
+            #[expect(clippy::never_loop)]
+            for (_k, _v) in self.into_iter() {
+                unimplemented!(
+                    "todo when instructions as an executable were replaced with a changeset"
+                )
+            }
+
+            event.sanitize(state)?;
+            Ok(event)
+        }
+    }
+
+    impl<'block, 'state> event::Event {
+        /// Scan and resolve inconsistencies based on events.
+        #[expect(clippy::unused_self)]
+        fn sanitize(&self, _state: &mut State<'block, 'state>) -> Result<(), InvariantsViolation> {
             // TODO #4672 Cascade or restrict on delete.
-            todo!()
+            unimplemented!("todo when instructions as an executable were replaced with a changeset")
         }
     }
 
