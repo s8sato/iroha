@@ -98,6 +98,7 @@ declare_nodes!(
     (AccountPermission, AccountPermissionKey: dm::PublicKey, dm::DomainId, tr::PermissionId),
     (RolePermission, RolePermissionKey: tr::RoleId, tr::PermissionId),
     (Trigger, TriggerKey: dm::TriggerId),
+    (AccountTrigger, AccountTriggerKey: dm::PublicKey, dm::DomainId, dm::TriggerId),
     (Executable, ExecutableKey: tr::WasmExecutableId),
     (DomainMetadata, DomainMetadataKey: dm::DomainId, dm::Name),
     (AccountMetadata, AccountMetadataKey: dm::PublicKey, dm::DomainId, dm::Name),
@@ -231,6 +232,7 @@ impl_for_node_values!(
     AccountPermission,
     RolePermission,
     Trigger,
+    AccountTrigger,
     Executable,
     DomainMetadata,
     AccountMetadata,
@@ -358,6 +360,7 @@ mod transitional {
         AssetAdmin(dm::AssetDefinitionId),
         NftAdmin(dm::NftId),
         NftOwner(dm::NftId),
+        TriggerAdmin(dm::TriggerId),
         MultisigSignatory(dm::AccountId),
     }
 

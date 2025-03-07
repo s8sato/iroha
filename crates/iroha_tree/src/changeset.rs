@@ -22,6 +22,7 @@ impl Mode for Write {
     type AccountPermission = UnitW;
     type RolePermission = UnitW;
     type Trigger = TriggerW;
+    type AccountTrigger = UnitW;
     type Executable = ExecutableW;
     type DomainMetadata = MetadataW;
     type AccountMetadata = MetadataW;
@@ -429,13 +430,20 @@ mod transitional {
                             };
                         let (k, v) = node_key_value!(
                             Trigger,
-                            inst.object.id,
+                            inst.object.id.clone(),
                             TriggerW::Create(state::tr::TriggerValue::new(
                                 receptor,
                                 executable,
                                 inst.object.action.repeats,
-                                auth
                             ))
+                        );
+                        map.insert(k, v);
+                        let (k, v) = node_key_value!(
+                            AccountTrigger,
+                            auth.signatory,
+                            auth.domain,
+                            inst.object.id,
+                            UnitW::Create(())
                         );
                         map.insert(k, v);
                         map

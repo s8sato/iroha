@@ -19,6 +19,7 @@ impl Mode for () {
     type AccountPermission = ();
     type RolePermission = ();
     type Trigger = tr::TriggerValue;
+    type AccountTrigger = ();
     type Executable = tr::WasmExecutableValue;
     type DomainMetadata = tr::MetadataValue;
     type AccountMetadata = tr::MetadataValue;
@@ -72,7 +73,6 @@ pub mod transitional {
         pub(crate) receptor: receptor::Receptor,
         pub(crate) executable: TriggerExecutable,
         pub(crate) repeats: dm::Repeats,
-        pub(crate) authority: dm::AccountId,
     }
 
     #[derive(Debug, PartialEq, Eq, From)]

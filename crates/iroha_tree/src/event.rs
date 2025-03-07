@@ -22,6 +22,7 @@ impl Mode for WriteStatus {
     type AccountPermission = UnitS;
     type RolePermission = UnitS;
     type Trigger = TriggerS;
+    type AccountTrigger = UnitS;
     type Executable = ExecutableS;
     type DomainMetadata = MetadataS;
     type AccountMetadata = MetadataS;
