@@ -1,11 +1,11 @@
 use super::*;
 
-pub type Event = Tree<WriteStatus>;
+pub type Event = Tree<ReadWriteStatus>;
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct WriteStatus;
+pub struct ReadWriteStatus;
 
-impl Mode for WriteStatus {
+impl Mode for ReadWriteStatus {
     type Authorizer = AuthorizerS;
     type Parameter = ParameterS;
     type Peer = UnitS;

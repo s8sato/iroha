@@ -2,7 +2,7 @@ use super::*;
 
 pub type Permission = Tree<ReadWriteStatusFilter>;
 
-pub type ReadWriteStatusFilter = receptor::WriteStatusFilter;
+pub type ReadWriteStatusFilter = receptor::ReadWriteStatusFilter;
 
 impl Filtered for changeset::ChangeSet {
     type Filter = Permission;

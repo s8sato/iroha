@@ -104,7 +104,7 @@ declare_nodes!(
     (TriggerMetadata, TriggerMetadataKey: dm::TriggerId, dm::Name),
 );
 
-trait NodeWrite: Filtered {
+trait NodeReadWrite: Filtered {
     type Status: Filtered;
 
     fn as_status(&self) -> Self::Status;
@@ -142,7 +142,7 @@ impl FilterU8 {
 
 macro_rules! impl_for_node_values {
     ($($variant:ident,)+) => {
-        impl From<&NodeValue<changeset::Write>> for NodeValue<event::WriteStatus> {
+        impl From<&NodeValue<changeset::Write>> for NodeValue<event::ReadWriteStatus> {
             fn from(value: &NodeValue<changeset::Write>) -> Self {
                 match value {
                     $(
@@ -152,8 +152,8 @@ macro_rules! impl_for_node_values {
             }
         }
 
-        impl From<&NodeValue<event::WriteStatus>> for FilterU8 {
-            fn from(value: &NodeValue<event::WriteStatus>) -> Self {
+        impl From<&NodeValue<event::ReadWriteStatus>> for FilterU8 {
+            fn from(value: &NodeValue<event::ReadWriteStatus>) -> Self {
                 match value {
                     $(
                     NodeValue::$variant(status) => (*status).into(),
@@ -162,8 +162,8 @@ macro_rules! impl_for_node_values {
             }
         }
 
-        impl From<&NodeValue<receptor::WriteStatusFilter>> for FilterU8 {
-            fn from(value: &NodeValue<receptor::WriteStatusFilter>) -> Self {
+        impl From<&NodeValue<receptor::ReadWriteStatusFilter>> for FilterU8 {
+            fn from(value: &NodeValue<receptor::ReadWriteStatusFilter>) -> Self {
                 match value {
                     $(
                     NodeValue::$variant(filter_u8) => *filter_u8,
@@ -172,7 +172,7 @@ macro_rules! impl_for_node_values {
             }
         }
 
-        impl From<(&NodeKey, FilterU8)> for NodeValue<receptor::WriteStatusFilter> {
+        impl From<(&NodeKey, FilterU8)> for NodeValue<receptor::ReadWriteStatusFilter> {
             fn from(value: (&NodeKey, FilterU8)) -> Self {
                 match value.0 {
                     $(

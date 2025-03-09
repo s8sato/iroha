@@ -2,12 +2,12 @@ use std::collections::HashSet;
 
 use super::*;
 
-pub type Receptor = Tree<WriteStatusFilter>;
+pub type Receptor = Tree<ReadWriteStatusFilter>;
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct WriteStatusFilter;
+pub struct ReadWriteStatusFilter;
 
-impl Mode for WriteStatusFilter {
+impl Mode for ReadWriteStatusFilter {
     type Authorizer = FilterU8;
     type Parameter = FilterU8;
     type Peer = FilterU8;

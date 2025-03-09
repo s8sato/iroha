@@ -99,7 +99,7 @@ pub enum MetadataW {
     Unset(()),
 }
 
-impl NodeWrite for ChangeSet {
+impl NodeReadWrite for ChangeSet {
     type Status = event::Event;
 
     fn as_status(&self) -> Self::Status {
@@ -130,7 +130,7 @@ impl Add for ChangeSet {
 macro_rules! impl_node_write {
     ($(($ty:ty, $status:ident),)+) => {
         $(
-        impl NodeWrite for $ty {
+        impl NodeReadWrite for $ty {
             type Status = event::$status;
 
             fn as_status(&self) -> Self::Status {
