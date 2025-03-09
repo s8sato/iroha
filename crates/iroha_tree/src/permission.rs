@@ -4,6 +4,14 @@ pub type Permission = Tree<ReadWriteStatusFilter>;
 
 pub type ReadWriteStatusFilter = receptor::ReadWriteStatusFilter;
 
+impl Filtered for readset::ReadSet {
+    type Filter = Permission;
+
+    fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter> {
+        self.as_status().passes(filter)
+    }
+}
+
 impl Filtered for changeset::ChangeSet {
     type Filter = Permission;
 

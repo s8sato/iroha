@@ -142,6 +142,16 @@ impl FilterU8 {
 
 macro_rules! impl_for_node_values {
     ($($variant:ident,)+) => {
+        impl From<&NodeValue<readset::Read>> for NodeValue<event::ReadWriteStatus> {
+            fn from(value: &NodeValue<readset::Read>) -> Self {
+                match value {
+                    $(
+                    NodeValue::$variant(read) => Self::$variant(read.into()),
+                    )+
+                }
+            }
+        }
+
         impl From<&NodeValue<changeset::Write>> for NodeValue<event::ReadWriteStatus> {
             fn from(value: &NodeValue<changeset::Write>) -> Self {
                 match value {
@@ -304,6 +314,7 @@ macro_rules! node_key_value {
 mod changeset;
 mod event;
 mod permission;
+mod readset;
 mod receptor;
 mod state;
 

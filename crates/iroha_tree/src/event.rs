@@ -162,9 +162,15 @@ pub enum MetadataS {
     Unset = u8_status!(d),
 }
 
-macro_rules! impl_from_write_filtered {
+macro_rules! impl_from_read_write_filtered {
     ($(($ty:ty, $write:ident: $($variant:ident)|+),)+) => {
         $(
+        impl From<&readset::UnitR> for $ty {
+            fn from(_value: &readset::UnitR) -> Self {
+                Self::Read
+            }
+        }
+
         impl From<&changeset::$write> for $ty {
             fn from(value: &changeset::$write) -> Self {
                 match value {
@@ -192,7 +198,7 @@ macro_rules! impl_from_write_filtered {
     };
 }
 
-impl_from_write_filtered!(
+impl_from_read_write_filtered!(
     (AuthorizerS, AuthorizerW: Set),
     (UnitS, UnitW: Create | Delete),
     (ParameterS, ParameterW: Set | Unset),
