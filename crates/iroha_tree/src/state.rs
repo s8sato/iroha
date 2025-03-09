@@ -2,8 +2,6 @@ use super::*;
 
 pub type PartialState = Tree<()>;
 
-pub type PartialStateRef<'a> = TreeRef<'a, ()>;
-
 impl Mode for () {
     type Authorizer = tr::AuthorizerValue;
     type Parameter = tr::ParameterValue;

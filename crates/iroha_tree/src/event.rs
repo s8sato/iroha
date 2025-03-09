@@ -2,8 +2,6 @@ use super::*;
 
 pub type Event = Tree<WriteStatus>;
 
-pub type EventRef<'a> = TreeRef<'a, WriteStatus>;
-
 #[derive(Debug, PartialEq, Eq)]
 pub struct WriteStatus;
 

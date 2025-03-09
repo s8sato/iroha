@@ -17,7 +17,7 @@ use std::{
     collections::HashMap,
     fmt::Debug,
     hash::Hash,
-    ops::{Add, BitOr, Deref},
+    ops::{Add, BitOr},
     rc::Rc,
 };
 
@@ -27,9 +27,6 @@ use derive_more::{BitOr, Constructor, From};
 /// Node values may vary by mode.
 #[derive(Debug, PartialEq, Eq, From)]
 struct Tree<M: Mode>(HashMap<NodeKey, NodeValue<M>>);
-
-#[derive(Debug, PartialEq, Eq, From)]
-struct TreeRef<'a, M: Mode>(HashMap<&'a NodeKey, &'a NodeValue<M>>);
 
 macro_rules! declare_nodes {
     ($(($variant:ident, $key:ident: $($key_element:ty),*),)+) => {
@@ -246,12 +243,6 @@ impl<M: Mode> FromIterator<(NodeKey, NodeValue<M>)> for Tree<M> {
     }
 }
 
-impl<'a, M: Mode> FromIterator<(&'a NodeKey, &'a NodeValue<M>)> for TreeRef<'a, M> {
-    fn from_iter<I: IntoIterator<Item = (&'a NodeKey, &'a NodeValue<M>)>>(iter: I) -> Self {
-        TreeRef::from(iter.into_iter().collect::<HashMap<_, _>>())
-    }
-}
-
 impl<M: Mode> Tree<M> {
     fn get(&self, key: &NodeKey) -> Option<&NodeValue<M>> {
         self.0.get(key)
@@ -273,36 +264,6 @@ impl<M: Mode> Tree<M> {
 
     fn into_iter(self) -> impl Iterator<Item = (NodeKey, NodeValue<M>)> {
         self.0.into_iter()
-    }
-
-    fn map<N, F>(self, f: F) -> Tree<N>
-    where
-        N: Mode,
-        F: Fn(NodeValue<M>) -> NodeValue<N>,
-    {
-        self.into_iter().map(|(k, v)| (k, f(v))).collect()
-    }
-
-    fn as_ref(&self) -> TreeRef<M> {
-        self.iter().collect()
-    }
-}
-
-impl<'a, M: Mode> TreeRef<'a, M> {
-    fn get(&self, key: &NodeKey) -> Option<&NodeValue<M>> {
-        self.0.get(key).map(Deref::deref)
-    }
-
-    fn into_iter(self) -> impl Iterator<Item = (&'a NodeKey, &'a NodeValue<M>)> {
-        self.0.into_iter()
-    }
-
-    fn map<N, F>(self, f: F) -> TreeRef<'a, N>
-    where
-        N: Mode,
-        F: Fn(&NodeValue<M>) -> &NodeValue<N>,
-    {
-        self.into_iter().map(|(k, v)| (k, f(v))).collect()
     }
 }
 

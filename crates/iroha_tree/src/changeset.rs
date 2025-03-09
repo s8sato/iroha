@@ -2,8 +2,6 @@ use super::*;
 
 pub type ChangeSet = Tree<Write>;
 
-pub type ChangeSetRef<'a> = TreeRef<'a, Write>;
-
 #[derive(Debug, PartialEq, Eq)]
 pub struct Write;
 
