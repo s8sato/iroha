@@ -405,7 +405,7 @@ mod transitional {
                                         .into()
                                 }
                                 tx::Executable::Wasm(wasm) => {
-                                    let wasm_id: crate::tr::WasmExecutableId =
+                                    let wasm_id: tr::WasmExecutableId =
                                         tx::HashOf::new(&wasm).into();
                                     let (k, v) = node_key_value!(
                                         Executable,

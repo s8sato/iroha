@@ -255,7 +255,7 @@ mod transitional {
                         AccountEvent::Deleted(k) => [node_key_value!(Account, k.signatory, k.domain, UnitS::Delete)].into(),
                         AccountEvent::Asset(event) => match event {
                             AssetEvent::Created(_v) => unimplemented!("ambiguous sources: Mint<Numeric, Asset>, Transfer<Asset, Numeric, Account>"),
-                            AssetEvent::Deleted(_k) => unimplemented!("ambiguous sources: Unregister<AssetDefinition>"),
+                            AssetEvent::Deleted(_k) => unimplemented!("could be considered burned to zero by Unregister<AssetDefinition>"),
                             AssetEvent::Added(_v) => unimplemented!("ambiguous sources: Mint<Numeric, Asset>, Transfer<Asset, Numeric, Account>"),
                             AssetEvent::Removed(_v) => unimplemented!("ambiguous sources: Burn<Numeric, Asset>, Transfer<Asset, Numeric, Account>"),
                         },

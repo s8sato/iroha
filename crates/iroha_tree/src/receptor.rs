@@ -155,10 +155,376 @@ impl NodeKey {
 
 mod transitional {
     use super::*;
+    use crate::event::*;
+
+    macro_rules! node_key_filter {
+        (_ $node:ident, $key:expr, $status:expr) => {
+            (NodeKey::$node($key), NodeValue::$node($status.into()))
+        };
+        ($node:ident, $status:expr) => {
+            node_key_filter!(_ $node, (), $status)
+        };
+        ($node:ident, $k0:expr, $status:expr) => {
+            node_key_filter!(_ $node, $k0, $status)
+        };
+        ($node:ident, $k0:expr, $k1:expr, $status:expr) => {
+            node_key_filter!(_ $node, ($k0, $k1), $status)
+        };
+        ($node:ident, $k0:expr, $k1:expr, $k2:expr, $status:expr) => {
+            node_key_filter!(_ $node, ($k0, $k1, $k2), $status)
+        };
+        ($node:ident, $k0:expr, $k1:expr, $k2:expr, $k3:expr, $status:expr) => {
+            node_key_filter!(_ $node, ($k0, $k1, $k2, $k3), $status)
+        };
+    }
 
     impl From<dm::DataEventFilter> for Receptor {
-        fn from(_value: dm::DataEventFilter) -> Self {
-            todo!()
+        #[expect(clippy::too_many_lines)]
+        fn from(value: dm::DataEventFilter) -> Self {
+            use dm::{
+                AccountEventSet, AssetDefinitionEventSet, ConfigurationEventSet,
+                DataEventFilter::*, DomainEventSet, ExecutorEventSet, NftEventSet, PeerEventSet,
+                RoleEventSet, TriggerEventSet,
+            };
+
+            let map: HashMap<_, _> = match value {
+                Any => [
+                    node_key_filter!(Authorizer, FilterU8::ANY),
+                    node_key_filter!(Parameter, None, FilterU8::ANY),
+                    node_key_filter!(Peer, None, FilterU8::ANY),
+                    node_key_filter!(Domain, None, FilterU8::ANY),
+                    node_key_filter!(Account, None, None, FilterU8::ANY),
+                    node_key_filter!(Asset, None, None, FilterU8::ANY),
+                    node_key_filter!(Nft, None, None, FilterU8::ANY),
+                    node_key_filter!(AccountAsset, None, None, None, None, FilterU8::ANY),
+                    node_key_filter!(Role, None, FilterU8::ANY),
+                    node_key_filter!(Permission, None, FilterU8::ANY),
+                    node_key_filter!(AccountRole, None, None, None, FilterU8::ANY),
+                    node_key_filter!(AccountPermission, None, None, None, FilterU8::ANY),
+                    node_key_filter!(RolePermission, None, None, FilterU8::ANY),
+                    node_key_filter!(Trigger, None, FilterU8::ANY),
+                    node_key_filter!(AccountTrigger, None, None, None, FilterU8::ANY),
+                    node_key_filter!(Executable, None, FilterU8::ANY),
+                    node_key_filter!(DomainMetadata, None, None, FilterU8::ANY),
+                    node_key_filter!(AccountMetadata, None, None, None, FilterU8::ANY),
+                    node_key_filter!(AssetMetadata, None, None, None, FilterU8::ANY),
+                    node_key_filter!(NftData, None, None, None, FilterU8::ANY),
+                    node_key_filter!(TriggerMetadata, None, None, FilterU8::ANY),
+                ]
+                .into(),
+                Peer(ef) => {
+                    let id = ef.id_matcher.map(Rc::new);
+                    ef.event_set
+                        .decompose()
+                        .into_iter()
+                        .map(|es| match es {
+                            PeerEventSet::Added => {
+                                node_key_filter!(Peer, id.clone(), UnitS::Create)
+                            }
+                            PeerEventSet::Removed => {
+                                node_key_filter!(Peer, id.clone(), UnitS::Delete)
+                            }
+                            _ => unreachable!(),
+                        })
+                        .collect()
+                }
+                Domain(ef) => {
+                    let (domain, admin) = ef.id_matcher.map_or_else(
+                        || (None, None),
+                        |id| {
+                            (
+                                Some(Rc::new(id.clone())),
+                                Some(Rc::new(tr::RoleId::DomainAdmin(id))),
+                            )
+                        },
+                    );
+                    ef.event_set
+                        .decompose()
+                        .into_iter()
+                        .map(|es| match es {
+                            DomainEventSet::Created => {
+                                node_key_filter!(Domain, domain.clone(), DomainS::Create)
+                            }
+                            DomainEventSet::Deleted => {
+                                node_key_filter!(Domain, domain.clone(), DomainS::Delete)
+                            }
+                            DomainEventSet::MetadataInserted => node_key_filter!(
+                                DomainMetadata,
+                                domain.clone(),
+                                None,
+                                MetadataS::Set
+                            ),
+                            DomainEventSet::MetadataRemoved => node_key_filter!(
+                                DomainMetadata,
+                                domain.clone(),
+                                None,
+                                MetadataS::Unset
+                            ),
+                            DomainEventSet::OwnerChanged => node_key_filter!(
+                                AccountRole,
+                                None,
+                                None,
+                                admin.clone(),
+                                UnitS::Create as u8 | UnitS::Delete as u8
+                            ),
+                            _ => unreachable!(),
+                        })
+                        .collect()
+                }
+                Account(ef) => {
+                    let (signatory, domain) = match ef.id_matcher {
+                        None => (None, None),
+                        Some(id) => (Some(Rc::new(id.signatory)), Some(Rc::new(id.domain))),
+                    };
+                    ef.event_set
+                        .decompose()
+                        .into_iter()
+                        .map(|es| match es {
+                            AccountEventSet::Created => node_key_filter!(
+                                Account,
+                                signatory.clone(),
+                                domain.clone(),
+                                UnitS::Create
+                            ),
+                            AccountEventSet::Deleted => node_key_filter!(
+                                Account,
+                                signatory.clone(),
+                                domain.clone(),
+                                UnitS::Delete
+                            ),
+                            AccountEventSet::PermissionAdded => node_key_filter!(
+                                AccountPermission,
+                                signatory.clone(),
+                                domain.clone(),
+                                None,
+                                UnitS::Create
+                            ),
+                            AccountEventSet::PermissionRemoved => node_key_filter!(
+                                AccountPermission,
+                                signatory.clone(),
+                                domain.clone(),
+                                None,
+                                UnitS::Delete
+                            ),
+                            AccountEventSet::RoleGranted => node_key_filter!(
+                                AccountRole,
+                                signatory.clone(),
+                                domain.clone(),
+                                None,
+                                UnitS::Create
+                            ),
+                            AccountEventSet::RoleRevoked => node_key_filter!(
+                                AccountRole,
+                                signatory.clone(),
+                                domain.clone(),
+                                None,
+                                UnitS::Delete
+                            ),
+                            AccountEventSet::MetadataInserted => node_key_filter!(
+                                AccountMetadata,
+                                signatory.clone(),
+                                domain.clone(),
+                                None,
+                                MetadataS::Set
+                            ),
+                            AccountEventSet::MetadataRemoved => node_key_filter!(
+                                AccountMetadata,
+                                signatory.clone(),
+                                domain.clone(),
+                                None,
+                                MetadataS::Unset
+                            ),
+                            _ => unreachable!(),
+                        })
+                        .collect()
+                }
+                Asset(_ef) => unimplemented!("unless AssetEvent is disambiguated"),
+                AssetDefinition(ef) => {
+                    let (name, domain, admin) = match ef.id_matcher {
+                        None => (None, None, None),
+                        Some(id) => (
+                            Some(Rc::new(id.name.clone())),
+                            Some(Rc::new(id.domain.clone())),
+                            Some(Rc::new(tr::RoleId::AssetAdmin(id))),
+                        ),
+                    };
+                    ef.event_set
+                        .decompose()
+                        .into_iter()
+                        .map(|es| match es {
+                            AssetDefinitionEventSet::Created => node_key_filter!(
+                                Asset,
+                                name.clone(),
+                                domain.clone(),
+                                AssetS::Create
+                            ),
+                            AssetDefinitionEventSet::Deleted => node_key_filter!(
+                                Asset,
+                                name.clone(),
+                                domain.clone(),
+                                AssetS::Delete
+                            ),
+                            AssetDefinitionEventSet::MetadataInserted => node_key_filter!(
+                                AssetMetadata,
+                                name.clone(),
+                                domain.clone(),
+                                None,
+                                MetadataS::Set
+                            ),
+                            AssetDefinitionEventSet::MetadataRemoved => node_key_filter!(
+                                AssetMetadata,
+                                name.clone(),
+                                domain.clone(),
+                                None,
+                                MetadataS::Unset
+                            ),
+                            AssetDefinitionEventSet::MintabilityChanged => node_key_filter!(
+                                Asset,
+                                name.clone(),
+                                domain.clone(),
+                                AssetS::MintabilityUpdate
+                            ),
+                            AssetDefinitionEventSet::TotalQuantityChanged => node_key_filter!(
+                                AccountAsset,
+                                None,
+                                None,
+                                name.clone(),
+                                domain.clone(),
+                                AccountAssetS::Mint as u8 | AccountAssetS::Burn as u8
+                            ),
+                            AssetDefinitionEventSet::OwnerChanged => node_key_filter!(
+                                AccountRole,
+                                None,
+                                None,
+                                admin.clone(),
+                                UnitS::Create as u8 | UnitS::Delete as u8
+                            ),
+                            _ => unreachable!(),
+                        })
+                        .collect()
+                }
+                Nft(ef) => {
+                    let (name, domain, owner) = match ef.id_matcher {
+                        None => (None, None, None),
+                        Some(id) => (
+                            Some(Rc::new(id.name.clone())),
+                            Some(Rc::new(id.domain.clone())),
+                            Some(Rc::new(tr::RoleId::NftOwner(id))),
+                        ),
+                    };
+                    ef.event_set
+                        .decompose()
+                        .into_iter()
+                        .map(|es| match es {
+                            NftEventSet::Created => {
+                                node_key_filter!(Nft, name.clone(), domain.clone(), NftS::Create)
+                            }
+                            NftEventSet::Deleted => {
+                                node_key_filter!(Nft, name.clone(), domain.clone(), NftS::Delete)
+                            }
+                            NftEventSet::MetadataInserted => node_key_filter!(
+                                NftData,
+                                name.clone(),
+                                domain.clone(),
+                                None,
+                                MetadataS::Set
+                            ),
+                            NftEventSet::MetadataRemoved => node_key_filter!(
+                                NftData,
+                                name.clone(),
+                                domain.clone(),
+                                None,
+                                MetadataS::Unset
+                            ),
+                            NftEventSet::OwnerChanged => node_key_filter!(
+                                AccountRole,
+                                None,
+                                None,
+                                owner.clone(),
+                                UnitS::Create as u8 | UnitS::Delete as u8
+                            ),
+                            _ => unreachable!(),
+                        })
+                        .collect()
+                }
+                Trigger(ef) => {
+                    let id = ef.id_matcher.map(Rc::new);
+                    ef.event_set
+                        .decompose()
+                        .into_iter()
+                        .map(|es| match es {
+                            TriggerEventSet::Created => {
+                                node_key_filter!(Trigger, id.clone(), TriggerS::Create)
+                            }
+                            TriggerEventSet::Deleted => {
+                                node_key_filter!(Trigger, id.clone(), TriggerS::Delete)
+                            }
+                            TriggerEventSet::Extended => {
+                                node_key_filter!(Trigger, id.clone(), TriggerS::Increase)
+                            }
+                            TriggerEventSet::Shortened => {
+                                node_key_filter!(Trigger, id.clone(), TriggerS::Decrease)
+                            }
+                            TriggerEventSet::MetadataInserted => {
+                                node_key_filter!(TriggerMetadata, id.clone(), None, MetadataS::Set)
+                            }
+                            TriggerEventSet::MetadataRemoved => node_key_filter!(
+                                TriggerMetadata,
+                                id.clone(),
+                                None,
+                                MetadataS::Unset
+                            ),
+                            _ => unreachable!(),
+                        })
+                        .collect()
+                }
+                Role(ef) => {
+                    let id = ef.id_matcher.map(|id| Rc::new(tr::RoleId::Named(id.name)));
+                    ef.event_set
+                        .decompose()
+                        .into_iter()
+                        .map(|es| match es {
+                            RoleEventSet::Created => {
+                                node_key_filter!(Role, id.clone(), UnitS::Create)
+                            }
+                            RoleEventSet::Deleted => {
+                                node_key_filter!(Role, id.clone(), UnitS::Delete)
+                            }
+                            RoleEventSet::PermissionAdded => {
+                                node_key_filter!(RolePermission, id.clone(), None, UnitS::Create)
+                            }
+                            RoleEventSet::PermissionRemoved => {
+                                node_key_filter!(RolePermission, id.clone(), None, UnitS::Delete)
+                            }
+                            _ => unreachable!(),
+                        })
+                        .collect()
+                }
+                Configuration(ef) => ef
+                    .event_set
+                    .decompose()
+                    .into_iter()
+                    .map(|es| match es {
+                        ConfigurationEventSet::Changed => {
+                            node_key_filter!(Parameter, None, ParameterS::Set)
+                        }
+                        _ => unreachable!(),
+                    })
+                    .collect(),
+                Executor(ef) => ef
+                    .event_set
+                    .decompose()
+                    .into_iter()
+                    .map(|es| match es {
+                        ExecutorEventSet::Upgraded => {
+                            node_key_filter!(Authorizer, AuthorizerS::Set)
+                        }
+                        _ => unreachable!(),
+                    })
+                    .collect(),
+            };
+
+            map.into_iter().collect()
         }
     }
 }
