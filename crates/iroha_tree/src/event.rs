@@ -297,7 +297,7 @@ mod transitional {
                 },
             };
 
-            map.into()
+            map.into_iter().collect()
         }
     }
 }

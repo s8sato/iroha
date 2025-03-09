@@ -37,7 +37,7 @@ mod transitional {
         ($can:path, $node:ident, |$source:ident| $key:expr, $statuses:expr) => {
             impl From<$can> for Permission {
                 fn from($source: $can) -> Self {
-                    HashMap::from([(
+                    [(
                         NodeKey::$node($key),
                         NodeValue::$node(
                             $statuses
@@ -46,8 +46,9 @@ mod transitional {
                                 .reduce(|acc, x| acc | x)
                                 .unwrap(),
                         ),
-                    )])
-                    .into()
+                    )]
+                    .into_iter()
+                    .collect()
                 }
             }
         };

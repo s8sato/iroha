@@ -741,7 +741,7 @@ mod transitional {
                 ),
             };
 
-            Ok(map.into())
+            Ok(map.into_iter().collect())
         }
     }
 }

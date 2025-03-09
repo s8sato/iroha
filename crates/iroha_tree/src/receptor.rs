@@ -35,7 +35,7 @@ impl Filtered for event::Event {
     type Filter = Receptor;
 
     fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter> {
-        let mut obstacle = HashMap::new();
+        let mut obstacle = Tree::default();
         for (key, signal) in self.iter() {
             let signal: FilterU8 = signal.into();
             let receptor_keys = key.receptor_keys();
@@ -50,7 +50,7 @@ impl Filtered for event::Event {
         if obstacle.is_empty() {
             Ok(())
         } else {
-            Err(obstacle.into())
+            Err(obstacle)
         }
     }
 }

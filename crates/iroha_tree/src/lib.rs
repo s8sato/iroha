@@ -25,7 +25,7 @@ use derive_more::{BitOr, Constructor, From};
 
 /// A flattened node map with a fixed skeleton equivalent to the world state.
 /// Node values may vary by mode.
-#[derive(Debug, PartialEq, Eq, From)]
+#[derive(Debug, PartialEq, Eq)]
 struct Tree<M: Mode>(HashMap<NodeKey, NodeValue<M>>);
 
 macro_rules! declare_nodes {
@@ -59,6 +59,7 @@ macro_rules! declare_nodes {
             )+
         }
 
+        // This should be asserted whenever constructing key-value pairs, as type safety was lost during tree size reduction.
         fn consistent_key_value<M: Mode>(key: &NodeKey, value: &NodeValue<M>) -> bool {
             match (key, value) {
                 $(
@@ -239,17 +240,24 @@ impl<M: Mode> Default for Tree<M> {
 
 impl<M: Mode> FromIterator<(NodeKey, NodeValue<M>)> for Tree<M> {
     fn from_iter<I: IntoIterator<Item = (NodeKey, NodeValue<M>)>>(iter: I) -> Self {
-        Tree::from(iter.into_iter().collect::<HashMap<_, _>>())
+        Tree(
+            iter.into_iter()
+                .inspect(|(k, v)| assert!(consistent_key_value(k, v)))
+                .collect::<HashMap<_, _>>(),
+        )
     }
 }
 
 impl<M: Mode> Tree<M> {
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     fn get(&self, key: &NodeKey) -> Option<&NodeValue<M>> {
         self.0.get(key)
     }
 
     fn insert(&mut self, key: NodeKey, value: NodeValue<M>) -> Option<NodeValue<M>> {
-        // SATO Type safety was lost while reducing tree size.
         assert!(consistent_key_value(&key, &value));
         self.0.insert(key, value)
     }
