@@ -6,6 +6,14 @@ pub type PermissionRef<'a> = TreeRef<'a, ReadWriteStatusFilter>;
 
 pub type ReadWriteStatusFilter = receptor::WriteStatusFilter;
 
+impl Filtered for changeset::ChangeSet {
+    type Filter = Permission;
+
+    fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter> {
+        self.as_status().passes(filter)
+    }
+}
+
 impl BitOr for Permission {
     type Output = Self;
 
@@ -36,7 +44,7 @@ mod transitional {
                         NodeValue::$node(
                             $statuses
                                 .iter()
-                                .map(Filtered::as_filter)
+                                .map(FilterU8::from)
                                 .reduce(|acc, x| acc | x)
                                 .unwrap(),
                         ),

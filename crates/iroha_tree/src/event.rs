@@ -164,26 +164,14 @@ pub enum MetadataS {
     Unset = u8_status!(d),
 }
 
-impl Filtered for Event {
-    type Filter = receptor::Receptor;
-
-    fn as_filter(&self) -> Self::Filter {
-        self.iter()
-            .map(|(k, write_status)| (k.clone(), write_status.into()))
-            .collect()
-    }
-}
-
 macro_rules! impl_from_write_filtered {
     ($(($ty:ty, $write:ident: $($variant:ident)|+),)+) => {
         $(
-        use changeset::$write;
-
-        impl From<&$write> for $ty {
-            fn from(value: &$write) -> Self {
+        impl From<&changeset::$write> for $ty {
+            fn from(value: &changeset::$write) -> Self {
                 match value {
                     $(
-                    $write::$variant(_) => Self::$variant,
+                    changeset::$write::$variant(_) => Self::$variant,
                     )+
                 }
             }
@@ -192,8 +180,14 @@ macro_rules! impl_from_write_filtered {
         impl Filtered for $ty {
             type Filter = FilterU8;
 
-            fn as_filter(&self) -> Self::Filter {
-                ((*self) as u8).into()
+            fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter> {
+                FilterU8::from(self).passes(filter)
+            }
+        }
+
+        impl From<&$ty> for FilterU8 {
+            fn from(value: &$ty) -> Self {
+                ((*value) as u8).into()
             }
         }
         )+

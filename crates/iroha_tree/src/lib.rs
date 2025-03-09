@@ -14,7 +14,6 @@
 #![allow(dead_code)] // SATO disallow
 
 use std::{
-    cmp::Ordering,
     collections::HashMap,
     fmt::Debug,
     hash::Hash,
@@ -114,63 +113,47 @@ trait NodeWrite: Filtered {
 }
 
 trait Filtered {
-    type Filter: PartialOrd;
+    type Filter;
 
-    fn as_filter(&self) -> Self::Filter;
-
-    fn passes(&self, filter: &Self::Filter) -> bool {
-        self.as_filter() <= *filter
-    }
+    /// # Errors
+    ///
+    /// Returns the difference from the expected filter required for `self` to pass.
+    fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter>;
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default, From, BitOr)]
 struct FilterU8(u8);
 
-impl PartialOrd for FilterU8 {
-    /// Attempts to summarize bitwise comparisons.
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let l = self.0;
-        let r = other.0;
-        let xor = l ^ r;
-        if xor == 0 {
-            Some(Ordering::Equal)
-        } else if l & xor == 0 {
-            Some(Ordering::Less)
-        } else if r & xor == 0 {
-            Some(Ordering::Greater)
+impl Filtered for FilterU8 {
+    type Filter = Self;
+
+    fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter> {
+        let obstacle = self.0 & !filter.0;
+        if obstacle == 0 {
+            Ok(())
         } else {
-            None
+            Err(obstacle.into())
         }
     }
 }
 
 macro_rules! impl_for_node_values {
-    ($($ident:ident,)+) => {
+    ($($variant:ident,)+) => {
         impl From<&NodeValue<changeset::Write>> for NodeValue<event::WriteStatus> {
             fn from(value: &NodeValue<changeset::Write>) -> Self {
                 match value {
                     $(
-                    NodeValue::$ident(write) => Self::$ident(write.as_status()),
+                    NodeValue::$variant(write) => Self::$variant(write.as_status()),
                     )+
                 }
             }
         }
 
-        impl From<&NodeValue<event::WriteStatus>> for NodeValue<receptor::WriteStatusFilter> {
+        impl From<&NodeValue<event::WriteStatus>> for FilterU8 {
             fn from(value: &NodeValue<event::WriteStatus>) -> Self {
                 match value {
                     $(
-                    NodeValue::$ident(write_status) => Self::$ident(write_status.as_filter()),
-                    )+
-                }
-            }
-        }
-
-        impl From<&NodeValue<changeset::Write>> for NodeValue<permission::ReadWriteStatusFilter> {
-            fn from(value: &NodeValue<changeset::Write>) -> Self {
-                match value {
-                    $(
-                    NodeValue::$ident(write) => Self::$ident(write.as_status().as_filter()),
+                    NodeValue::$variant(status) => status.into(),
                     )+
                 }
             }
@@ -180,7 +163,17 @@ macro_rules! impl_for_node_values {
             fn from(value: &NodeValue<receptor::WriteStatusFilter>) -> Self {
                 match value {
                     $(
-                    NodeValue::$ident(filter_u8) => *filter_u8,
+                    NodeValue::$variant(filter_u8) => *filter_u8,
+                    )+
+                }
+            }
+        }
+
+        impl From<(&NodeKey, FilterU8)> for NodeValue<receptor::WriteStatusFilter> {
+            fn from(value: (&NodeKey, FilterU8)) -> Self {
+                match value.0 {
+                    $(
+                    NodeKey::$variant(_) => NodeValue::$variant(value.1),
                     )+
                 }
             }
@@ -192,9 +185,9 @@ macro_rules! impl_for_node_values {
             fn add(self, rhs: Self) -> Self::Output {
                 match (self, rhs) {
                     $(
-                    (Self::$ident(l), Self::$ident(r)) => match l + r {
-                        Ok(add) => Ok(Self::$ident(add)),
-                        Err((l, r)) => Err((Self::$ident(l), Self::$ident(r))),
+                    (Self::$variant(l), Self::$variant(r)) => match l + r {
+                        Ok(add) => Ok(Self::$variant(add)),
+                        Err((l, r)) => Err((Self::$variant(l), Self::$variant(r))),
                     },
                     )+
                     _ => unreachable!(),
@@ -208,7 +201,7 @@ macro_rules! impl_for_node_values {
             fn bitor(self, rhs: Self) -> Self::Output {
                 match (self, rhs) {
                     $(
-                    (Self::$ident(l), Self::$ident(r)) => Self::$ident(l | r),
+                    (Self::$variant(l), Self::$variant(r)) => Self::$variant(l | r),
                     )+
                     _ => unreachable!(),
                 }

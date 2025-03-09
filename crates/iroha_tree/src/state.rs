@@ -124,7 +124,7 @@ pub mod transitional {
                 // }
                 let next_trigger_ids = triggers
                     .iter()
-                    .filter_map(|(id, v)| event_expected.passes(&v.receptor).then_some(id));
+                    .filter_map(|(id, v)| event_expected.passes(&v.receptor).is_ok().then_some(id));
                 stack.extend(next_trigger_ids);
             }
             false

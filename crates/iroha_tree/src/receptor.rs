@@ -33,26 +33,27 @@ impl Mode for WriteStatusFilter {
     type TriggerMetadata = FilterU8;
 }
 
-impl PartialOrd for Receptor {
-    /// Returns early with a simplified conclusion.
-    /// Note that `self` and `other` are asymmetric.
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+impl Filtered for event::Event {
+    type Filter = Receptor;
+
+    fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter> {
+        let mut obstacle = HashMap::new();
         for (key, signal) in self.iter() {
             let signal: FilterU8 = signal.into();
             let receptor_keys = key.receptor_keys();
-            let Some(receptor_union) = other
+            let receptor_union = filter
                 .iter()
                 .filter_map(|(k, v)| receptor_keys.contains(k).then_some(v).map(FilterU8::from))
-                .reduce(|acc, x| acc | x)
-            else {
-                return Some(Ordering::Greater);
-            };
-            match signal.partial_cmp(&receptor_union) {
-                None | Some(Ordering::Greater) => return Some(Ordering::Greater),
-                Some(Ordering::Equal | Ordering::Less) => continue,
+                .fold(FilterU8::default(), |acc, x| acc | x);
+            if let Err(obs) = signal.passes(&receptor_union) {
+                obstacle.insert(key.clone(), NodeValue::from((key, obs)));
             }
         }
-        Some(Ordering::Less)
+        if obstacle.is_empty() {
+            Ok(())
+        } else {
+            Err(obstacle.into())
+        }
     }
 }
 

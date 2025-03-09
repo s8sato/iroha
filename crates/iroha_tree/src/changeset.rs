@@ -111,16 +111,6 @@ impl NodeWrite for ChangeSet {
     }
 }
 
-impl Filtered for ChangeSet {
-    type Filter = permission::Permission;
-
-    fn as_filter(&self) -> Self::Filter {
-        self.iter()
-            .map(|(k, write)| (k.clone(), write.into()))
-            .collect()
-    }
-}
-
 impl Add for ChangeSet {
     type Output = Result<Self, (NodeKey, NodeValue<Write>, NodeValue<Write>)>;
 
@@ -151,10 +141,10 @@ macro_rules! impl_node_write {
         }
 
         impl Filtered for $ty {
-            type Filter = super::FilterU8;
+            type Filter = FilterU8;
 
-            fn as_filter(&self) -> Self::Filter {
-                self.as_status().as_filter()
+            fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter> {
+                self.as_status().passes(filter)
             }
         }
         )+
