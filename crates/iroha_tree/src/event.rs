@@ -179,13 +179,13 @@ macro_rules! impl_from_write_filtered {
             type Filter = FilterU8;
 
             fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter> {
-                FilterU8::from(self).passes(filter)
+                FilterU8::from(*self).passes(filter)
             }
         }
 
-        impl From<&$ty> for FilterU8 {
-            fn from(value: &$ty) -> Self {
-                ((*value) as u8).into()
+        impl From<$ty> for FilterU8 {
+            fn from(value: $ty) -> Self {
+                (value as u8).into()
             }
         }
         )+

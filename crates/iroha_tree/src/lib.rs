@@ -156,7 +156,7 @@ macro_rules! impl_for_node_values {
             fn from(value: &NodeValue<event::WriteStatus>) -> Self {
                 match value {
                     $(
-                    NodeValue::$variant(status) => status.into(),
+                    NodeValue::$variant(status) => (*status).into(),
                     )+
                 }
             }

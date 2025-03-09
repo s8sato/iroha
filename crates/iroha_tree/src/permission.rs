@@ -41,7 +41,7 @@ mod transitional {
                         NodeKey::$node($key),
                         NodeValue::$node(
                             $statuses
-                                .iter()
+                                .into_iter()
                                 .map(FilterU8::from)
                                 .reduce(|acc, x| acc | x)
                                 .unwrap(),
