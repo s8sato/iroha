@@ -119,7 +119,7 @@ trait Filtered {
     fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter>;
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Default, From, BitOr)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, From, BitOr)]
 struct FilterU8(u8);
 
 impl Filtered for FilterU8 {
@@ -133,6 +133,11 @@ impl Filtered for FilterU8 {
             Err(obstacle.into())
         }
     }
+}
+
+impl FilterU8 {
+    const ANY: Self = Self(u8::MAX);
+    const DENY: Self = Self(u8::MIN);
 }
 
 macro_rules! impl_for_node_values {

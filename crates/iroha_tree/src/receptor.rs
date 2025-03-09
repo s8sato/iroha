@@ -42,7 +42,7 @@ impl Filtered for event::Event {
             let receptor_union = filter
                 .iter()
                 .filter_map(|(k, v)| receptor_keys.contains(k).then_some(v).map(FilterU8::from))
-                .fold(FilterU8::default(), |acc, x| acc | x);
+                .fold(FilterU8::DENY, |acc, x| acc | x);
             if let Err(obs) = signal.passes(&receptor_union) {
                 obstacle.insert(key.clone(), NodeValue::from((key, obs)));
             }
