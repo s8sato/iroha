@@ -39,7 +39,7 @@ impl Mode for ReadWriteStatus {
 /// - Out, effectively Send: reducing something without breaking total balance
 /// - In, effectively Receive: adding something without breaking total balance
 /// - Read: accessing something without modifying it
-const STATUS_CHARS: [char; 8] = ['d', 'c', 'b', 'm', 'u', 'o', 'i', 'r'];
+pub const STATUS_CHARS: [char; 8] = ['d', 'c', 'b', 'm', 'u', 'o', 'i', 'r'];
 
 macro_rules! u8_status {
     (d) => {
@@ -67,8 +67,6 @@ macro_rules! u8_status {
         0b0000_0001
     };
 }
-
-// TODO impl SerializeDisplay and DeserializeFromStr for *S
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]

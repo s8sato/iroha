@@ -16,13 +16,16 @@
 
 use std::{
     collections::HashMap,
-    fmt::Debug,
+    convert::Infallible,
+    fmt::{Debug, Display},
     hash::Hash,
     ops::{Add, BitOr},
     rc::Rc,
+    str::FromStr,
 };
 
 use derive_more::{BitOr, Constructor, From};
+use serde_with::{DeserializeFromStr, SerializeDisplay};
 
 /// A flattened node map with a fixed skeleton equivalent to the world state.
 /// Node values may vary by mode.
@@ -120,7 +123,7 @@ pub trait Filtered {
     fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter>;
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, From, BitOr)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, From, BitOr, SerializeDisplay, DeserializeFromStr)]
 pub struct FilterU8(u8);
 
 impl Filtered for FilterU8 {
@@ -133,6 +136,33 @@ impl Filtered for FilterU8 {
         } else {
             Err(obstacle.into())
         }
+    }
+}
+
+impl FromStr for FilterU8 {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let byte = event::STATUS_CHARS.into_iter().fold(u8::MIN, |mut acc, c| {
+            acc <<= 1;
+            acc + u8::from(s.contains(c))
+        });
+        Ok(byte.into())
+    }
+}
+
+impl Display for FilterU8 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut byte = self.0;
+        for c in event::STATUS_CHARS {
+            if byte & 0b1000_0000 == 0b1000_0000 {
+                write!(f, "{c}")?;
+            } else {
+                write!(f, "-")?;
+            }
+            byte <<= 1;
+        }
+        Ok(())
     }
 }
 
@@ -367,4 +397,28 @@ use transitional as tr;
 
 pub mod dm {
     pub use iroha_data_model::{ipfs::IpfsPath, parameter::CustomParameterId, prelude::*, Level};
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serde_filter_u8() {
+        use serde_json::{from_str as de, to_string as ser};
+        // Be conservative in what we do.
+        assert_eq!(ser(&FilterU8::DENY).unwrap(), r#""--------""#);
+        assert_eq!(ser(&FilterU8::ANY).unwrap(), r#""dcbmuoir""#);
+        assert_eq!(ser(&FilterU8::from(0b1100_1001)).unwrap(), r#""dc--u--r""#);
+        // Be liberal in what we accept from others.
+        assert_eq!(de::<FilterU8>(r#""""#).unwrap(), FilterU8::DENY);
+        assert_eq!(de::<FilterU8>(r#""--------""#).unwrap(), FilterU8::DENY);
+        assert_eq!(de::<FilterU8>(r#""--------ext""#).unwrap(), FilterU8::DENY);
+        assert_eq!(de::<FilterU8>(r#""dcbmuoir""#).unwrap(), FilterU8::ANY);
+        assert_eq!(de::<FilterU8>(r#""rioumbcd""#).unwrap(), FilterU8::ANY);
+        assert_eq!(de::<FilterU8>(r#""d-------""#).unwrap(), 0b1000_0000.into());
+        assert_eq!(de::<FilterU8>(r#""-------r""#).unwrap(), 0b0000_0001.into());
+        assert_eq!(de::<FilterU8>(r#""dc--u--r""#).unwrap(), 0b1100_1001.into());
+        assert_eq!(de::<FilterU8>(r#""rdrdr""#).unwrap(), 0b1000_0001.into());
+    }
 }
