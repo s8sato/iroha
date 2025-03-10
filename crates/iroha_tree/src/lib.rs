@@ -12,6 +12,7 @@
 
 #![allow(missing_docs)] // SATO disallow
 #![allow(dead_code)] // SATO disallow
+#![expect(missing_copy_implementations)]
 
 use std::{
     collections::HashMap,
@@ -26,7 +27,7 @@ use derive_more::{BitOr, Constructor, From};
 /// A flattened node map with a fixed skeleton equivalent to the world state.
 /// Node values may vary by mode.
 #[derive(Debug, PartialEq, Eq)]
-struct Tree<M: Mode>(HashMap<NodeKey, NodeValue<M>>);
+pub struct Tree<M: Mode>(HashMap<NodeKey, NodeValue<M>>);
 
 macro_rules! declare_nodes {
     ($(($variant:ident, $key:ident: $($key_element:ty),*),)+) => {
@@ -34,7 +35,7 @@ macro_rules! declare_nodes {
         /// A `None` key element represents __any__ node.
         /// For example, `(None, domain): AccountKey` represents any account within the specified `domain`.
         #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-        enum NodeKey {
+        pub enum NodeKey {
             $(
             $variant($key),
             )+
@@ -46,14 +47,14 @@ macro_rules! declare_nodes {
 
         /// Represents various states such as the current state, intention, result, or readiness at a given point in the world.
         #[derive(Debug, PartialEq, Eq)]
-        enum NodeValue<M: Mode> {
+        pub enum NodeValue<M: Mode> {
             $(
             $variant(M::$variant),
             )+
         }
 
         /// This trait implementation serves as a declaration of node values.
-        trait Mode {
+        pub trait Mode {
             $(
             type $variant: Debug + PartialEq + Eq;
             )+
@@ -104,13 +105,13 @@ declare_nodes!(
     (TriggerMetadata, TriggerMetadataKey: dm::TriggerId, dm::Name),
 );
 
-trait NodeReadWrite: Filtered {
+pub trait NodeReadWrite: Filtered {
     type Status: Filtered;
 
     fn as_status(&self) -> Self::Status;
 }
 
-trait Filtered {
+pub trait Filtered {
     type Filter;
 
     /// # Errors
@@ -120,7 +121,7 @@ trait Filtered {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, From, BitOr)]
-struct FilterU8(u8);
+pub struct FilterU8(u8);
 
 impl Filtered for FilterU8 {
     type Filter = Self;
@@ -138,6 +139,14 @@ impl Filtered for FilterU8 {
 impl FilterU8 {
     const ANY: Self = Self(u8::MAX);
     const DENY: Self = Self(u8::MIN);
+}
+
+#[derive(Debug, Constructor)]
+/// SATO docs
+pub struct NodeConflict<M: Mode> {
+    pub key: NodeKey,
+    pub lhs: NodeValue<M>,
+    pub rhs: NodeValue<M>,
 }
 
 macro_rules! impl_for_node_values {
@@ -263,36 +272,41 @@ impl<M: Mode> FromIterator<(NodeKey, NodeValue<M>)> for Tree<M> {
     }
 }
 
+impl<M: Mode> IntoIterator for Tree<M> {
+    type Item = (NodeKey, NodeValue<M>);
+    type IntoIter = std::collections::hash_map::IntoIter<NodeKey, NodeValue<M>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 impl<M: Mode> Tree<M> {
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
-    fn get(&self, key: &NodeKey) -> Option<&NodeValue<M>> {
+    pub fn get(&self, key: &NodeKey) -> Option<&NodeValue<M>> {
         self.0.get(key)
     }
 
-    fn insert(&mut self, key: NodeKey, value: NodeValue<M>) -> Option<NodeValue<M>> {
+    pub fn insert(&mut self, key: NodeKey, value: NodeValue<M>) -> Option<NodeValue<M>> {
         assert!(consistent_key_value(&key, &value));
         self.0.insert(key, value)
     }
 
-    fn remove(&mut self, key: &NodeKey) -> Option<NodeValue<M>> {
+    pub fn remove(&mut self, key: &NodeKey) -> Option<NodeValue<M>> {
         self.0.remove(key)
     }
 
-    fn iter(&self) -> impl Iterator<Item = (&NodeKey, &NodeValue<M>)> {
+    pub fn iter(&self) -> impl Iterator<Item = (&NodeKey, &NodeValue<M>)> {
         self.0.iter()
-    }
-
-    fn into_iter(self) -> impl Iterator<Item = (NodeKey, NodeValue<M>)> {
-        self.0.into_iter()
     }
 }
 
 macro_rules! node_key_value {
     (_ $node:ident, $key:expr, $value:expr) => {
-        (NodeKey::$node($key), NodeValue::$node($value))
+        ($crate::NodeKey::$node($key), $crate::NodeValue::$node($value))
     };
     ($node:ident, $value:expr) => {
         node_key_value!(_ $node, (), $value)
@@ -311,14 +325,14 @@ macro_rules! node_key_value {
     };
 }
 
-mod changeset;
-mod event;
-mod permission;
-mod readset;
-mod receptor;
-mod state;
+pub mod changeset;
+pub mod event;
+pub mod permission;
+pub mod readset;
+pub mod receptor;
+pub mod state;
 
-mod transitional {
+pub mod transitional {
     use super::*;
 
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -351,6 +365,6 @@ mod transitional {
 
 use transitional as tr;
 
-mod dm {
+pub mod dm {
     pub use iroha_data_model::{ipfs::IpfsPath, parameter::CustomParameterId, prelude::*, Level};
 }

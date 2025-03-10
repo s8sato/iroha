@@ -83,7 +83,7 @@ pub enum PermissionW {
 pub enum TriggerW {
     Increase(u32),
     Decrease(u32),
-    Create(state::tr::TriggerValue),
+    Create(Box<state::tr::TriggerValue>),
     Delete(()),
 }
 
@@ -110,15 +110,15 @@ impl NodeReadWrite for ChangeSet {
 }
 
 impl Add for ChangeSet {
-    type Output = Result<Self, (NodeKey, NodeValue<Write>, NodeValue<Write>)>;
+    type Output = Result<Self, Box<NodeConflict<Write>>>;
 
     fn add(self, mut rhs: Self) -> Self::Output {
-        for (k, v0) in self.into_iter() {
+        for (k, v0) in self {
             let v = match rhs.remove(&k) {
                 None => v0,
                 Some(v1) => match v0 + v1 {
                     Ok(v) => v,
-                    Err((v0, v1)) => return Err((k, v0, v1)),
+                    Err((v0, v1)) => return Err(NodeConflict::new(k, v0, v1).into()),
                 },
             };
             rhs.insert(k, v);
@@ -237,45 +237,10 @@ impl Add for TriggerW {
 }
 
 mod transitional {
-    use iroha_core::tx;
-
     use super::*;
 
-    type State<'block, 'state> = iroha_core::state::StateTransaction<'block, 'state>;
-
-    impl<'block, 'state> ChangeSet {
-        /// Unordered reflection to state, allowing inconsistencies between nodes.
-        fn apply(
-            self,
-            state: &mut State<'block, 'state>,
-        ) -> Result<event::Event, InvariantsViolation> {
-            let event = self.as_status();
-
-            #[expect(clippy::never_loop)]
-            for (_k, _v) in self.into_iter() {
-                unimplemented!(
-                    "todo when instructions as an executable were replaced with a changeset"
-                )
-            }
-
-            event.sanitize(state)?;
-            Ok(event)
-        }
-    }
-
-    impl<'block, 'state> event::Event {
-        /// Scan and resolve inconsistencies based on events.
-        #[expect(clippy::unused_self)]
-        fn sanitize(&self, _state: &mut State<'block, 'state>) -> Result<(), InvariantsViolation> {
-            // TODO #4672 Cascade or restrict on delete.
-            unimplemented!("todo when instructions as an executable were replaced with a changeset")
-        }
-    }
-
-    struct InvariantsViolation;
-
     impl TryFrom<(dm::AccountId, Vec<dm::InstructionBox>)> for ChangeSet {
-        type Error = (NodeKey, NodeValue<Write>, NodeValue<Write>);
+        type Error = Box<NodeConflict<Write>>;
 
         fn try_from(
             (auth, instructions): (dm::AccountId, Vec<dm::InstructionBox>),
@@ -289,16 +254,15 @@ mod transitional {
     }
 
     impl TryFrom<(dm::AccountId, dm::InstructionBox)> for ChangeSet {
-        type Error = (NodeKey, NodeValue<Write>, NodeValue<Write>);
+        type Error = Box<NodeConflict<Write>>;
 
         #[expect(clippy::too_many_lines)]
         fn try_from(
             (auth, instruction): (dm::AccountId, dm::InstructionBox),
         ) -> Result<Self, Self::Error> {
             use dm::{
-                numeric, BurnBox, EventFilterBox, GrantBox, InstructionBox, MintBox, Numeric,
-                RegisterBox, RemoveKeyValueBox, RevokeBox, SetKeyValueBox, TransferBox,
-                UnregisterBox,
+                numeric, BurnBox, GrantBox, InstructionBox, MintBox, Numeric, RegisterBox,
+                RemoveKeyValueBox, RevokeBox, SetKeyValueBox, TransferBox, UnregisterBox,
             };
 
             let map: HashMap<_, _> = match instruction {
@@ -389,41 +353,25 @@ mod transitional {
                     .into(),
                     RegisterBox::Trigger(inst) => {
                         let mut map = HashMap::new();
-                        let receptor: receptor::Receptor = match inst.object.action.filter {
-                            EventFilterBox::Data(filter) => filter.into(),
-                            EventFilterBox::Time(_filter) => {
-                                todo!("extend receptors to accommodate time events?")
-                            }
-                            _ => {
-                                unimplemented!("other event types should not be used for triggers")
-                            }
-                        };
-                        let executable: state::tr::TriggerExecutable =
-                            match inst.object.action.executable {
-                                tx::Executable::Instructions(instructions) => {
-                                    ChangeSet::try_from((auth.clone(), instructions.into_vec()))?
-                                        .into()
-                                }
-                                tx::Executable::Wasm(wasm) => {
-                                    let wasm_id: tr::WasmExecutableId =
-                                        tx::HashOf::new(&wasm).into();
-                                    let (k, v) = node_key_value!(
-                                        Executable,
-                                        wasm_id.clone(),
-                                        ExecutableW::Set(wasm)
-                                    );
-                                    map.insert(k, v);
-                                    wasm_id.into()
-                                }
-                            };
+                        let (executable, wasm_entry) =
+                            state::tr::TriggerExecutable::from_and_entry(
+                                inst.object.action.executable,
+                                auth.clone(),
+                            )?;
+                        if let Some((k, v)) = wasm_entry {
+                            map.insert(k, v);
+                        }
                         let (k, v) = node_key_value!(
                             Trigger,
                             inst.object.id.clone(),
-                            TriggerW::Create(state::tr::TriggerValue::new(
-                                receptor,
-                                executable,
-                                inst.object.action.repeats,
-                            ))
+                            TriggerW::Create(
+                                state::tr::TriggerValue::new(
+                                    inst.object.action.filter.into(),
+                                    executable,
+                                    inst.object.action.repeats,
+                                )
+                                .into()
+                            )
                         );
                         map.insert(k, v);
                         let (k, v) = node_key_value!(

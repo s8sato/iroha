@@ -94,7 +94,11 @@ pub mod transitional {
     }
 
     impl TriggerValue {
-        fn leads_to_event_loop(&self, candidate_id: &dm::TriggerId, state: &PartialState) -> bool {
+        pub fn leads_to_event_loop(
+            &self,
+            candidate_id: &dm::TriggerId,
+            state: &PartialState,
+        ) -> bool {
             let mut triggers: HashMap<_, _> = state.triggers().collect();
             triggers.insert(candidate_id, self);
             let mut stack = vec![candidate_id];
@@ -123,6 +127,47 @@ pub mod transitional {
                 stack.extend(next_trigger_ids);
             }
             false
+        }
+    }
+
+    impl TryFrom<dm::Action> for TriggerValue {
+        type Error = TryFromError;
+
+        fn try_from(value: dm::Action) -> Result<Self, Self::Error> {
+            let (executable, wasm_entry) =
+                TriggerExecutable::from_and_entry(value.executable, value.authority)?;
+            iroha_logger::info!("discarding Wasm entry:\n{wasm_entry:#?}");
+            Ok(Self::new(value.filter.into(), executable, value.repeats))
+        }
+    }
+
+    type WasmEntry = Option<(NodeKey, NodeValue<changeset::Write>)>;
+    type TryFromError = Box<NodeConflict<changeset::Write>>;
+
+    impl TriggerExecutable {
+        /// # Errors
+        ///
+        /// SATO docs
+        pub fn from_and_entry(
+            executable: dm::Executable,
+            authority: dm::AccountId,
+        ) -> Result<(Self, WasmEntry), TryFromError> {
+            match executable {
+                dm::Executable::Instructions(instructions) => {
+                    let changeset =
+                        changeset::ChangeSet::try_from((authority, instructions.into_vec()))?;
+                    Ok((changeset.into(), None))
+                }
+                dm::Executable::Wasm(wasm) => {
+                    let wasm_id = crate::tr::WasmExecutableId::from(dm::HashOf::new(&wasm));
+                    let (k, v) = node_key_value!(
+                        Executable,
+                        wasm_id.clone(),
+                        changeset::ExecutableW::Set(wasm)
+                    );
+                    Ok((wasm_id.into(), Some((k, v))))
+                }
+            }
         }
     }
 }

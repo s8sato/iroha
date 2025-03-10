@@ -157,6 +157,21 @@ mod transitional {
     use super::*;
     use crate::event::*;
 
+    impl From<dm::EventFilterBox> for Receptor {
+        fn from(value: dm::EventFilterBox) -> Self {
+            use dm::EventFilterBox;
+            match value {
+                EventFilterBox::Data(filter) => filter.into(),
+                EventFilterBox::Pipeline(_) | EventFilterBox::Time(_) => {
+                    todo!("extend receptors to accommodate pipeline and time events?")
+                }
+                _ => {
+                    unimplemented!("other event types should be deprecated")
+                }
+            }
+        }
+    }
+
     macro_rules! node_key_filter {
         (_ $node:ident, $key:expr, $status:expr) => {
             (NodeKey::$node($key), NodeValue::$node($status.into()))

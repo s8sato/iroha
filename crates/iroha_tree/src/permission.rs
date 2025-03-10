@@ -24,7 +24,7 @@ impl BitOr for Permission {
     type Output = Self;
 
     fn bitor(self, mut rhs: Self) -> Self::Output {
-        for (k, v0) in self.into_iter() {
+        for (k, v0) in self {
             let v = match rhs.remove(&k) {
                 None => v0,
                 Some(v1) => v0 | v1,

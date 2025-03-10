@@ -28,6 +28,28 @@ pub mod isi {
             _authority: &AccountId,
             state_transaction: &mut StateTransaction<'_, '_>,
         ) -> Result<(), Error> {
+            #[cfg(feature = "prediction")]
+            {
+                use iroha_tree::{readset, state, NodeKey, NodeValue};
+                let candidate_id = self.object.id.clone();
+                let candidate_value: state::tr::TriggerValue =
+                    match self.object.action.clone().try_into() {
+                        Ok(v) => v,
+                        Err(node_conflict) => {
+                            return Err(Error::Conversion(format!(
+                                "failed to fold instructions into changeset:\n{node_conflict:#?}"
+                            )));
+                        }
+                    };
+                let readset: readset::ReadSet = [(NodeKey::Trigger(None), NodeValue::Trigger(()))]
+                    .into_iter()
+                    .collect();
+                let partial_state = state_transaction.load(&readset);
+                if candidate_value.leads_to_event_loop(&candidate_id, &partial_state) {
+                    return Err(Error::InvariantViolation(format!("trigger registration leads to event loop:\ncandidate id:\n{candidate_id:#?}\ncandidate value:\n{candidate_value:#?}")));
+                }
+            }
+
             let new_trigger = self.object;
 
             if !new_trigger.action.filter.mintable() {

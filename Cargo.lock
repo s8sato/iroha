@@ -3227,6 +3227,7 @@ dependencies = [
  "iroha_primitives",
  "iroha_telemetry",
  "iroha_test_samples",
+ "iroha_tree",
  "iroha_version",
  "iroha_wasm_codec",
  "mv",
@@ -3829,11 +3830,9 @@ name = "iroha_tree"
 version = "2.0.0-rc.1.0"
 dependencies = [
  "derive_more",
- "iroha_core",
  "iroha_data_model",
  "iroha_executor_data_model",
  "iroha_logger",
- "mv",
 ]
 
 [[package]]
