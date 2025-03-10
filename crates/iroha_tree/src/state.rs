@@ -29,8 +29,6 @@ impl Mode for () {
 pub mod transitional {
     use std::collections::HashSet;
 
-    use iroha_core::state::StateReadOnly;
-
     use super::*;
 
     #[derive(Debug, PartialEq, Eq)]
@@ -87,24 +85,18 @@ pub mod transitional {
     }
 
     impl PartialState {
-        fn triggers(&self) -> HashMap<dm::TriggerId, &TriggerValue> {
-            // self
-            //     .iter()
-            //     .filter_by(NodeKey::Trigger(None))
-            //     .map(|(NodeKey::Trigger(Some(k)), NodeValue::Trigger(v))| (k, v))
-            //     .collect()
-            todo!()
-        }
-
-        fn load(_state: &impl StateReadOnly, _keys: &impl Iterator<Item = NodeKey>) -> Self {
-            todo!()
+        fn triggers(&self) -> impl Iterator<Item = (&dm::TriggerId, &TriggerValue)> {
+            self.iter().filter_map(|(k, v)| match (k, v) {
+                (NodeKey::Trigger(Some(k)), NodeValue::Trigger(v)) => Some((&**k, v)),
+                _ => None,
+            })
         }
     }
 
     impl TriggerValue {
-        fn leads_event_loops(&self, candidate_id: &dm::TriggerId, state: &PartialState) -> bool {
-            let mut triggers = state.triggers();
-            triggers.insert(candidate_id.clone(), self);
+        fn leads_to_event_loop(&self, candidate_id: &dm::TriggerId, state: &PartialState) -> bool {
+            let mut triggers: HashMap<_, _> = state.triggers().collect();
+            triggers.insert(candidate_id, self);
             let mut stack = vec![candidate_id];
             let mut seen = HashSet::new();
             while let Some(trigger_id) = stack.pop() {
@@ -114,12 +106,17 @@ pub mod transitional {
                 seen.insert(trigger_id);
                 let event_expected = match &triggers[trigger_id].executable {
                     state::tr::TriggerExecutable::Static(changeset) => changeset.as_status(),
-                    state::tr::TriggerExecutable::Dynamic(_wasm) => todo!(),
+                    state::tr::TriggerExecutable::Dynamic(_wasm) => {
+                        todo!("Wasm executable should declare the union of possible events")
+                    }
                 };
-                // TODO update detection of trigger mutations
-                // if event_expected.iter().any(|(k, _v)| k.is_trigger()) {
-                //     return true;
-                // }
+                if event_expected
+                    .iter()
+                    .any(|(_k, v)| matches!(v, NodeValue::Trigger(event::TriggerS::Create)))
+                {
+                    // Trigger registration by another trigger is not allowed unless Wasm executables declare the candidate trigger executables.
+                    return true;
+                }
                 let next_trigger_ids = triggers
                     .iter()
                     .filter_map(|(id, v)| event_expected.passes(&v.receptor).is_ok().then_some(id));

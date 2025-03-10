@@ -264,7 +264,7 @@ mod transitional {
     // TODO Separate into registration and ownership transfer.
     // xp::trigger::CanRegisterTrigger
 
-    // TODO No validation should be performed when calling wasm executables, as they are resolved into event predictions and then validated.
+    // TODO No validation should be performed when calling Wasm executables, as they are resolved into event predictions and then validated.
     // xp::trigger::CanExecuteTrigger
 
     impl_into_permission!(

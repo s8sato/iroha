@@ -3833,6 +3833,7 @@ dependencies = [
  "iroha_data_model",
  "iroha_executor_data_model",
  "iroha_logger",
+ "mv",
 ]
 
 [[package]]
