@@ -174,7 +174,7 @@ mod transitional {
 
     macro_rules! node_key_filter {
         (_ $node:ident, $key:expr, $status:expr) => {
-            (NodeKey::$node($key), NodeValue::$node($status.into()))
+            (NodeKey::$node($key), NodeValue::<ReadWriteStatusFilter>::$node($status.into()))
         };
         ($node:ident, $status:expr) => {
             node_key_filter!(_ $node, (), $status)

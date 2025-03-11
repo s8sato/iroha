@@ -42,7 +42,7 @@ impl State<'_, '_> {
         unimplemented!("todo when instructions as an executable were replaced with a changeset")
     }
 
-    /// SATO doc
+    /// SATO docs
     pub fn load(&self, readset: &readset::ReadSet) -> state::PartialState {
         let mut res = state::PartialState::default();
         for (k, _v) in readset.iter() {

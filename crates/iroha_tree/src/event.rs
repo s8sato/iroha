@@ -1,5 +1,6 @@
 use super::*;
 
+// SATO include the original transaction hash
 pub type Event = Tree<ReadWriteStatus>;
 
 #[derive(Debug, PartialEq, Eq)]

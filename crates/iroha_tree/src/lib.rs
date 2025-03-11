@@ -28,7 +28,7 @@ use derive_more::{BitOr, Constructor, From};
 use serde_with::{DeserializeFromStr, SerializeDisplay};
 
 /// A flattened node map with a fixed skeleton equivalent to the world state.
-/// Node values may vary by mode.
+/// Node values may vary by [`Mode`].
 #[derive(Debug, PartialEq, Eq)]
 pub struct Tree<M: Mode>(HashMap<NodeKey, NodeValue<M>>);
 
@@ -48,7 +48,7 @@ macro_rules! declare_nodes {
         declare_nodes!(_key_alias $key: $($key_element),*);
         )+
 
-        /// Represents various states such as the current state, intention, result, or readiness at a given point in the world.
+        /// Represents various states such as the current state, intention, result, or readiness at the node.
         #[derive(Debug, PartialEq, Eq)]
         pub enum NodeValue<M: Mode> {
             $(

@@ -181,7 +181,7 @@ impl EventFilter for EventFilterBox {
         match (event, self) {
             (EventBox::Pipeline(event), Self::Pipeline(filter)) => filter.matches(event),
             // SATO EventFilterBox::matches
-            // // (EventBox::Data(event), Self::Data(filter)) => filter.matches(event),
+            (EventBox::Data(event), Self::Data(filter)) => filter.matches(event),
             // (EventBox::Data(event), Self::Data(filter)) => {
             //     let event = tree::Event::from(event);
             //     let receptor = tree::Receptor::from(filter);
