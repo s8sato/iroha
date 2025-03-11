@@ -173,3 +173,79 @@ pub mod transitional {
 }
 
 pub use transitional as tr;
+
+#[cfg(test)]
+mod tests {
+    use dm::{DomainId, Repeats, TriggerId};
+    use tr::TriggerExecutable;
+
+    use super::{transitional::TriggerValue, *};
+    use crate::{
+        changeset::{ChangeSet, DomainW, TriggerW},
+        receptor::Receptor,
+    };
+
+    #[test]
+    fn event_loop_detection() {
+        // Subscribes to changes in the domain `dom_{i}` with statuses `{s}`.
+        let receptor = |i: usize, s: &str| {
+            Receptor::from_iter([node_key_value!(
+                Domain,
+                DomainId::from_str(&format!("dom_{i}")).unwrap(),
+                FilterU8::from_str(s).unwrap()
+            )])
+        };
+        // Publishes the deletion of the domain `dom_{j}`.
+        let executable = |j: usize| {
+            TriggerExecutable::from(ChangeSet::from_iter([node_key_value!(
+                Domain,
+                DomainId::from_str(&format!("dom_{j}")).unwrap(),
+                DomainW::Delete(())
+            )]))
+        };
+        // Bridges the above subscriber and publisher.
+        let trigger = |i: usize, s: &str, j: usize| {
+            (
+                TriggerId::from_str(&format!("trg_{i}_{j}")).unwrap(),
+                TriggerValue::new(receptor(i, s), executable(j), Repeats::Indefinitely),
+            )
+        };
+
+        let (trg_0d_1d, trg_1d_2d) = (trigger(0, "d", 1), trigger(1, "d", 2));
+        let state = PartialState::from_iter([
+            node_key_value!(Trigger, trg_0d_1d.0, trg_0d_1d.1),
+            // A potential connection exists through the deletion of `dom_1`.
+            node_key_value!(Trigger, trg_1d_2d.0, trg_1d_2d.1),
+        ]);
+
+        for ((candidate_id, candidate_value), leads_to_event_loop) in [
+            // Short-circuiting.
+            (trigger(2, "d", 0), true),
+            // No short-circuiting due to status mismatch.
+            (trigger(2, "uc", 0), false),
+            // Extending the graph.
+            (trigger(2, "d", 3), false),
+            // Creating another cyclic cluster.
+            (trigger(3, "d", 3), true),
+            // Creating another acyclic cluster.
+            (trigger(3, "d", 4), false),
+            {
+                let mut trg_3d_x = trigger(3, "d", 4);
+                let another = trigger(10, "", 20);
+                trg_3d_x.1.executable = ChangeSet::from_iter([node_key_value!(
+                    Trigger,
+                    another.0,
+                    TriggerW::Create(another.1.into())
+                )])
+                .into();
+                // Creating an additional trigger.
+                (trg_3d_x, true)
+            },
+        ] {
+            assert_eq!(
+                leads_to_event_loop,
+                candidate_value.leads_to_event_loop(&candidate_id, &state)
+            );
+        }
+    }
+}
