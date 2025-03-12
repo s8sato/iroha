@@ -2,7 +2,7 @@
 
 use std::rc::Rc;
 
-use iroha_tree::{changeset, event, readset, state};
+use iroha_tree::{changeset, event, node_key_value, readset, receptor, state};
 use mv::storage::StorageReadOnly;
 
 use super::*;
@@ -48,41 +48,68 @@ impl State<'_, '_> {
         for (k, _v) in readset.iter() {
             match k {
                 NodeKey::Trigger(key) => {
-                    self
-                        .world()
+                    self.world()
                         .triggers()
-                        .data_triggers() // SATO other than data triggers?
+                        // Other types of triggers are irrelevant as long as this function is used solely for event loop detection.
+                        .data_triggers()
                         .iter()
-                        .filter(|(k, _v)| key.as_ref().map_or(true, |key| **key == **k))
-                        .for_each(|(k, v)| {
-                            let id = Rc::new(k.clone());
-                            // let admin_signatory = Rc::new(v.authority.signatory.clone());
-                            // let admin_domain = Rc::new(v.authority.domain.clone());
-                            let k0 = NodeKey::Trigger(Some(id.clone()));
-                            let v0 = {
-                                let receptor = v.filter.clone().into();
-                                let executable = match v.executable() {
-                                    ExecutableRef::Wasm(hash) => {
-                                        state::tr::TriggerExecutable::Dynamic((*hash).into())
-                                    }
-                                    ExecutableRef::Instructions(instructions) => {
-                                        let changeset = (
-                                            v.authority.clone(),
-                                            instructions.clone().into_vec(),
-                                        )
-                                            .try_into()
-                                            .expect("instructions that are already registered as an executable should be converted into a changeset");
-                                        state::tr::TriggerExecutable::Static(changeset)
-                                    }
-                                };
-                                NodeValue::Trigger(state::tr::TriggerValue::new(
-                                    receptor, executable, v.repeats,
-                                ))
+                        .filter(|(id, _)| key.as_ref().map_or(true, |key| **key == **id))
+                        .for_each(|(id, action)| {
+                            let trigger = state::tr::TriggerValue::from(action.repeats);
+                            let condition = receptor::Receptor::from(action.filter.clone()).into();
+                            let executable = match action.executable() {
+                                ExecutableRef::Wasm(_hash) => {
+                                    let wasm = state::tr::WasmExecutable;
+                                    state::tr::ExecutableValue::Dynamic(wasm)
+                                }
+                                ExecutableRef::Instructions(instructions) => {
+                                    let changeset = (
+                                        action.authority.clone(),
+                                        instructions.clone().into_vec(),
+                                    )
+                                        .try_into()
+                                        .expect("instructions that are already registered as an executable should be converted into a changeset");
+                                    state::tr::ExecutableValue::Static(changeset)
+                                }
                             };
-                            res.insert(k0, v0);
-                            // let k1 = NodeKey::AccountTrigger((Some(admin_signatory), Some(admin_domain), Some(id.clone())));
-                            // let v1 = NodeValue::AccountTrigger(());
-                            // res.insert(k1, v1);
+                            let trigger_id = id.clone();
+                            let condition_id = trigger_id.clone();
+                            let executable_id = trigger_id.clone();
+
+                            for (k, v) in [
+                                node_key_value!(Trigger, trigger_id.clone(), trigger),
+                                node_key_value!(
+                                    Condition,
+                                    condition_id.clone(),
+                                    condition
+                                ),
+                                node_key_value!(
+                                    Executable,
+                                    executable_id.clone(),
+                                    executable
+                                ),
+                                node_key_value!(
+                                    TriggerCondition,
+                                    trigger_id.clone(),
+                                    condition_id,
+                                    ()
+                                ),
+                                node_key_value!(
+                                    TriggerExecutable,
+                                    trigger_id.clone(),
+                                    executable_id,
+                                    ()
+                                ),
+                                node_key_value!(
+                                    AccountTrigger,
+                                    action.authority.signatory.clone(),
+                                    action.authority.domain.clone(),
+                                    trigger_id,
+                                    ()
+                                ),
+                            ] {
+                                res.insert(k, v);
+                            }
                         })
                 }
                 _ => unimplemented!("no use for now"),

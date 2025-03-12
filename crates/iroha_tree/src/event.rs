@@ -1,6 +1,5 @@
 use super::*;
 
-// SATO include the original transaction hash
 pub type Event = Tree<ReadWriteStatus>;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -21,8 +20,11 @@ impl Mode for ReadWriteStatus {
     type AccountPermission = UnitS;
     type RolePermission = UnitS;
     type Trigger = TriggerS;
-    type AccountTrigger = UnitS;
+    type Condition = ConditionS;
     type Executable = ExecutableS;
+    type TriggerCondition = UnitS;
+    type TriggerExecutable = UnitS;
+    type AccountTrigger = UnitS;
     type DomainMetadata = MetadataS;
     type AccountMetadata = MetadataS;
     type AssetMetadata = MetadataS;
@@ -147,6 +149,14 @@ pub enum TriggerS {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
+pub enum ConditionS {
+    Read = u8_status!(r),
+    Set = u8_status!(c),
+    Unset = u8_status!(d),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(u8)]
 pub enum ExecutableS {
     Read = u8_status!(r),
     Set = u8_status!(c),
@@ -207,6 +217,7 @@ impl_from_read_write_filtered!(
     (AccountAssetS, AccountAssetW: Receive | Send | Mint | Burn),
     (PermissionS, PermissionW: Set | Unset),
     (TriggerS, TriggerW: Increase | Decrease | Create | Delete),
+    (ConditionS, ConditionW: Set | Unset),
     (ExecutableS, ExecutableW: Set | Unset),
     (MetadataS, MetadataW: Set | Unset),
 );

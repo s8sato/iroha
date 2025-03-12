@@ -20,8 +20,11 @@ impl Mode for Read {
     type AccountPermission = UnitR;
     type RolePermission = UnitR;
     type Trigger = UnitR;
-    type AccountTrigger = UnitR;
+    type Condition = UnitR;
     type Executable = UnitR;
+    type TriggerCondition = UnitR;
+    type TriggerExecutable = UnitR;
+    type AccountTrigger = UnitR;
     type DomainMetadata = UnitR;
     type AccountMetadata = UnitR;
     type AssetMetadata = UnitR;

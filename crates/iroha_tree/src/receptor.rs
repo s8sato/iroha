@@ -22,8 +22,11 @@ impl Mode for ReadWriteStatusFilter {
     type AccountPermission = FilterU8;
     type RolePermission = FilterU8;
     type Trigger = FilterU8;
-    type AccountTrigger = FilterU8;
+    type Condition = FilterU8;
     type Executable = FilterU8;
+    type TriggerCondition = FilterU8;
+    type TriggerExecutable = FilterU8;
+    type AccountTrigger = FilterU8;
     type DomainMetadata = FilterU8;
     type AccountMetadata = FilterU8;
     type AssetMetadata = FilterU8;
@@ -142,8 +145,11 @@ impl NodeKey {
             AccountPermission(key) => receptor_keys!(3 AccountPermission, key),
             RolePermission(key) => receptor_keys!(2 RolePermission, key),
             Trigger(key) => receptor_keys!(1 Trigger, key),
-            AccountTrigger(key) => receptor_keys!(3 AccountTrigger, key),
+            Condition(key) => receptor_keys!(1 Condition, key),
             Executable(key) => receptor_keys!(1 Executable, key),
+            TriggerCondition(key) => receptor_keys!(2 TriggerCondition, key),
+            TriggerExecutable(key) => receptor_keys!(2 TriggerExecutable, key),
+            AccountTrigger(key) => receptor_keys!(3 AccountTrigger, key),
             DomainMetadata(key) => receptor_keys!(2 DomainMetadata, key),
             AccountMetadata(key) => receptor_keys!(3 AccountMetadata, key),
             AssetMetadata(key) => receptor_keys!(3 AssetMetadata, key),
@@ -157,17 +163,19 @@ mod transitional {
     use super::*;
     use crate::event::*;
 
-    impl From<dm::EventFilterBox> for Receptor {
-        fn from(value: dm::EventFilterBox) -> Self {
-            use dm::EventFilterBox;
+    impl TryFrom<dm::EventFilterBox> for state::tr::ConditionValue {
+        type Error = &'static str;
+
+        fn try_from(value: dm::EventFilterBox) -> Result<Self, Self::Error> {
+            use dm::{EventFilterBox, ExecutionTime};
             match value {
-                EventFilterBox::Data(filter) => filter.into(),
-                EventFilterBox::Pipeline(_) | EventFilterBox::Time(_) => {
-                    todo!("extend receptors to accommodate pipeline and time events?")
-                }
-                _ => {
-                    unimplemented!("other event types should be deprecated")
-                }
+                EventFilterBox::Data(filter) => Ok(Receptor::from(filter).into()),
+                EventFilterBox::Time(filter) => match filter.0 {
+                    ExecutionTime::PreCommit => Ok(state::tr::BlockCommit.into()),
+                    ExecutionTime::Schedule(schedule) => Ok(schedule.into()),
+                },
+                EventFilterBox::Pipeline(_) => Err("pipeline triggers are scheduled for removal"),
+                _ => Err("these event types are scheduled for removal"),
             }
         }
     }

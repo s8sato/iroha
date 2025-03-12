@@ -31,22 +31,36 @@ pub mod isi {
             #[cfg(feature = "prediction")]
             {
                 use iroha_tree::{readset, state, NodeKey, NodeValue};
-                let candidate_id = self.object.id.clone();
-                let candidate_value: state::tr::TriggerValue =
-                    match self.object.action.clone().try_into() {
-                        Ok(v) => v,
-                        Err(node_conflict) => {
-                            return Err(Error::Conversion(format!(
-                                "failed to fold instructions into changeset:\n{node_conflict:#?}"
-                            )));
-                        }
-                    };
-                let readset: readset::ReadSet = [(NodeKey::Trigger(None), NodeValue::Trigger(()))]
-                    .into_iter()
-                    .collect();
-                let partial_state = state_transaction.load(&readset);
-                if candidate_value.leads_to_event_loop(&candidate_id, &partial_state) {
-                    return Err(Error::InvariantViolation(format!("trigger registration leads to event loop:\ncandidate id:\n{candidate_id:#?}\ncandidate value:\n{candidate_value:#?}")));
+
+                let object = self.object.clone();
+                let id = object.id;
+                let condition = match state::tr::ConditionValue::try_from(object.action.filter) {
+                    Ok(con) => con,
+                    Err(msg) => return Err(Error::Conversion(msg.to_string())),
+                };
+                let executable = match state::tr::ExecutableValue::try_from((
+                    object.action.authority,
+                    object.action.executable,
+                )) {
+                    Ok(exe) => exe,
+                    Err(node_conflict) => {
+                        return Err(Error::Conversion(format!(
+                            "failed to fold instructions into changeset:\n{node_conflict:#?}"
+                        )));
+                    }
+                };
+                let entry = state::tr::TriggerEntry::new(&id, &condition, &executable);
+                let partial_state = {
+                    let readset: readset::ReadSet =
+                        [(NodeKey::Trigger(None), NodeValue::Trigger(()))]
+                            .into_iter()
+                            .collect();
+                    state_transaction.load(&readset)
+                };
+                if entry.leads_to_event_loop(&partial_state) {
+                    return Err(Error::InvariantViolation(format!(
+                        "trigger registration leads to event loop:\n{entry:#?}"
+                    )));
                 }
             }
 

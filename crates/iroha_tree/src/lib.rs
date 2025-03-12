@@ -99,8 +99,11 @@ declare_nodes!(
     (AccountPermission, AccountPermissionKey: dm::PublicKey, dm::DomainId, tr::PermissionId),
     (RolePermission, RolePermissionKey: tr::RoleId, tr::PermissionId),
     (Trigger, TriggerKey: dm::TriggerId),
+    (Condition, ConditionKey: tr::ConditionId),
+    (Executable, ExecutableKey: tr::ExecutableId),
+    (TriggerCondition, TriggerConditionKey: dm::TriggerId, tr::ConditionId),
+    (TriggerExecutable, TriggerExecutableKey: dm::TriggerId, tr::ExecutableId),
     (AccountTrigger, AccountTriggerKey: dm::PublicKey, dm::DomainId, dm::TriggerId),
-    (Executable, ExecutableKey: tr::WasmExecutableId),
     (DomainMetadata, DomainMetadataKey: dm::DomainId, dm::Name),
     (AccountMetadata, AccountMetadataKey: dm::PublicKey, dm::DomainId, dm::Name),
     (AssetMetadata, AssetMetadataKey: dm::Name, dm::DomainId, dm::Name),
@@ -277,8 +280,11 @@ impl_for_node_values!(
     AccountPermission,
     RolePermission,
     Trigger,
-    AccountTrigger,
+    Condition,
     Executable,
+    TriggerCondition,
+    TriggerExecutable,
+    AccountTrigger,
     DomainMetadata,
     AccountMetadata,
     AssetMetadata,
@@ -332,8 +338,13 @@ impl<M: Mode> Tree<M> {
     pub fn iter(&self) -> impl Iterator<Item = (&NodeKey, &NodeValue<M>)> {
         self.0.iter()
     }
+
+    pub fn keys(&self) -> impl Iterator<Item = &NodeKey> {
+        self.0.keys()
+    }
 }
 
+#[macro_export]
 macro_rules! node_key_value {
     (_ $node:ident, $key:expr, $value:expr) => {
         ($crate::NodeKey::$node($key), $crate::NodeValue::$node($value))
@@ -389,8 +400,13 @@ pub mod transitional {
     #[derive(Debug, PartialEq, Eq, Hash, Clone, From)]
     pub struct PermissionId(String);
 
-    #[derive(Debug, PartialEq, Eq, Hash, Clone, From)]
-    pub struct WasmExecutableId(dm::HashOf<state::tr::WasmExecutableValue>);
+    // SATO HashOf<T: Encode>
+    // pub struct ConditionId(dm::HashOf<state::tr::ConditionValue>);
+    pub type ConditionId = dm::TriggerId;
+
+    // SATO HashOf<T: Encode>
+    // pub struct ExecutableId(dm::HashOf<state::tr::ExecutableValue>);
+    pub type ExecutableId = dm::TriggerId;
 }
 
 use transitional as tr;

@@ -20,8 +20,11 @@ impl Mode for Write {
     type AccountPermission = UnitW;
     type RolePermission = UnitW;
     type Trigger = TriggerW;
-    type AccountTrigger = UnitW;
+    type Condition = ConditionW;
     type Executable = ExecutableW;
+    type TriggerCondition = UnitW;
+    type TriggerExecutable = UnitW;
+    type AccountTrigger = UnitW;
     type DomainMetadata = MetadataW;
     type AccountMetadata = MetadataW;
     type AssetMetadata = MetadataW;
@@ -83,13 +86,19 @@ pub enum PermissionW {
 pub enum TriggerW {
     Increase(u32),
     Decrease(u32),
-    Create(Box<state::tr::TriggerValue>),
+    Create(state::tr::TriggerValue),
     Delete(()),
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub enum ConditionW {
+    Set(state::tr::ConditionValue),
+    Unset(()),
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum ExecutableW {
-    Set(state::tr::WasmExecutableValue),
+    Set(state::tr::ExecutableValue),
     Unset(()),
 }
 
@@ -159,6 +168,7 @@ impl_node_write!(
     (AccountAssetW, AccountAssetS),
     (PermissionW, PermissionS),
     (TriggerW, TriggerS),
+    (ConditionW, ConditionS),
     (ExecutableW, ExecutableS),
     (MetadataW, MetadataS),
 );
@@ -186,6 +196,7 @@ impl_add_err!(
     AssetW,
     NftW,
     PermissionW,
+    ConditionW,
     ExecutableW,
     MetadataW,
 );
@@ -243,12 +254,12 @@ mod transitional {
         type Error = Box<NodeConflict<Write>>;
 
         fn try_from(
-            (auth, instructions): (dm::AccountId, Vec<dm::InstructionBox>),
+            (authority, instructions): (dm::AccountId, Vec<dm::InstructionBox>),
         ) -> Result<Self, Self::Error> {
             instructions
                 .into_iter()
                 .try_fold(Self::default(), |acc, x| {
-                    acc + (auth.clone(), x).try_into()?
+                    acc + (authority.clone(), x).try_into()?
                 })
         }
     }
@@ -258,7 +269,7 @@ mod transitional {
 
         #[expect(clippy::too_many_lines)]
         fn try_from(
-            (auth, instruction): (dm::AccountId, dm::InstructionBox),
+            (authority, instruction): (dm::AccountId, dm::InstructionBox),
         ) -> Result<Self, Self::Error> {
             use dm::{
                 numeric, BurnBox, GrantBox, InstructionBox, MintBox, Numeric, RegisterBox,
@@ -273,8 +284,8 @@ mod transitional {
                     RegisterBox::Domain(inst) => [
                         node_key_value!(
                             AccountRole,
-                            auth.signatory,
-                            auth.domain,
+                            authority.signatory,
+                            authority.domain,
                             tr::RoleId::DomainAdmin(inst.object.id.clone()),
                             UnitW::Create(())
                         ),
@@ -295,8 +306,8 @@ mod transitional {
                     RegisterBox::AssetDefinition(inst) => [
                         node_key_value!(
                             AccountRole,
-                            auth.signatory,
-                            auth.domain,
+                            authority.signatory,
+                            authority.domain,
                             tr::RoleId::AssetAdmin(inst.object.id.clone()),
                             UnitW::Create(())
                         ),
@@ -315,15 +326,15 @@ mod transitional {
                     RegisterBox::Nft(inst) => [
                         node_key_value!(
                             AccountRole,
-                            auth.signatory.clone(),
-                            auth.domain.clone(),
+                            authority.signatory.clone(),
+                            authority.domain.clone(),
                             tr::RoleId::NftAdmin(inst.object.id.clone()),
                             UnitW::Create(())
                         ),
                         node_key_value!(
                             AccountRole,
-                            auth.signatory,
-                            auth.domain,
+                            authority.signatory,
+                            authority.domain,
                             tr::RoleId::NftOwner(inst.object.id.clone()),
                             UnitW::Create(())
                         ),
@@ -352,37 +363,50 @@ mod transitional {
                     )]
                     .into(),
                     RegisterBox::Trigger(inst) => {
-                        let mut map = HashMap::new();
-                        let (executable, wasm_entry) =
-                            state::tr::TriggerExecutable::from_and_entry(
-                                inst.object.action.executable,
-                                auth.clone(),
-                            )?;
-                        if let Some((k, v)) = wasm_entry {
-                            map.insert(k, v);
-                        }
-                        let (k, v) = node_key_value!(
-                            Trigger,
-                            inst.object.id.clone(),
-                            TriggerW::Create(
-                                state::tr::TriggerValue::new(
-                                    inst.object.action.filter.into(),
-                                    executable,
-                                    inst.object.action.repeats,
-                                )
-                                .into()
-                            )
-                        );
-                        map.insert(k, v);
-                        let (k, v) = node_key_value!(
-                            AccountTrigger,
-                            auth.signatory,
-                            auth.domain,
-                            inst.object.id,
-                            UnitW::Create(())
-                        );
-                        map.insert(k, v);
-                        map
+                        let trigger = state::tr::TriggerValue::from(inst.object.action.repeats);
+                        let condition =
+                            state::tr::ConditionValue::try_from(inst.object.action.filter)
+                                .expect("event filter type should be either data or time");
+                        let executable = state::tr::ExecutableValue::try_from((
+                            authority.clone(),
+                            inst.object.action.executable,
+                        ))?;
+                        let trigger_id = inst.object.id;
+                        let condition_id = trigger_id.clone();
+                        let executable_id = trigger_id.clone();
+                        [
+                            node_key_value!(Trigger, trigger_id.clone(), TriggerW::Create(trigger)),
+                            node_key_value!(
+                                Condition,
+                                condition_id.clone(),
+                                ConditionW::Set(condition)
+                            ),
+                            node_key_value!(
+                                Executable,
+                                executable_id.clone(),
+                                ExecutableW::Set(executable)
+                            ),
+                            node_key_value!(
+                                TriggerCondition,
+                                trigger_id.clone(),
+                                condition_id,
+                                UnitW::Create(())
+                            ),
+                            node_key_value!(
+                                TriggerExecutable,
+                                trigger_id.clone(),
+                                executable_id,
+                                UnitW::Create(())
+                            ),
+                            node_key_value!(
+                                AccountTrigger,
+                                authority.signatory,
+                                authority.domain,
+                                trigger_id,
+                                UnitW::Create(())
+                            ),
+                        ]
+                        .into()
                     }
                 },
                 InstructionBox::Unregister(inst) => match inst {
