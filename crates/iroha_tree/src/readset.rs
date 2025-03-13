@@ -2,7 +2,7 @@ use super::*;
 
 pub type ReadSet = Tree<Read>;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub struct Read;
 
 impl Mode for Read {

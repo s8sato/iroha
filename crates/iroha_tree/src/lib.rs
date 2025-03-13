@@ -40,11 +40,12 @@ use std::{
 };
 
 use derive_more::{BitOr, Constructor, DebugCustom, From};
+use parity_scale_codec::{Decode, Encode};
 use serde_with::{DeserializeFromStr, SerializeDisplay};
 
 /// A flattened node map with a fixed skeleton equivalent to the world state.
 /// Node values may vary by [`Mode`].
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub struct Tree<M: Mode>(BTreeMap<NodeKey, NodeValue<M>>);
 
 macro_rules! declare_nodes {
@@ -52,7 +53,7 @@ macro_rules! declare_nodes {
         /// Full path to nodes.
         /// A `None` key element represents __any__ node.
         /// For example, `(None, domain): AccountKey` represents any account within the specified `domain`.
-        #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
+        #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Decode, Encode)]
         pub enum NodeKey {
             $(
             $variant($key),
@@ -64,7 +65,7 @@ macro_rules! declare_nodes {
         )+
 
         /// Represents various states such as the current state, intention, result, or readiness at the node.
-        #[derive(Debug, PartialEq, Eq)]
+        #[derive(Debug, PartialEq, Eq, Decode, Encode)]
         pub enum NodeValue<M: Mode> {
             $(
             $variant(M::$variant),
@@ -74,7 +75,7 @@ macro_rules! declare_nodes {
         /// This trait implementation serves as a declaration of node values.
         pub trait Mode {
             $(
-            type $variant: Debug + PartialEq + Eq;
+            type $variant: Debug + PartialEq + Eq + Decode + Encode;
             )+
         }
 
@@ -146,7 +147,17 @@ pub trait Filtered {
 }
 
 #[derive(
-    DebugCustom, PartialEq, Eq, Clone, Copy, From, BitOr, SerializeDisplay, DeserializeFromStr,
+    DebugCustom,
+    PartialEq,
+    Eq,
+    Clone,
+    Copy,
+    From,
+    BitOr,
+    SerializeDisplay,
+    DeserializeFromStr,
+    Decode,
+    Encode,
 )]
 pub struct FilterU8(#[debug("{_0:#010b}")] u8);
 
@@ -401,26 +412,24 @@ pub mod state;
 pub mod transitional {
     use super::*;
 
-    #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
+    #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Decode, Encode)]
     pub enum ParameterId {
         Any, // TODO remove ParameterId::Any
         Preset(PresetParameterId),
         Custom(dm::CustomParameterId),
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
+    #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Decode, Encode)]
     pub struct PresetParameterId;
 
-    #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, From)]
+    #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, From, Decode, Encode)]
     pub struct PermissionId(String);
 
-    // SATO HashOf<T: Encode>
-    // pub struct ConditionId(dm::HashOf<state::tr::ConditionValue>);
-    pub type ConditionId = dm::TriggerId;
+    #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, From, Decode, Encode)]
+    pub struct ConditionId(dm::HashOf<state::tr::ConditionValue>);
 
-    // SATO HashOf<T: Encode>
-    // pub struct ExecutableId(dm::HashOf<state::tr::ExecutableValue>);
-    pub type ExecutableId = dm::TriggerId;
+    #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, From, Decode, Encode)]
+    pub struct ExecutableId(dm::HashOf<state::tr::ExecutableValue>);
 }
 
 use transitional as tr;

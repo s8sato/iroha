@@ -24,6 +24,7 @@ iroha_logger = { workspace = true }
 
 derive_more = { workspace = true, features = ["add"] }
 hashbrown = "0.15"
+parity-scale-codec = { workspace = true }
 serde_with = { workspace = true }
 
 [dev-dependencies]

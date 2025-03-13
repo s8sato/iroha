@@ -2,7 +2,9 @@
 
 use std::rc::Rc;
 
-use iroha_tree::{changeset, event, node_key_value, readset, receptor, state};
+use iroha_tree::{
+    changeset, dm, event, node_key_value, readset, receptor, state, transitional as tr,
+};
 use mv::storage::StorageReadOnly;
 
 use super::*;
@@ -73,8 +75,8 @@ impl State<'_, '_> {
                                 }
                             };
                             let trigger_id = id.clone();
-                            let condition_id = trigger_id.clone();
-                            let executable_id = trigger_id.clone();
+                            let condition_id = tr::ConditionId::from(dm::HashOf::new(&condition));
+                            let executable_id = tr::ExecutableId::from(dm::HashOf::new(&executable));
 
                             for (k, v) in [
                                 node_key_value!(Trigger, trigger_id.clone(), trigger),

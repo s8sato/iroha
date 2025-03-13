@@ -1,8 +1,10 @@
+#![expect(trivial_numeric_casts)] // Why Decode and Encode invoke this?
+
 use super::*;
 
 pub type Event = Tree<ReadWriteStatus>;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub struct ReadWriteStatus;
 
 impl Mode for ReadWriteStatus {
@@ -75,14 +77,14 @@ macro_rules! u8_status {
     };
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum AuthorizerS {
     Read = u8_status!(r),
     Set = u8_status!(c),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum UnitS {
     Read = u8_status!(r),
@@ -90,7 +92,7 @@ pub enum UnitS {
     Delete = u8_status!(d),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum ParameterS {
     Read = u8_status!(r),
@@ -98,7 +100,7 @@ pub enum ParameterS {
     Unset = u8_status!(d),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum DomainS {
     Read = u8_status!(r),
@@ -106,7 +108,7 @@ pub enum DomainS {
     Delete = u8_status!(d),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum AssetS {
     Read = u8_status!(r),
@@ -115,7 +117,7 @@ pub enum AssetS {
     Delete = u8_status!(d),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum NftS {
     Read = u8_status!(r),
@@ -123,7 +125,7 @@ pub enum NftS {
     Delete = u8_status!(d),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum AccountAssetS {
     Read = u8_status!(r),
@@ -133,7 +135,7 @@ pub enum AccountAssetS {
     Burn = u8_status!(b),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum PermissionS {
     Read = u8_status!(r),
@@ -141,7 +143,7 @@ pub enum PermissionS {
     Unset = u8_status!(d),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum TriggerS {
     Read = u8_status!(r),
@@ -151,7 +153,7 @@ pub enum TriggerS {
     Delete = u8_status!(d),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum ConditionS {
     Read = u8_status!(r),
@@ -159,7 +161,7 @@ pub enum ConditionS {
     Unset = u8_status!(d),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum ExecutableS {
     Read = u8_status!(r),
@@ -167,7 +169,7 @@ pub enum ExecutableS {
     Unset = u8_status!(d),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum MetadataS {
     Read = u8_status!(r),

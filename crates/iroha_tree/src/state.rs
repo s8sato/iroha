@@ -38,64 +38,64 @@ pub mod transitional {
 
     use super::*;
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq, Decode, Encode)]
     pub struct AuthorizerValue;
 
-    #[derive(Debug, PartialEq, Eq, From)]
+    #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
     pub struct ParameterValue {
         pub(crate) parameter: dm::Parameter,
     }
 
-    #[derive(Debug, PartialEq, Eq, From)]
+    #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
     pub struct DomainValue {
         pub(crate) logo: Option<dm::IpfsPath>,
     }
 
-    #[derive(Debug, PartialEq, Eq, Constructor)]
+    #[derive(Debug, PartialEq, Eq, Constructor, Decode, Encode)]
     pub struct AssetValue {
         pub(crate) total_quantity: dm::Numeric,
         pub(crate) mintable: dm::Mintable,
         pub(crate) logo: Option<dm::IpfsPath>,
     }
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq, Decode, Encode)]
     pub struct NftValue;
 
-    #[derive(Debug, PartialEq, Eq, From)]
+    #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
     pub struct AccountAssetValue {
         pub(crate) balance: dm::Numeric,
     }
 
-    #[derive(Debug, PartialEq, Eq, From)]
+    #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
     pub struct PermissionValue {
         pub(crate) permission: permission::Permission,
     }
 
-    #[derive(Debug, PartialEq, Eq, From)]
+    #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
     pub struct TriggerValue {
         pub(crate) repeats: dm::Repeats,
     }
 
-    #[derive(Debug, PartialEq, Eq, From)]
+    #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
     pub enum ConditionValue {
         World(receptor::Receptor),
         Time(dm::TimeSchedule),
         Block(BlockCommit),
     }
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq, Decode, Encode)]
     pub struct BlockCommit;
 
-    #[derive(Debug, PartialEq, Eq, From)]
+    #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
     pub enum ExecutableValue {
         Static(changeset::ChangeSet),
         Dynamic(WasmExecutable),
     }
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq, Decode, Encode)]
     pub struct WasmExecutable;
 
-    #[derive(Debug, PartialEq, Eq, From)]
+    #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
     pub struct MetadataValue {
         pub(crate) json: dm::Json,
     }
@@ -273,18 +273,20 @@ mod tests {
         };
         // Bridges the above subscriber and publisher.
         let trigger = |i: usize, s: &str, j: usize| {
+            let condition = tr::ConditionValue::from(receptor(i, s));
+            let executable = tr::ExecutableValue::from(changeset(j));
             (
                 (
-                    TriggerId::from_str(&format!("trg_{i}_{j}")).unwrap(),
+                    TriggerId::from_str(&format!("trg_{i}{s}_{j}d")).unwrap(),
                     tr::TriggerValue::from(Repeats::Indefinitely),
                 ),
                 (
-                    crate::tr::ConditionId::from_str(&format!("con_{i}?{s}")).unwrap(),
-                    tr::ConditionValue::from(receptor(i, s)),
+                    crate::tr::ConditionId::from(dm::HashOf::new(&condition)),
+                    condition,
                 ),
                 (
-                    crate::tr::ExecutableId::from_str(&format!("exe_{j}")).unwrap(),
-                    tr::ExecutableValue::from(changeset(j)),
+                    crate::tr::ExecutableId::from(dm::HashOf::new(&executable)),
+                    executable,
                 ),
             )
         };

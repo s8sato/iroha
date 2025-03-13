@@ -2,7 +2,7 @@ use super::*;
 
 pub type ChangeSet = Tree<Write>;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub struct Write;
 
 impl Mode for Write {
@@ -36,43 +36,43 @@ impl Mode for Write {
     type TriggerAdmin = UnitW;
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub enum AuthorizerW {
     Set(state::tr::AuthorizerValue),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub enum UnitW {
     Create(()),
     Delete(()),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub enum ParameterW {
     Set(state::tr::ParameterValue),
     Unset(()),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub enum DomainW {
     Create(state::tr::DomainValue),
     Delete(()),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub enum AssetW {
     MintabilityUpdate(dm::Mintable),
     Create(state::tr::AssetValue),
     Delete(()),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub enum NftW {
     Create(state::tr::NftValue),
     Delete(()),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub enum AccountAssetW {
     Receive(dm::Numeric),
     Send(dm::Numeric),
@@ -80,13 +80,13 @@ pub enum AccountAssetW {
     Burn(dm::Numeric),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub enum PermissionW {
     Set(state::tr::PermissionValue),
     Unset(()),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub enum TriggerW {
     Increase(u32),
     Decrease(u32),
@@ -94,19 +94,19 @@ pub enum TriggerW {
     Delete(()),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub enum ConditionW {
     Set(state::tr::ConditionValue),
     Unset(()),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub enum ExecutableW {
     Set(state::tr::ExecutableValue),
     Unset(()),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub enum MetadataW {
     Set(state::tr::MetadataValue),
     Unset(()),
@@ -379,8 +379,8 @@ mod transitional {
                             inst.object.action.executable,
                         ))?;
                         let trigger_id = inst.object.id;
-                        let condition_id = trigger_id.clone();
-                        let executable_id = trigger_id.clone();
+                        let condition_id = tr::ConditionId::from(dm::HashOf::new(&condition));
+                        let executable_id = tr::ExecutableId::from(dm::HashOf::new(&executable));
                         [
                             node_key_value!(Trigger, trigger_id.clone(), TriggerW::Create(trigger)),
                             node_key_value!(
