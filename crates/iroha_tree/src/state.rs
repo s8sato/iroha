@@ -21,12 +21,16 @@ impl Mode for () {
     type Executable = tr::ExecutableValue;
     type TriggerCondition = ();
     type TriggerExecutable = ();
-    type AccountTrigger = ();
     type DomainMetadata = tr::MetadataValue;
     type AccountMetadata = tr::MetadataValue;
     type AssetMetadata = tr::MetadataValue;
     type NftData = tr::MetadataValue;
     type TriggerMetadata = tr::MetadataValue;
+    type DomainAdmin = ();
+    type AssetAdmin = ();
+    type NftAdmin = ();
+    type NftOwner = ();
+    type TriggerAdmin = ();
 }
 
 pub mod transitional {

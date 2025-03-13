@@ -101,10 +101,10 @@ impl State<'_, '_> {
                                     ()
                                 ),
                                 node_key_value!(
-                                    AccountTrigger,
+                                    TriggerAdmin,
+                                    trigger_id,
                                     action.authority.signatory.clone(),
                                     action.authority.domain.clone(),
-                                    trigger_id,
                                     ()
                                 ),
                             ] {

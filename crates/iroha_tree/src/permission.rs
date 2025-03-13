@@ -235,8 +235,8 @@ mod transitional {
 
     impl_into_permission!(
         xp::nft::CanTransferNft,
-        AccountRole,
-        |v| (None, None, some!(tr::RoleId::NftOwner(v.nft))),
+        NftOwner,
+        |v| (some!(v.nft.name), some!(v.nft.domain), None, None),
         [UnitS::Create, UnitS::Delete]
     );
 

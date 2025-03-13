@@ -26,12 +26,16 @@ impl Mode for ReadWriteStatusFilter {
     type Executable = FilterU8;
     type TriggerCondition = FilterU8;
     type TriggerExecutable = FilterU8;
-    type AccountTrigger = FilterU8;
     type DomainMetadata = FilterU8;
     type AccountMetadata = FilterU8;
     type AssetMetadata = FilterU8;
     type NftData = FilterU8;
     type TriggerMetadata = FilterU8;
+    type DomainAdmin = FilterU8;
+    type AssetAdmin = FilterU8;
+    type NftAdmin = FilterU8;
+    type NftOwner = FilterU8;
+    type TriggerAdmin = FilterU8;
 }
 
 impl Filtered for event::Event {
@@ -149,12 +153,16 @@ impl NodeKey {
             Executable(key) => receptor_keys!(1 Executable, key),
             TriggerCondition(key) => receptor_keys!(2 TriggerCondition, key),
             TriggerExecutable(key) => receptor_keys!(2 TriggerExecutable, key),
-            AccountTrigger(key) => receptor_keys!(3 AccountTrigger, key),
             DomainMetadata(key) => receptor_keys!(2 DomainMetadata, key),
             AccountMetadata(key) => receptor_keys!(3 AccountMetadata, key),
             AssetMetadata(key) => receptor_keys!(3 AssetMetadata, key),
             NftData(key) => receptor_keys!(3 NftData, key),
             TriggerMetadata(key) => receptor_keys!(2 TriggerMetadata, key),
+            DomainAdmin(key) => receptor_keys!(3 DomainAdmin, key),
+            AssetAdmin(key) => receptor_keys!(4 AssetAdmin, key),
+            NftAdmin(key) => receptor_keys!(4 NftAdmin, key),
+            NftOwner(key) => receptor_keys!(4 NftOwner, key),
+            TriggerAdmin(key) => receptor_keys!(3 TriggerAdmin, key),
         }
     }
 }
@@ -226,7 +234,6 @@ mod transitional {
                     node_key_filter!(AccountPermission, None, None, None, FilterU8::ANY),
                     node_key_filter!(RolePermission, None, None, FilterU8::ANY),
                     node_key_filter!(Trigger, None, FilterU8::ANY),
-                    node_key_filter!(AccountTrigger, None, None, None, FilterU8::ANY),
                     node_key_filter!(Executable, None, FilterU8::ANY),
                     node_key_filter!(DomainMetadata, None, None, FilterU8::ANY),
                     node_key_filter!(AccountMetadata, None, None, None, FilterU8::ANY),
@@ -252,15 +259,7 @@ mod transitional {
                         .collect()
                 }
                 Domain(ef) => {
-                    let (domain, admin) = ef.id_matcher.map_or_else(
-                        || (None, None),
-                        |id| {
-                            (
-                                Some(Rc::new(id.clone())),
-                                Some(Rc::new(tr::RoleId::DomainAdmin(id))),
-                            )
-                        },
-                    );
+                    let domain = ef.id_matcher.map(Rc::new);
                     ef.event_set
                         .decompose()
                         .into_iter()
@@ -284,10 +283,10 @@ mod transitional {
                                 MetadataS::Unset
                             ),
                             DomainEventSet::OwnerChanged => node_key_filter!(
-                                AccountRole,
+                                DomainAdmin,
+                                domain.clone(),
                                 None,
                                 None,
-                                admin.clone(),
                                 UnitS::Create as u8 | UnitS::Delete as u8
                             ),
                             _ => unreachable!(),
@@ -363,12 +362,11 @@ mod transitional {
                 }
                 Asset(_ef) => unimplemented!("unless AssetEvent is disambiguated"),
                 AssetDefinition(ef) => {
-                    let (name, domain, admin) = match ef.id_matcher {
-                        None => (None, None, None),
+                    let (name, domain) = match ef.id_matcher {
+                        None => (None, None),
                         Some(id) => (
                             Some(Rc::new(id.name.clone())),
                             Some(Rc::new(id.domain.clone())),
-                            Some(Rc::new(tr::RoleId::AssetAdmin(id))),
                         ),
                     };
                     ef.event_set
@@ -416,10 +414,11 @@ mod transitional {
                                 AccountAssetS::Mint as u8 | AccountAssetS::Burn as u8
                             ),
                             AssetDefinitionEventSet::OwnerChanged => node_key_filter!(
-                                AccountRole,
+                                AssetAdmin,
+                                name.clone(),
+                                domain.clone(),
                                 None,
                                 None,
-                                admin.clone(),
                                 UnitS::Create as u8 | UnitS::Delete as u8
                             ),
                             _ => unreachable!(),
@@ -427,12 +426,11 @@ mod transitional {
                         .collect()
                 }
                 Nft(ef) => {
-                    let (name, domain, owner) = match ef.id_matcher {
-                        None => (None, None, None),
+                    let (name, domain) = match ef.id_matcher {
+                        None => (None, None),
                         Some(id) => (
                             Some(Rc::new(id.name.clone())),
                             Some(Rc::new(id.domain.clone())),
-                            Some(Rc::new(tr::RoleId::NftOwner(id))),
                         ),
                     };
                     ef.event_set
@@ -460,10 +458,11 @@ mod transitional {
                                 MetadataS::Unset
                             ),
                             NftEventSet::OwnerChanged => node_key_filter!(
-                                AccountRole,
+                                NftOwner,
+                                name.clone(),
+                                domain.clone(),
                                 None,
                                 None,
-                                owner.clone(),
                                 UnitS::Create as u8 | UnitS::Delete as u8
                             ),
                             _ => unreachable!(),
@@ -502,7 +501,7 @@ mod transitional {
                         .collect()
                 }
                 Role(ef) => {
-                    let id = ef.id_matcher.map(|id| Rc::new(tr::RoleId::Named(id.name)));
+                    let id = ef.id_matcher.map(Rc::new);
                     ef.event_set
                         .decompose()
                         .into_iter()

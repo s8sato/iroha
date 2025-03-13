@@ -24,12 +24,16 @@ impl Mode for Read {
     type Executable = UnitR;
     type TriggerCondition = UnitR;
     type TriggerExecutable = UnitR;
-    type AccountTrigger = UnitR;
     type DomainMetadata = UnitR;
     type AccountMetadata = UnitR;
     type AssetMetadata = UnitR;
     type NftData = UnitR;
     type TriggerMetadata = UnitR;
+    type DomainAdmin = UnitR;
+    type AssetAdmin = UnitR;
+    type NftAdmin = UnitR;
+    type NftOwner = UnitR;
+    type TriggerAdmin = UnitR;
 }
 
 pub type UnitR = ();

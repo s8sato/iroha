@@ -24,12 +24,16 @@ impl Mode for Write {
     type Executable = ExecutableW;
     type TriggerCondition = UnitW;
     type TriggerExecutable = UnitW;
-    type AccountTrigger = UnitW;
     type DomainMetadata = MetadataW;
     type AccountMetadata = MetadataW;
     type AssetMetadata = MetadataW;
     type NftData = MetadataW;
     type TriggerMetadata = MetadataW;
+    type DomainAdmin = UnitW;
+    type AssetAdmin = UnitW;
+    type NftAdmin = UnitW;
+    type NftOwner = UnitW;
+    type TriggerAdmin = UnitW;
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -283,10 +287,10 @@ mod transitional {
                     }
                     RegisterBox::Domain(inst) => [
                         node_key_value!(
-                            AccountRole,
+                            DomainAdmin,
+                            inst.object.id.clone(),
                             authority.signatory,
                             authority.domain,
-                            tr::RoleId::DomainAdmin(inst.object.id.clone()),
                             UnitW::Create(())
                         ),
                         node_key_value!(
@@ -305,10 +309,11 @@ mod transitional {
                     .into(),
                     RegisterBox::AssetDefinition(inst) => [
                         node_key_value!(
-                            AccountRole,
+                            AssetAdmin,
+                            inst.object.id.name.clone(),
+                            inst.object.id.domain.clone(),
                             authority.signatory,
                             authority.domain,
-                            tr::RoleId::AssetAdmin(inst.object.id.clone()),
                             UnitW::Create(())
                         ),
                         node_key_value!(
@@ -325,17 +330,19 @@ mod transitional {
                     .into(),
                     RegisterBox::Nft(inst) => [
                         node_key_value!(
-                            AccountRole,
+                            NftAdmin,
+                            inst.object.id.name.clone(),
+                            inst.object.id.domain.clone(),
                             authority.signatory.clone(),
                             authority.domain.clone(),
-                            tr::RoleId::NftAdmin(inst.object.id.clone()),
                             UnitW::Create(())
                         ),
                         node_key_value!(
-                            AccountRole,
+                            NftOwner,
+                            inst.object.id.name.clone(),
+                            inst.object.id.domain.clone(),
                             authority.signatory,
                             authority.domain,
-                            tr::RoleId::NftOwner(inst.object.id.clone()),
                             UnitW::Create(())
                         ),
                         node_key_value!(
@@ -358,7 +365,7 @@ mod transitional {
                     .collect(),
                     RegisterBox::Role(inst) => [node_key_value!(
                         Role,
-                        tr::RoleId::Named(inst.object.inner.id.name),
+                        inst.object.inner.id,
                         UnitW::Create(())
                     )]
                     .into(),
@@ -399,10 +406,10 @@ mod transitional {
                                 UnitW::Create(())
                             ),
                             node_key_value!(
-                                AccountTrigger,
+                                TriggerAdmin,
+                                trigger_id,
                                 authority.signatory,
                                 authority.domain,
-                                trigger_id,
                                 UnitW::Create(())
                             ),
                         ]
@@ -437,12 +444,9 @@ mod transitional {
                         NftW::Delete(())
                     )]
                     .into(),
-                    UnregisterBox::Role(inst) => [node_key_value!(
-                        Role,
-                        tr::RoleId::Named(inst.object.name),
-                        UnitW::Delete(())
-                    )]
-                    .into(),
+                    UnregisterBox::Role(inst) => {
+                        [node_key_value!(Role, inst.object, UnitW::Delete(()))].into()
+                    }
                     UnregisterBox::Trigger(inst) => {
                         [node_key_value!(Trigger, inst.object, TriggerW::Delete(()))].into()
                     }
@@ -484,51 +488,55 @@ mod transitional {
                 InstructionBox::Transfer(inst) => match inst {
                     TransferBox::Domain(inst) => [
                         node_key_value!(
-                            AccountRole,
+                            DomainAdmin,
+                            inst.object.clone(),
                             inst.source.signatory,
                             inst.source.domain,
-                            tr::RoleId::DomainAdmin(inst.object.clone()),
                             UnitW::Delete(())
                         ),
                         node_key_value!(
-                            AccountRole,
+                            DomainAdmin,
+                            inst.object,
                             inst.destination.signatory,
                             inst.destination.domain,
-                            tr::RoleId::DomainAdmin(inst.object),
                             UnitW::Create(())
                         ),
                     ]
                     .into(),
                     TransferBox::AssetDefinition(inst) => [
                         node_key_value!(
-                            AccountRole,
+                            AssetAdmin,
+                            inst.object.name.clone(),
+                            inst.object.domain.clone(),
                             inst.source.signatory,
                             inst.source.domain,
-                            tr::RoleId::AssetAdmin(inst.object.clone()),
                             UnitW::Delete(())
                         ),
                         node_key_value!(
-                            AccountRole,
+                            AssetAdmin,
+                            inst.object.name,
+                            inst.object.domain,
                             inst.destination.signatory,
                             inst.destination.domain,
-                            tr::RoleId::AssetAdmin(inst.object),
                             UnitW::Create(())
                         ),
                     ]
                     .into(),
                     TransferBox::Nft(inst) => [
                         node_key_value!(
-                            AccountRole,
+                            NftOwner,
+                            inst.object.name.clone(),
+                            inst.object.domain.clone(),
                             inst.source.signatory,
                             inst.source.domain,
-                            tr::RoleId::NftOwner(inst.object.clone()),
                             UnitW::Delete(())
                         ),
                         node_key_value!(
-                            AccountRole,
+                            NftOwner,
+                            inst.object.name,
+                            inst.object.domain,
                             inst.destination.signatory,
                             inst.destination.domain,
-                            tr::RoleId::NftOwner(inst.object),
                             UnitW::Create(())
                         ),
                     ]
@@ -646,13 +654,13 @@ mod transitional {
                         AccountRole,
                         inst.destination.signatory,
                         inst.destination.domain,
-                        tr::RoleId::Named(inst.object.name),
+                        inst.object,
                         UnitW::Create(())
                     )]
                     .into(),
                     GrantBox::RolePermission(inst) => [node_key_value!(
                         RolePermission,
-                        tr::RoleId::Named(inst.destination.name),
+                        inst.destination,
                         inst.object.name.into(),
                         UnitW::Create(())
                     )]
@@ -671,13 +679,13 @@ mod transitional {
                         AccountRole,
                         inst.destination.signatory,
                         inst.destination.domain,
-                        tr::RoleId::Named(inst.object.name),
+                        inst.object,
                         UnitW::Delete(())
                     )]
                     .into(),
                     RevokeBox::RolePermission(inst) => [node_key_value!(
                         RolePermission,
-                        tr::RoleId::Named(inst.destination.name),
+                        inst.destination,
                         inst.object.name.into(),
                         UnitW::Delete(())
                     )]

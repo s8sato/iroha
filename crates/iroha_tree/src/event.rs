@@ -24,12 +24,16 @@ impl Mode for ReadWriteStatus {
     type Executable = ExecutableS;
     type TriggerCondition = UnitS;
     type TriggerExecutable = UnitS;
-    type AccountTrigger = UnitS;
     type DomainMetadata = MetadataS;
     type AccountMetadata = MetadataS;
     type AssetMetadata = MetadataS;
     type NftData = MetadataS;
     type TriggerMetadata = MetadataS;
+    type DomainAdmin = UnitS;
+    type AssetAdmin = UnitS;
+    type NftAdmin = UnitS;
+    type NftOwner = UnitS;
+    type TriggerAdmin = UnitS;
 }
 
 /// An expansion of the CRUD status of the target node.
@@ -251,8 +255,8 @@ mod transitional {
                         // Ownership is now implemented as roles.
                         AssetDefinitionEvent::OwnerChanged(v) => [
                             // Not implemented because there is no such field as `AssetDefinitionOwnerChanged::old_owner`.
-                            // node_key_status!(AccountRole, v.old_owner.signatory, v.old_owner.domain, tr::RoleId::AssetAdmin(v.asset_definition), UnitS::Delete),
-                            node_key_value!(AccountRole, v.new_owner.signatory, v.new_owner.domain, tr::RoleId::AssetAdmin(v.asset_definition), UnitS::Create),
+                            // node_key_value!(AssetAdmin, v.asset_definition.name, v.asset_definition.domain, v.old_owner.signatory, v.old_owner.domain, UnitS::Delete),
+                            node_key_value!(AssetAdmin, v.asset_definition.name, v.asset_definition.domain, v.new_owner.signatory, v.new_owner.domain, UnitS::Create),
                         ].into(),
                     },
                     DomainEvent::Nft(event) => match event {
@@ -262,8 +266,8 @@ mod transitional {
                         NftEvent::MetadataRemoved(m) => [node_key_value!(NftData, m.target.name, m.target.domain, m.key, MetadataS::Unset)].into(),
                         NftEvent::OwnerChanged(v) => [
                             // Not implemented because there is no such field as `NftOwnerChanged::old_owner`.
-                            // node_key_status!(AccountRole, v.old_owner.signatory, v.old_owner.domain, tr::RoleId::NftOwner(v.nft), UnitS::Delete),
-                            node_key_value!(AccountRole, v.new_owner.signatory, v.new_owner.domain, tr::RoleId::NftOwner(v.nft), UnitS::Create),
+                            // node_key_value!(NftOwner, v.nft.name, v.nft.domain, v.old_owner.signatory, v.old_owner.domain, UnitS::Delete),
+                            node_key_value!(NftOwner, v.nft.name, v.nft.domain, v.new_owner.signatory, v.new_owner.domain, UnitS::Create),
                         ].into(),
                     },
                     DomainEvent::Account(event) => match event {
@@ -277,8 +281,8 @@ mod transitional {
                         },
                         AccountEvent::PermissionAdded(v) => [node_key_value!(AccountPermission, v.account.signatory, v.account.domain, v.permission.name.into(), UnitS::Create)].into(),
                         AccountEvent::PermissionRemoved(v) => [node_key_value!(AccountPermission, v.account.signatory, v.account.domain, v.permission.name.into(), UnitS::Delete)].into(),
-                        AccountEvent::RoleGranted(v) => [node_key_value!(AccountRole, v.account.signatory, v.account.domain, tr::RoleId::Named(v.role.name), UnitS::Create)].into(),
-                        AccountEvent::RoleRevoked(v) => [node_key_value!(AccountRole, v.account.signatory, v.account.domain, tr::RoleId::Named(v.role.name), UnitS::Delete)].into(),
+                        AccountEvent::RoleGranted(v) => [node_key_value!(AccountRole, v.account.signatory, v.account.domain, v.role, UnitS::Create)].into(),
+                        AccountEvent::RoleRevoked(v) => [node_key_value!(AccountRole, v.account.signatory, v.account.domain, v.role, UnitS::Delete)].into(),
                         AccountEvent::MetadataInserted(m) => [node_key_value!(AccountMetadata, m.target.signatory, m.target.domain, m.key, MetadataS::Set)].into(),
                         AccountEvent::MetadataRemoved(m) => [node_key_value!(AccountMetadata, m.target.signatory, m.target.domain, m.key, MetadataS::Unset)].into(),
                     },
@@ -286,8 +290,8 @@ mod transitional {
                     DomainEvent::MetadataRemoved(m) => [node_key_value!(DomainMetadata, m.target, m.key, MetadataS::Unset)].into(),
                     DomainEvent::OwnerChanged(v) => [
                         // Not implemented because there is no such field as `DomainOwnerChanged::old_owner`.
-                        // node_key_status!(AccountRole, v.old_owner.signatory, v.old_owner.domain, tr::RoleId::DomainAdmin(v.domain), UnitS::Delete),
-                        node_key_value!(AccountRole, v.new_owner.signatory, v.new_owner.domain, tr::RoleId::DomainAdmin(v.domain), UnitS::Create),
+                        // node_key_value!(DomainAdmin, v.domain, v.old_owner.signatory, v.old_owner.domain, UnitS::Delete),
+                        node_key_value!(DomainAdmin, v.domain, v.new_owner.signatory, v.new_owner.domain, UnitS::Create),
                     ].into(),
                 },
                 Trigger(event) => match event {
@@ -299,10 +303,10 @@ mod transitional {
                     TriggerEvent::MetadataRemoved(m) => [node_key_value!(TriggerMetadata, m.target, m.key, MetadataS::Unset)].into(),
                 },
                 Role(event) => match event {
-                    RoleEvent::Created(v) => [node_key_value!(Role, tr::RoleId::Named(v.id.name), UnitS::Create)].into(),
-                    RoleEvent::Deleted(k) => [node_key_value!(Role, tr::RoleId::Named(k.name), UnitS::Delete)].into(),
-                    RoleEvent::PermissionAdded(v) => [node_key_value!(RolePermission, tr::RoleId::Named(v.role.name), v.permission.name.into(), UnitS::Create)].into(),
-                    RoleEvent::PermissionRemoved(v) => [node_key_value!(RolePermission, tr::RoleId::Named(v.role.name), v.permission.name.into(), UnitS::Delete)].into(),
+                    RoleEvent::Created(v) => [node_key_value!(Role, v.id, UnitS::Create)].into(),
+                    RoleEvent::Deleted(k) => [node_key_value!(Role, k, UnitS::Delete)].into(),
+                    RoleEvent::PermissionAdded(v) => [node_key_value!(RolePermission, v.role, v.permission.name.into(), UnitS::Create)].into(),
+                    RoleEvent::PermissionRemoved(v) => [node_key_value!(RolePermission, v.role, v.permission.name.into(), UnitS::Delete)].into(),
                 },
                 Configuration(event) => match event {
                     ConfigurationEvent::Changed(_v) => [node_key_value!(Parameter, tr::ParameterId::Any, ParameterS::Set)].into(),

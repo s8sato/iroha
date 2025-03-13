@@ -93,22 +93,26 @@ declare_nodes!(
     (Asset, AssetKey: dm::Name, dm::DomainId),
     (Nft, NftKey: dm::Name, dm::DomainId),
     (AccountAsset, AccountAssetKey: dm::PublicKey, dm::DomainId, dm::Name, dm::DomainId),
-    (Role, RoleKey: tr::RoleId),
+    (Role, RoleKey: dm::RoleId),
     (Permission, PermissionKey: tr::PermissionId),
-    (AccountRole, AccountRoleKey: dm::PublicKey, dm::DomainId, tr::RoleId),
+    (AccountRole, AccountRoleKey: dm::PublicKey, dm::DomainId, dm::RoleId),
     (AccountPermission, AccountPermissionKey: dm::PublicKey, dm::DomainId, tr::PermissionId),
-    (RolePermission, RolePermissionKey: tr::RoleId, tr::PermissionId),
+    (RolePermission, RolePermissionKey: dm::RoleId, tr::PermissionId),
     (Trigger, TriggerKey: dm::TriggerId),
     (Condition, ConditionKey: tr::ConditionId),
     (Executable, ExecutableKey: tr::ExecutableId),
     (TriggerCondition, TriggerConditionKey: dm::TriggerId, tr::ConditionId),
     (TriggerExecutable, TriggerExecutableKey: dm::TriggerId, tr::ExecutableId),
-    (AccountTrigger, AccountTriggerKey: dm::PublicKey, dm::DomainId, dm::TriggerId),
     (DomainMetadata, DomainMetadataKey: dm::DomainId, dm::Name),
     (AccountMetadata, AccountMetadataKey: dm::PublicKey, dm::DomainId, dm::Name),
     (AssetMetadata, AssetMetadataKey: dm::Name, dm::DomainId, dm::Name),
     (NftData, NftDataKey: dm::Name, dm::DomainId, dm::Name),
     (TriggerMetadata, TriggerMetadataKey: dm::TriggerId, dm::Name),
+    (DomainAdmin, DomainAdminKey: dm::DomainId, dm::PublicKey, dm::DomainId),
+    (AssetAdmin, AssetAdminKey: dm::Name, dm::DomainId, dm::PublicKey, dm::DomainId),
+    (NftAdmin, NftAdminKey: dm::Name, dm::DomainId, dm::PublicKey, dm::DomainId),
+    (NftOwner, NftOwnerKey: dm::Name, dm::DomainId, dm::PublicKey, dm::DomainId),
+    (TriggerAdmin, TriggerAdminKey: dm::TriggerId, dm::PublicKey, dm::DomainId),
 );
 
 pub trait NodeReadWrite: Filtered {
@@ -286,12 +290,16 @@ impl_for_node_values!(
     Executable,
     TriggerCondition,
     TriggerExecutable,
-    AccountTrigger,
     DomainMetadata,
     AccountMetadata,
     AssetMetadata,
     NftData,
     TriggerMetadata,
+    DomainAdmin,
+    AssetAdmin,
+    NftAdmin,
+    NftOwner,
+    TriggerAdmin,
 );
 
 impl<M: Mode> Default for Tree<M> {
@@ -387,17 +395,6 @@ pub mod transitional {
 
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct PresetParameterId;
-
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-    pub enum RoleId {
-        Named(dm::Name),
-        DomainAdmin(dm::DomainId),
-        AssetAdmin(dm::AssetDefinitionId),
-        NftAdmin(dm::NftId),
-        NftOwner(dm::NftId),
-        TriggerAdmin(dm::TriggerId),
-        MultisigSignatory(dm::AccountId),
-    }
 
     #[derive(Debug, PartialEq, Eq, Hash, Clone, From)]
     pub struct PermissionId(String);
