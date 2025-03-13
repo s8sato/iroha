@@ -237,7 +237,7 @@ mod transitional {
                 DomainEvent, ExecutorEvent, NftEvent, PeerEvent, RoleEvent, TriggerEvent,
             };
 
-            let map: HashMap<_, _> = match value {
+            let map: BTreeMap<_, _> = match value {
                 Peer(event) => match event {
                     PeerEvent::Added(k) => [node_key_value!(Peer, k, UnitS::Create)].into(),
                     PeerEvent::Removed(k) => [node_key_value!(Peer, k, UnitS::Delete)].into(),

@@ -280,7 +280,7 @@ mod transitional {
                 RemoveKeyValueBox, RevokeBox, SetKeyValueBox, TransferBox, UnregisterBox,
             };
 
-            let map: HashMap<_, _> = match instruction {
+            let map: BTreeMap<_, _> = match instruction {
                 InstructionBox::Register(inst) => match inst {
                     RegisterBox::Peer(inst) => {
                         [node_key_value!(Peer, inst.object, UnitW::Create(()))].into()

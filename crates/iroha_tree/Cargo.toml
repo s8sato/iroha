@@ -11,16 +11,20 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+[lints]
+workspace = true
+
+[features]
+std = ["iroha_data_model/std"]
+
 [dependencies]
 iroha_data_model = { workspace = true, features = ["transparent_api"] }
 iroha_executor_data_model = { workspace = true }
 iroha_logger = { workspace = true }
 
 derive_more = { workspace = true, features = ["add"] }
+hashbrown = "0.15"
 serde_with = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
-
-[lints]
-workspace = true

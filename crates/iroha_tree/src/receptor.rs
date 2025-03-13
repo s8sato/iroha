@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use hashbrown::HashSet;
 
 use super::*;
 
@@ -218,7 +218,7 @@ mod transitional {
                 RoleEventSet, TriggerEventSet,
             };
 
-            let map: HashMap<_, _> = match value {
+            let map: BTreeMap<_, _> = match value {
                 Any => [
                     node_key_filter!(Authorizer, FilterU8::ANY),
                     node_key_filter!(Parameter, None, FilterU8::ANY),

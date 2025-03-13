@@ -34,7 +34,7 @@ impl Mode for () {
 }
 
 pub mod transitional {
-    use std::collections::HashSet;
+    use hashbrown::{HashMap, HashSet};
 
     use super::*;
 
@@ -241,6 +241,9 @@ pub use transitional as tr;
 
 #[cfg(test)]
 mod tests {
+    #[cfg(not(feature = "std"))]
+    use alloc::format;
+
     use dm::{DomainId, Repeats, TriggerId};
 
     use super::{transitional::TriggerEntry, *};

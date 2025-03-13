@@ -13,15 +13,30 @@
 #![allow(missing_docs)] // SATO disallow
 #![allow(dead_code)] // SATO disallow
 #![expect(missing_copy_implementations)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
-use std::{
-    collections::HashMap,
+use core::{
     convert::Infallible,
-    fmt::{Debug, Display},
-    hash::Hash,
+    fmt::{self, Debug, Display},
     ops::{Add, BitOr},
-    rc::Rc,
     str::FromStr,
+};
+
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+#[cfg(not(feature = "std"))]
+use alloc::{
+    boxed::Box,
+    collections::{btree_map, BTreeMap},
+    rc::Rc,
+    string::String,
+    vec,
+    vec::Vec,
+};
+#[cfg(feature = "std")]
+use std::{
+    collections::{btree_map, BTreeMap},
+    rc::Rc,
 };
 
 use derive_more::{BitOr, Constructor, DebugCustom, From};
@@ -30,14 +45,14 @@ use serde_with::{DeserializeFromStr, SerializeDisplay};
 /// A flattened node map with a fixed skeleton equivalent to the world state.
 /// Node values may vary by [`Mode`].
 #[derive(Debug, PartialEq, Eq)]
-pub struct Tree<M: Mode>(HashMap<NodeKey, NodeValue<M>>);
+pub struct Tree<M: Mode>(BTreeMap<NodeKey, NodeValue<M>>);
 
 macro_rules! declare_nodes {
     ($(($variant:ident, $key:ident: $($key_element:ty),*),)+) => {
         /// Full path to nodes.
         /// A `None` key element represents __any__ node.
         /// For example, `(None, domain): AccountKey` represents any account within the specified `domain`.
-        #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+        #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
         pub enum NodeKey {
             $(
             $variant($key),
@@ -161,7 +176,7 @@ impl FromStr for FilterU8 {
 }
 
 impl Display for FilterU8 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut byte = self.0;
         for c in event::STATUS_CHARS {
             if byte & 0b1000_0000 == 0b1000_0000 {
@@ -304,7 +319,7 @@ impl_for_node_values!(
 
 impl<M: Mode> Default for Tree<M> {
     fn default() -> Self {
-        Self(HashMap::default())
+        Self(BTreeMap::default())
     }
 }
 
@@ -313,14 +328,14 @@ impl<M: Mode> FromIterator<(NodeKey, NodeValue<M>)> for Tree<M> {
         Tree(
             iter.into_iter()
                 .inspect(|(k, v)| assert!(consistent_key_value(k, v)))
-                .collect::<HashMap<_, _>>(),
+                .collect::<BTreeMap<_, _>>(),
         )
     }
 }
 
 impl<M: Mode> IntoIterator for Tree<M> {
     type Item = (NodeKey, NodeValue<M>);
-    type IntoIter = std::collections::hash_map::IntoIter<NodeKey, NodeValue<M>>;
+    type IntoIter = btree_map::IntoIter<NodeKey, NodeValue<M>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
@@ -386,17 +401,17 @@ pub mod state;
 pub mod transitional {
     use super::*;
 
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
     pub enum ParameterId {
         Any, // TODO remove ParameterId::Any
         Preset(PresetParameterId),
         Custom(dm::CustomParameterId),
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
     pub struct PresetParameterId;
 
-    #[derive(Debug, PartialEq, Eq, Hash, Clone, From)]
+    #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, From)]
     pub struct PermissionId(String);
 
     // SATO HashOf<T: Encode>
