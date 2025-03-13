@@ -24,7 +24,7 @@ use std::{
     str::FromStr,
 };
 
-use derive_more::{BitOr, Constructor, From};
+use derive_more::{BitOr, Constructor, DebugCustom, From};
 use serde_with::{DeserializeFromStr, SerializeDisplay};
 
 /// A flattened node map with a fixed skeleton equivalent to the world state.
@@ -126,8 +126,10 @@ pub trait Filtered {
     fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter>;
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, From, BitOr, SerializeDisplay, DeserializeFromStr)]
-pub struct FilterU8(u8);
+#[derive(
+    DebugCustom, PartialEq, Eq, Clone, Copy, From, BitOr, SerializeDisplay, DeserializeFromStr,
+)]
+pub struct FilterU8(#[debug("{_0:#010b}")] u8);
 
 impl Filtered for FilterU8 {
     type Filter = Self;

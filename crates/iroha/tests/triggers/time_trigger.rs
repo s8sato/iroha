@@ -6,14 +6,11 @@ use iroha::{
     data_model::{
         asset::AssetId,
         events::pipeline::{BlockEventFilter, BlockStatus},
-        prelude::*,
         Level,
     },
 };
-use iroha_test_network::*;
-use iroha_test_samples::{gen_account_in, load_sample_wasm, ALICE_ID};
 
-use crate::triggers::get_asset_value;
+use super::*;
 
 fn curr_time() -> Duration {
     use std::time::SystemTime;

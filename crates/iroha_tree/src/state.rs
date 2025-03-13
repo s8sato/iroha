@@ -245,9 +245,10 @@ mod tests {
         receptor::Receptor,
     };
 
+    /// See the corresponding integration test `triggers::not_registered_when_potential_event_loop_detected`.
     #[test]
     fn event_loop_detection() {
-        // Subscribes to changes in the domain `dom_{i}` with statuses `{s}`.
+        // Subscribes to changes in the domain "dom_{i}" with statuses "{s}".
         let receptor = |i: usize, s: &str| {
             Receptor::from_iter([node_key_value!(
                 Domain,
@@ -255,7 +256,7 @@ mod tests {
                 FilterU8::from_str(s).unwrap()
             )])
         };
-        // Publishes the deletion of the domain `dom_{j}`.
+        // Publishes the deletion of the domain "dom_{j}".
         let changeset = |j: usize| {
             ChangeSet::from_iter([node_key_value!(
                 Domain,
@@ -280,30 +281,30 @@ mod tests {
                 ),
             )
         };
-        // A potential connection exists through the deletion of `dom_1`.
+        // A potential connection exists through the deletion of "dom_1".
         let (trg_0d_1d, trg_1d_2d) = (trigger(0, "d", 1), trigger(1, "d", 2));
         // The state after registering the above triggers.
         let state = PartialState::from_iter([
-            node_key_value!(Condition, trg_0d_1d.1.0.clone(), trg_0d_1d.1.1),
-            node_key_value!(Condition, trg_1d_2d.1.0.clone(), trg_1d_2d.1.1),
-            node_key_value!(Executable, trg_0d_1d.2.0.clone(), trg_0d_1d.2.1),
-            node_key_value!(Executable, trg_1d_2d.2.0.clone(), trg_1d_2d.2.1),
-            node_key_value!(TriggerCondition, trg_0d_1d.0.0.clone(), trg_0d_1d.1.0, ()),
-            node_key_value!(TriggerCondition, trg_1d_2d.0.0.clone(), trg_1d_2d.1.0, ()),
+            node_key_value!(Condition, trg_0d_1d.1 .0.clone(), trg_0d_1d.1 .1),
+            node_key_value!(Condition, trg_1d_2d.1 .0.clone(), trg_1d_2d.1 .1),
+            node_key_value!(Executable, trg_0d_1d.2 .0.clone(), trg_0d_1d.2 .1),
+            node_key_value!(Executable, trg_1d_2d.2 .0.clone(), trg_1d_2d.2 .1),
+            node_key_value!(TriggerCondition, trg_0d_1d.0 .0.clone(), trg_0d_1d.1 .0, ()),
+            node_key_value!(TriggerCondition, trg_1d_2d.0 .0.clone(), trg_1d_2d.1 .0, ()),
             node_key_value!(
                 TriggerExecutable,
-                trg_0d_1d.0.0.clone(),
-                trg_0d_1d.2.0,
+                trg_0d_1d.0 .0.clone(),
+                trg_0d_1d.2 .0,
                 ()
             ),
             node_key_value!(
                 TriggerExecutable,
-                trg_1d_2d.0.0.clone(),
-                trg_1d_2d.2.0,
+                trg_1d_2d.0 .0.clone(),
+                trg_1d_2d.2 .0,
                 ()
             ),
-            node_key_value!(Trigger, trg_0d_1d.0.0, trg_0d_1d.0.1),
-            node_key_value!(Trigger, trg_1d_2d.0.0, trg_1d_2d.0.1),
+            node_key_value!(Trigger, trg_0d_1d.0 .0, trg_0d_1d.0 .1),
+            node_key_value!(Trigger, trg_1d_2d.0 .0, trg_1d_2d.0 .1),
         ]);
 
         for (entry, leads_to_event_loop) in [
@@ -320,30 +321,30 @@ mod tests {
             {
                 let mut trg_3d_x = trigger(3, "d", 4);
                 let another = trigger(10, "", 20);
-                trg_3d_x.2.1 = ChangeSet::from_iter([
+                trg_3d_x.2 .1 = ChangeSet::from_iter([
                     node_key_value!(
                         Condition,
-                        another.1.0.clone(),
-                        ConditionW::Set(another.1.1)
+                        another.1 .0.clone(),
+                        ConditionW::Set(another.1 .1)
                     ),
                     node_key_value!(
                         Executable,
-                        another.2.0.clone(),
-                        ExecutableW::Set(another.2.1)
+                        another.2 .0.clone(),
+                        ExecutableW::Set(another.2 .1)
                     ),
                     node_key_value!(
                         TriggerCondition,
-                        another.0.0.clone(),
-                        another.1.0,
+                        another.0 .0.clone(),
+                        another.1 .0,
                         UnitW::Create(())
                     ),
                     node_key_value!(
                         TriggerExecutable,
-                        another.0.0.clone(),
-                        another.2.0,
+                        another.0 .0.clone(),
+                        another.2 .0,
                         UnitW::Create(())
                     ),
-                    node_key_value!(Trigger, another.0.0, TriggerW::Create(another.0.1)),
+                    node_key_value!(Trigger, another.0 .0, TriggerW::Create(another.0 .1)),
                 ])
                 .into();
                 // Creating an additional trigger.
@@ -351,7 +352,7 @@ mod tests {
             },
         ]
         .iter()
-        .map(|(trg, b)| (TriggerEntry::new(&trg.0.0, &trg.1.1, &trg.2.1), *b))
+        .map(|(trg, b)| (TriggerEntry::new(&trg.0 .0, &trg.1 .1, &trg.2 .1), *b))
         {
             assert_eq!(leads_to_event_loop, entry.leads_to_event_loop(&state));
         }

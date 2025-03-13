@@ -4,17 +4,14 @@ use eyre::{eyre, Result, WrapErr};
 use iroha::{
     crypto::KeyPair,
     data_model::{
-        prelude::*,
         query::{builder::SingleQueryError, error::FindError, trigger::FindTriggers},
         transaction::Executable,
     },
 };
 use iroha_executor_data_model::permission::trigger::CanRegisterTrigger;
-use iroha_test_network::*;
-use iroha_test_samples::{load_sample_wasm, ALICE_ID};
 use mint_rose_trigger_data_model::MintRoseArgs;
 
-use crate::triggers::get_asset_value;
+use super::*;
 
 const TRIGGER_NAME: &str = "mint_rose";
 

@@ -1,10 +1,7 @@
 use eyre::Result;
-use iroha::{client, data_model::prelude::*};
-use iroha_data_model::parameter::SumeragiParameter;
-use iroha_test_network::*;
-use iroha_test_samples::{gen_account_in, ALICE_ID};
+use iroha::{client, data_model::parameter::SumeragiParameter};
 
-use crate::triggers::get_asset_value;
+use super::*;
 
 /// # Scenario
 ///

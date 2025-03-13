@@ -45,7 +45,7 @@ pub mod isi {
                     Ok(exe) => exe,
                     Err(node_conflict) => {
                         return Err(Error::Conversion(format!(
-                            "failed to fold instructions into changeset:\n{node_conflict:#?}"
+                            "failed to fold instructions into changeset: {node_conflict:?}"
                         )));
                     }
                 };
@@ -59,7 +59,7 @@ pub mod isi {
                 };
                 if entry.leads_to_event_loop(&partial_state) {
                     return Err(Error::InvariantViolation(format!(
-                        "trigger registration leads to event loop:\n{entry:#?}"
+                        "trigger registration leads to event loop: {entry:?}"
                     )));
                 }
             }

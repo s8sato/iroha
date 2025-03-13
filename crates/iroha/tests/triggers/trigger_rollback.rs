@@ -1,7 +1,6 @@
 use eyre::Result;
-use iroha::data_model::{prelude::*, trigger::TriggerId};
-use iroha_test_network::*;
-use iroha_test_samples::ALICE_ID;
+
+use super::*;
 
 #[test]
 fn failed_trigger_revert() -> Result<()> {
