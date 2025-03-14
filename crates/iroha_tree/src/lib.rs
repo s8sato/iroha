@@ -222,7 +222,7 @@ impl FilterU8 {
 }
 
 #[derive(Debug, Constructor)]
-/// SATO docs, impl Error
+/// Indicates an invariant violation while aggregating node values at the node key.
 pub struct NodeConflict<M: Mode> {
     pub key: NodeKey,
     pub lhs: NodeValue<M>,
@@ -239,7 +239,7 @@ trait NodeKeyValue {
     fn node_type(&self) -> NodeType;
 }
 
-// This should be asserted whenever constructing key-value pairs, as type safety was lost during tree size reduction.
+/// This should be asserted whenever constructing key-value pairs, as type safety was lost during tree size reduction.
 fn consistent_key_value(key: &impl NodeKeyValue, value: &impl NodeKeyValue) -> bool {
     key.node_type() == value.node_type()
 }
@@ -344,22 +344,20 @@ macro_rules! impl_for_node_key_values {
                         Err((l, r)) => Err((Self::$variant(l), Self::$variant(r))),
                     },
                     )+
-                    // SATO return errors
-                    _ => unreachable!(),
+                    (l, r) => Err((l ,r)),
                 }
             }
         }
 
         impl BitOr for NodeValue<permission::ReadWriteStatusFilter> {
-            type Output = Self;
+            type Output = Result<Self, (Self, Self)>;
 
             fn bitor(self, rhs: Self) -> Self::Output {
                 match (self, rhs) {
                     $(
-                    (Self::$variant(l), Self::$variant(r)) => Self::$variant(l | r),
+                    (Self::$variant(l), Self::$variant(r)) => Ok(Self::$variant(l | r)),
                     )+
-                    // SATO return errors
-                    _ => unreachable!(),
+                    (l, r) => Err((l ,r)),
                 }
             }
         }

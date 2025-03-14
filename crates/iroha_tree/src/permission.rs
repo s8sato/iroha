@@ -7,6 +7,7 @@ pub type ReadWriteStatusFilter = receptor::ReadWriteStatusFilter;
 impl Filtered for state::PartialState {
     type Filter = Permission;
 
+    /// Post-execution validation of read access.
     fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter> {
         self.as_status().passes(filter)
     }
@@ -15,6 +16,7 @@ impl Filtered for state::PartialState {
 impl Filtered for changeset::ChangeSet {
     type Filter = Permission;
 
+    /// Pre-execution validation of write access.
     fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter> {
         self.as_status().passes(filter)
     }
@@ -27,7 +29,7 @@ impl BitOr for Permission {
         for (k, v0) in self {
             let v = match rhs.remove(&k) {
                 None => v0,
-                Some(v1) => v0 | v1,
+                Some(v1) => (v0 | v1).expect("value types should be consistent"),
             };
             rhs.insert(k, v);
         }
