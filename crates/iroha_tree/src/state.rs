@@ -295,14 +295,8 @@ mod tests {
                     TriggerId::from_str(&format!("trg_{i}{s}_{j}d")).unwrap(),
                     tr::TriggerV::from(Repeats::Indefinitely),
                 ),
-                (
-                    crate::tr::ConditionId::from(dm::HashOf::new(&condition)),
-                    condition,
-                ),
-                (
-                    crate::tr::ExecutableId::from(dm::HashOf::new(&executable)),
-                    executable,
-                ),
+                (crate::tr::ConditionId::from(&condition), condition),
+                (crate::tr::ExecutableId::from(&executable), executable),
             )
         };
         // A potential connection exists through the deletion of "dom_1".

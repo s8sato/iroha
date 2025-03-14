@@ -336,8 +336,8 @@ mod transitional {
                             inst.object.action.executable,
                         ))?;
                         let trigger_id = inst.object.id;
-                        let condition_id = tr::ConditionId::from(dm::HashOf::new(&condition));
-                        let executable_id = tr::ExecutableId::from(dm::HashOf::new(&executable));
+                        let condition_id = tr::ConditionId::from(&condition);
+                        let executable_id = tr::ExecutableId::from(&executable);
                         [
                             node!(Trigger, trigger_id.clone(), TriggerW::Create(trigger)),
                             node!(Condition, condition_id.clone(), ConditionW::Set(condition)),
@@ -599,7 +599,7 @@ mod transitional {
                         AccountPermission,
                         inst.destination.signatory,
                         inst.destination.domain,
-                        inst.object.name.into(),
+                        tr::PermissionId::from(&inst.object),
                         UnitW::Create(())
                     )]
                     .into(),
@@ -614,7 +614,7 @@ mod transitional {
                     GrantBox::RolePermission(inst) => [node!(
                         RolePermission,
                         inst.destination,
-                        inst.object.name.into(),
+                        tr::PermissionId::from(&inst.object),
                         UnitW::Create(())
                     )]
                     .into(),
@@ -624,7 +624,7 @@ mod transitional {
                         AccountPermission,
                         inst.destination.signatory,
                         inst.destination.domain,
-                        inst.object.name.into(),
+                        tr::PermissionId::from(&inst.object),
                         UnitW::Delete(())
                     )]
                     .into(),
@@ -639,7 +639,7 @@ mod transitional {
                     RevokeBox::RolePermission(inst) => [node!(
                         RolePermission,
                         inst.destination,
-                        inst.object.name.into(),
+                        tr::PermissionId::from(&inst.object),
                         UnitW::Delete(())
                     )]
                     .into(),
@@ -649,7 +649,7 @@ mod transitional {
                 ),
                 InstructionBox::SetParameter(inst) => [node!(
                     Parameter,
-                    tr::ParameterId::Any,
+                    tr::ParameterId,
                     ParameterW::Set(inst.0.into())
                 )]
                 .into(),

@@ -281,8 +281,8 @@ mod transitional {
                             AssetEvent::Added(_v) => unimplemented!("ambiguous sources: Mint<Numeric, Asset>, Transfer<Asset, Numeric, Account>"),
                             AssetEvent::Removed(_v) => unimplemented!("ambiguous sources: Burn<Numeric, Asset>, Transfer<Asset, Numeric, Account>"),
                         },
-                        AccountEvent::PermissionAdded(v) => [node!(AccountPermission, v.account.signatory, v.account.domain, v.permission.name.into(), UnitS::Create)].into(),
-                        AccountEvent::PermissionRemoved(v) => [node!(AccountPermission, v.account.signatory, v.account.domain, v.permission.name.into(), UnitS::Delete)].into(),
+                        AccountEvent::PermissionAdded(v) => [node!(AccountPermission, v.account.signatory, v.account.domain, (&v.permission).into(), UnitS::Create)].into(),
+                        AccountEvent::PermissionRemoved(v) => [node!(AccountPermission, v.account.signatory, v.account.domain, (&v.permission).into(), UnitS::Delete)].into(),
                         AccountEvent::RoleGranted(v) => [node!(AccountRole, v.account.signatory, v.account.domain, v.role, UnitS::Create)].into(),
                         AccountEvent::RoleRevoked(v) => [node!(AccountRole, v.account.signatory, v.account.domain, v.role, UnitS::Delete)].into(),
                         AccountEvent::MetadataInserted(m) => [node!(AccountMetadata, m.target.signatory, m.target.domain, m.key, MetadataS::Set)].into(),
@@ -307,11 +307,11 @@ mod transitional {
                 Role(event) => match event {
                     RoleEvent::Created(v) => [node!(Role, v.id, UnitS::Create)].into(),
                     RoleEvent::Deleted(k) => [node!(Role, k, UnitS::Delete)].into(),
-                    RoleEvent::PermissionAdded(v) => [node!(RolePermission, v.role, v.permission.name.into(), UnitS::Create)].into(),
-                    RoleEvent::PermissionRemoved(v) => [node!(RolePermission, v.role, v.permission.name.into(), UnitS::Delete)].into(),
+                    RoleEvent::PermissionAdded(v) => [node!(RolePermission, v.role, (&v.permission).into(), UnitS::Create)].into(),
+                    RoleEvent::PermissionRemoved(v) => [node!(RolePermission, v.role, (&v.permission).into(), UnitS::Delete)].into(),
                 },
                 Configuration(event) => match event {
-                    ConfigurationEvent::Changed(_v) => [node!(Parameter, tr::ParameterId::Any, ParameterS::Set)].into(),
+                    ConfigurationEvent::Changed(_v) => [node!(Parameter, tr::ParameterId, ParameterS::Set)].into(),
                 },
                 // The executor is planned to be replaced with the authorizer. See the `iroha_authorizer` crate documentation for details.
                 Executor(event) => match event {

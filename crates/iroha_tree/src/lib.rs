@@ -29,7 +29,6 @@ use alloc::{
     boxed::Box,
     collections::{btree_map, BTreeMap, BTreeSet},
     rc::Rc,
-    string::String,
     vec,
     vec::Vec,
 };
@@ -513,23 +512,28 @@ pub mod transitional {
     use super::*;
 
     #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Decode, Encode)]
-    pub enum ParameterId {
-        Any, // TODO remove ParameterId::Any
-        Preset(PresetParameterId),
-        Custom(dm::CustomParameterId),
+    pub struct ParameterId;
+
+    macro_rules! declare_ids_from_values {
+        ($(($id:ident, $value:path),)+) => {
+            $(
+            #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, From, Decode, Encode)]
+            pub struct $id(dm::HashOf<$value>);
+
+            impl From<&$value> for $id {
+                fn from(value: &$value) -> Self {
+                    dm::HashOf::new(value).into()
+                }
+            }
+            )+
+        };
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Decode, Encode)]
-    pub struct PresetParameterId;
-
-    #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, From, Decode, Encode)]
-    pub struct PermissionId(String);
-
-    #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, From, Decode, Encode)]
-    pub struct ConditionId(dm::HashOf<state::tr::ConditionV>);
-
-    #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, From, Decode, Encode)]
-    pub struct ExecutableId(dm::HashOf<state::tr::ExecutableV>);
+    declare_ids_from_values!(
+        (PermissionId, state::tr::PermissionV),
+        (ConditionId, state::tr::ConditionV),
+        (ExecutableId, state::tr::ExecutableV),
+    );
 }
 
 use transitional as tr;

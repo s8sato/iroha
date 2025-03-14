@@ -5,7 +5,7 @@
 use std::rc::Rc;
 
 use iroha_tree::{
-    changeset, dm, event, node, readset, receptor, state, transitional as tr, FuzzyNodeKey,
+    changeset, event, node, readset, receptor, state, transitional as tr, FuzzyNodeKey,
     NodeReadWrite,
 };
 use mv::storage::StorageReadOnly;
@@ -77,8 +77,8 @@ impl State<'_, '_> {
                                 }
                             };
                             let trigger_id = id.clone();
-                            let condition_id = tr::ConditionId::from(dm::HashOf::new(&condition));
-                            let executable_id = tr::ExecutableId::from(dm::HashOf::new(&executable));
+                            let condition_id = tr::ConditionId::from(&condition);
+                            let executable_id = tr::ExecutableId::from(&executable);
 
                             for (k, v) in [
                                 node!(Trigger, trigger_id.clone(), trigger),
