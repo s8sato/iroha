@@ -5,7 +5,7 @@
 use std::rc::Rc;
 
 use iroha_tree::{
-    changeset, dm, event, node_key_value, readset, receptor, state, transitional as tr, NodeKey,
+    changeset, dm, event, node, readset, receptor, state, transitional as tr, FuzzyNodeKey,
     NodeReadWrite,
 };
 use mv::storage::StorageReadOnly;
@@ -51,7 +51,7 @@ impl State<'_, '_> {
         let mut res = state::PartialState::default();
         for (k, _v) in readset.iter() {
             match k {
-                NodeKey::Trigger(key) => {
+                FuzzyNodeKey::Trigger(key) => {
                     self.world()
                         .triggers()
                         // Other types of triggers are irrelevant as long as this function is used solely for event loop detection.
@@ -59,12 +59,12 @@ impl State<'_, '_> {
                         .iter()
                         .filter(|(id, _)| key.as_ref().map_or(true, |key| **key == **id))
                         .for_each(|(id, action)| {
-                            let trigger = state::tr::TriggerValue::from(action.repeats);
-                            let condition = receptor::Receptor::from(action.filter.clone()).into();
+                            let trigger = state::tr::TriggerV::from(action.repeats);
+                            let condition = state::tr::ConditionV::from(receptor::Receptor::from(action.filter.clone()));
                             let executable = match action.executable() {
                                 ExecutableRef::Wasm(_hash) => {
                                     let wasm = state::tr::WasmExecutable;
-                                    state::tr::ExecutableValue::Dynamic(wasm)
+                                    state::tr::ExecutableV::Dynamic(wasm)
                                 }
                                 ExecutableRef::Instructions(instructions) => {
                                     let changeset = (
@@ -73,7 +73,7 @@ impl State<'_, '_> {
                                     )
                                         .try_into()
                                         .expect("instructions that are already registered as an executable should be converted into a changeset");
-                                    state::tr::ExecutableValue::Static(changeset)
+                                    state::tr::ExecutableV::Static(changeset)
                                 }
                             };
                             let trigger_id = id.clone();
@@ -81,35 +81,35 @@ impl State<'_, '_> {
                             let executable_id = tr::ExecutableId::from(dm::HashOf::new(&executable));
 
                             for (k, v) in [
-                                node_key_value!(Trigger, trigger_id.clone(), trigger),
-                                node_key_value!(
+                                node!(Trigger, trigger_id.clone(), trigger),
+                                node!(
                                     Condition,
                                     condition_id.clone(),
                                     condition
                                 ),
-                                node_key_value!(
+                                node!(
                                     Executable,
                                     executable_id.clone(),
                                     executable
                                 ),
-                                node_key_value!(
+                                node!(
                                     TriggerCondition,
                                     trigger_id.clone(),
                                     condition_id,
-                                    ()
+                                    state::tr::UnitV
                                 ),
-                                node_key_value!(
+                                node!(
                                     TriggerExecutable,
                                     trigger_id.clone(),
                                     executable_id,
-                                    ()
+                                    state::tr::UnitV
                                 ),
-                                node_key_value!(
+                                node!(
                                     TriggerAdmin,
                                     trigger_id,
                                     action.authority.signatory.clone(),
                                     action.authority.domain.clone(),
-                                    ()
+                                    state::tr::UnitV
                                 ),
                             ] {
                                 res.insert(k, v);

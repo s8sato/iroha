@@ -30,15 +30,15 @@ pub mod isi {
         ) -> Result<(), Error> {
             #[cfg(feature = "prediction")]
             {
-                use iroha_tree::{readset, state, NodeKey, NodeValue};
+                use iroha_tree::{fuzzy_node, readset, state};
 
                 let object = self.object.clone();
                 let id = object.id;
-                let condition = match state::tr::ConditionValue::try_from(object.action.filter) {
+                let condition = match state::tr::ConditionV::try_from(object.action.filter) {
                     Ok(con) => con,
                     Err(msg) => return Err(Error::Conversion(msg.to_string())),
                 };
-                let executable = match state::tr::ExecutableValue::try_from((
+                let executable = match state::tr::ExecutableV::try_from((
                     object.action.authority,
                     object.action.executable,
                 )) {
@@ -51,10 +51,9 @@ pub mod isi {
                 };
                 let entry = state::tr::TriggerEntry::new(&id, &condition, &executable);
                 let partial_state = {
-                    let readset: readset::ReadSet =
-                        [(NodeKey::Trigger(None), NodeValue::Trigger(()))]
-                            .into_iter()
-                            .collect();
+                    let readset: readset::ReadSet = [fuzzy_node!(Trigger, None, readset::UnitR)]
+                        .into_iter()
+                        .collect();
                     state_transaction.load(&readset)
                 };
                 if entry.leads_to_event_loop(&partial_state) {

@@ -27,7 +27,7 @@ extern crate alloc;
 #[cfg(not(feature = "std"))]
 use alloc::{
     boxed::Box,
-    collections::{btree_map, BTreeMap},
+    collections::{btree_map, BTreeMap, BTreeSet},
     rc::Rc,
     string::String,
     vec,
@@ -35,7 +35,7 @@ use alloc::{
 };
 #[cfg(feature = "std")]
 use std::{
-    collections::{btree_map, BTreeMap},
+    collections::{btree_map, BTreeMap, BTreeSet},
     rc::Rc,
 };
 
@@ -48,11 +48,14 @@ use serde_with::{DeserializeFromStr, SerializeDisplay};
 #[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub struct Tree<M: Mode>(BTreeMap<NodeKey, NodeValue<M>>);
 
+/// The same structure as [`Tree`], except that node keys can represent a certain group of nodes.
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+pub struct FuzzyTree<M: Mode>(BTreeMap<FuzzyNodeKey, NodeValue<M>>);
+
 macro_rules! declare_nodes {
-    ($(($variant:ident, $key:ident: $($key_element:ty),*),)+) => {
-        /// Full path to nodes.
-        /// A `None` key element represents __any__ node.
-        /// For example, `(None, domain): AccountKey` represents any account within the specified `domain`.
+    ($(($variant:ident, $key:ident, $fuzzy_key:ident: $($key_element:ty),*),)+) => {
+        /// Exact path to nodes:
+        /// Can be considered as composite primary keys in an RDB.
         #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Decode, Encode)]
         pub enum NodeKey {
             $(
@@ -62,6 +65,20 @@ macro_rules! declare_nodes {
 
         $(
         declare_nodes!(_key_alias $key: $($key_element),*);
+        )+
+
+        /// Fuzzy path to nodes:
+        /// A `None` key element represents __any__ node.
+        /// For example, `(None, Some(domain)): AccountKey` represents any account within the specified `domain`.
+        #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Decode, Encode)]
+        pub enum FuzzyNodeKey {
+            $(
+            $variant($fuzzy_key),
+            )+
+        }
+
+        $(
+        declare_nodes!(_fuzzy_key_alias $fuzzy_key: $($key_element),*);
         )+
 
         /// Represents various states such as the current state, intention, result, or readiness at the node.
@@ -78,57 +95,56 @@ macro_rules! declare_nodes {
             type $variant: Debug + PartialEq + Eq + Decode + Encode;
             )+
         }
-
-        // This should be asserted whenever constructing key-value pairs, as type safety was lost during tree size reduction.
-        fn consistent_key_value<M: Mode>(key: &NodeKey, value: &NodeValue<M>) -> bool {
-            match (key, value) {
-                $(
-                (NodeKey::$variant(_), NodeValue::$variant(_))
-                )|+ => true,
-                (_, _) => false,
-            }
-        }
     };
     (_key_alias $key:ident:) => {
         type $key = ();
     };
     (_key_alias $key:ident: $key_element:ty) => {
-        type $key = Option<Rc<$key_element>>;
+        type $key = Rc<$key_element>;
     };
     (_key_alias $key:ident: $key_element_head:ty, $($key_element:ty),+) => {
+        type $key = (Rc<$key_element_head>, $(Rc<$key_element>),+);
+    };
+    (_fuzzy_key_alias $key:ident:) => {
+        type $key = ();
+    };
+    (_fuzzy_key_alias $key:ident: $key_element:ty) => {
+        type $key = Option<Rc<$key_element>>;
+    };
+    (_fuzzy_key_alias $key:ident: $key_element_head:ty, $($key_element:ty),+) => {
         type $key = (Option<Rc<$key_element_head>>, $(Option<Rc<$key_element>>),+);
     };
 }
 
 declare_nodes!(
-    (Authorizer, AuthorizerKey:),
-    (Parameter, ParameterKey: tr::ParameterId),
-    (Peer, PeerKey: dm::PeerId),
-    (Domain, DomainKey: dm::DomainId),
-    (Account, AccountKey: dm::PublicKey, dm::DomainId),
-    (Asset, AssetKey: dm::Name, dm::DomainId),
-    (Nft, NftKey: dm::Name, dm::DomainId),
-    (AccountAsset, AccountAssetKey: dm::PublicKey, dm::DomainId, dm::Name, dm::DomainId),
-    (Role, RoleKey: dm::RoleId),
-    (Permission, PermissionKey: tr::PermissionId),
-    (AccountRole, AccountRoleKey: dm::PublicKey, dm::DomainId, dm::RoleId),
-    (AccountPermission, AccountPermissionKey: dm::PublicKey, dm::DomainId, tr::PermissionId),
-    (RolePermission, RolePermissionKey: dm::RoleId, tr::PermissionId),
-    (Trigger, TriggerKey: dm::TriggerId),
-    (Condition, ConditionKey: tr::ConditionId),
-    (Executable, ExecutableKey: tr::ExecutableId),
-    (TriggerCondition, TriggerConditionKey: dm::TriggerId, tr::ConditionId),
-    (TriggerExecutable, TriggerExecutableKey: dm::TriggerId, tr::ExecutableId),
-    (DomainMetadata, DomainMetadataKey: dm::DomainId, dm::Name),
-    (AccountMetadata, AccountMetadataKey: dm::PublicKey, dm::DomainId, dm::Name),
-    (AssetMetadata, AssetMetadataKey: dm::Name, dm::DomainId, dm::Name),
-    (NftData, NftDataKey: dm::Name, dm::DomainId, dm::Name),
-    (TriggerMetadata, TriggerMetadataKey: dm::TriggerId, dm::Name),
-    (DomainAdmin, DomainAdminKey: dm::DomainId, dm::PublicKey, dm::DomainId),
-    (AssetAdmin, AssetAdminKey: dm::Name, dm::DomainId, dm::PublicKey, dm::DomainId),
-    (NftAdmin, NftAdminKey: dm::Name, dm::DomainId, dm::PublicKey, dm::DomainId),
-    (NftOwner, NftOwnerKey: dm::Name, dm::DomainId, dm::PublicKey, dm::DomainId),
-    (TriggerAdmin, TriggerAdminKey: dm::TriggerId, dm::PublicKey, dm::DomainId),
+    (Authorizer, AuthorizerK, AuthorizerKF:),
+    (Parameter, ParameterK, ParameterKF: tr::ParameterId),
+    (Peer, PeerK, PeerKF: dm::PeerId),
+    (Domain, DomainK, DomainKF: dm::DomainId),
+    (Account, AccountK, AccountKF: dm::PublicKey, dm::DomainId),
+    (Asset, AssetK, AssetKF: dm::Name, dm::DomainId),
+    (Nft, NftK, NftKF: dm::Name, dm::DomainId),
+    (AccountAsset, AccountAssetK, AccountAssetKF: dm::PublicKey, dm::DomainId, dm::Name, dm::DomainId),
+    (Role, RoleK, RoleKF: dm::RoleId),
+    (Permission, PermissionK, PermissionKF: tr::PermissionId),
+    (AccountRole, AccountRoleK, AccountRoleKF: dm::PublicKey, dm::DomainId, dm::RoleId),
+    (AccountPermission, AccountPermissionK, AccountPermissionKF: dm::PublicKey, dm::DomainId, tr::PermissionId),
+    (RolePermission, RolePermissionK, RolePermissionKF: dm::RoleId, tr::PermissionId),
+    (Trigger, TriggerK, TriggerKF: dm::TriggerId),
+    (Condition, ConditionK, ConditionKF: tr::ConditionId),
+    (Executable, ExecutableK, ExecutableKF: tr::ExecutableId),
+    (TriggerCondition, TriggerConditionK, TriggerConditionKF: dm::TriggerId, tr::ConditionId),
+    (TriggerExecutable, TriggerExecutableK, TriggerExecutableKF: dm::TriggerId, tr::ExecutableId),
+    (DomainMetadata, DomainMetadataK, DomainMetadataKF: dm::DomainId, dm::Name),
+    (AccountMetadata, AccountMetadataK, AccountMetadataKF: dm::PublicKey, dm::DomainId, dm::Name),
+    (AssetMetadata, AssetMetadataK, AssetMetadataKF: dm::Name, dm::DomainId, dm::Name),
+    (NftData, NftDataK, NftDataKF: dm::Name, dm::DomainId, dm::Name),
+    (TriggerMetadata, TriggerMetadataK, TriggerMetadataKF: dm::TriggerId, dm::Name),
+    (DomainAdmin, DomainAdminK, DomainAdminKF: dm::DomainId, dm::PublicKey, dm::DomainId),
+    (AssetAdmin, AssetAdminK, AssetAdminKF: dm::Name, dm::DomainId, dm::PublicKey, dm::DomainId),
+    (NftAdmin, NftAdminK, NftAdminKF: dm::Name, dm::DomainId, dm::PublicKey, dm::DomainId),
+    (NftOwner, NftOwnerK, NftOwnerKF: dm::Name, dm::DomainId, dm::PublicKey, dm::DomainId),
+    (TriggerAdmin, TriggerAdminK, TriggerAdminKF: dm::TriggerId, dm::PublicKey, dm::DomainId),
 );
 
 pub trait NodeReadWrite: Filtered {
@@ -207,20 +223,72 @@ impl FilterU8 {
 }
 
 #[derive(Debug, Constructor)]
-/// SATO docs
+/// SATO docs, impl Error
 pub struct NodeConflict<M: Mode> {
     pub key: NodeKey,
     pub lhs: NodeValue<M>,
     pub rhs: NodeValue<M>,
 }
 
-macro_rules! impl_for_node_values {
+impl NodeKey {
+    fn fuzzy(&self) -> FuzzyNodeKey {
+        self.receptor_keys().last().unwrap().clone()
+    }
+}
+
+trait NodeKeyValue {
+    fn node_type(&self) -> NodeType;
+}
+
+// This should be asserted whenever constructing key-value pairs, as type safety was lost during tree size reduction.
+fn consistent_key_value(key: &impl NodeKeyValue, value: &impl NodeKeyValue) -> bool {
+    key.node_type() == value.node_type()
+}
+
+macro_rules! impl_for_node_key_values {
     ($($variant:ident,)+) => {
-        impl From<&NodeValue<readset::Read>> for NodeValue<event::ReadWriteStatus> {
-            fn from(value: &NodeValue<readset::Read>) -> Self {
+        #[derive(Debug, PartialEq, Eq)]
+        enum NodeType {
+            $(
+            $variant,
+            )+
+        }
+
+        impl NodeKeyValue for NodeKey {
+            fn node_type(&self) -> NodeType {
+                match self {
+                    $(
+                    Self::$variant(_) => NodeType::$variant,
+                    )+
+                }
+            }
+        }
+
+        impl NodeKeyValue for FuzzyNodeKey {
+            fn node_type(&self) -> NodeType {
+                match self {
+                    $(
+                    Self::$variant(_) => NodeType::$variant,
+                    )+
+                }
+            }
+        }
+
+        impl<M: Mode> NodeKeyValue for NodeValue<M> {
+            fn node_type(&self) -> NodeType {
+                match self {
+                    $(
+                    Self::$variant(_) => NodeType::$variant,
+                    )+
+                }
+            }
+        }
+
+        impl From<&NodeValue<state::State>> for NodeValue<event::ReadWriteStatus> {
+            fn from(value: &NodeValue<state::State>) -> Self {
                 match value {
                     $(
-                    NodeValue::$variant(read) => Self::$variant(read.into()),
+                    NodeValue::$variant(state) => Self::$variant(state.into()),
                     )+
                 }
             }
@@ -230,7 +298,7 @@ macro_rules! impl_for_node_values {
             fn from(value: &NodeValue<changeset::Write>) -> Self {
                 match value {
                     $(
-                    NodeValue::$variant(write) => Self::$variant(write.as_status()),
+                    NodeValue::$variant(write) => Self::$variant(write.into()),
                     )+
                 }
             }
@@ -277,6 +345,7 @@ macro_rules! impl_for_node_values {
                         Err((l, r)) => Err((Self::$variant(l), Self::$variant(r))),
                     },
                     )+
+                    // SATO return errors
                     _ => unreachable!(),
                 }
             }
@@ -290,6 +359,7 @@ macro_rules! impl_for_node_values {
                     $(
                     (Self::$variant(l), Self::$variant(r)) => Self::$variant(l | r),
                     )+
+                    // SATO return errors
                     _ => unreachable!(),
                 }
             }
@@ -297,7 +367,7 @@ macro_rules! impl_for_node_values {
     };
 }
 
-impl_for_node_values!(
+impl_for_node_key_values!(
     Authorizer,
     Parameter,
     Peer,
@@ -328,77 +398,107 @@ impl_for_node_values!(
     TriggerAdmin,
 );
 
-impl<M: Mode> Default for Tree<M> {
-    fn default() -> Self {
-        Self(BTreeMap::default())
-    }
+macro_rules! impl_for_tree {
+    ($(($tree:ident, $key:ty),)+) => {
+        $(
+        impl<M: Mode> Default for $tree<M> {
+            fn default() -> Self {
+                Self(BTreeMap::default())
+            }
+        }
+
+        impl<M: Mode> FromIterator<($key, NodeValue<M>)> for $tree<M> {
+            fn from_iter<I: IntoIterator<Item = ($key, NodeValue<M>)>>(iter: I) -> Self {
+                $tree(
+                    iter.into_iter()
+                        .inspect(|(k, v)| assert!(consistent_key_value(k, v)))
+                        .collect::<BTreeMap<_, _>>(),
+                )
+            }
+        }
+
+        impl<M: Mode> IntoIterator for $tree<M> {
+            type Item = ($key, NodeValue<M>);
+            type IntoIter = btree_map::IntoIter<$key, NodeValue<M>>;
+
+            fn into_iter(self) -> Self::IntoIter {
+                self.0.into_iter()
+            }
+        }
+
+        impl<M: Mode> $tree<M> {
+            pub fn is_empty(&self) -> bool {
+                self.0.is_empty()
+            }
+
+            pub fn get(&self, key: &$key) -> Option<&NodeValue<M>> {
+                self.0.get(key)
+            }
+
+            pub fn insert(&mut self, key: $key, value: NodeValue<M>) -> Option<NodeValue<M>> {
+                assert!(consistent_key_value(&key, &value));
+                self.0.insert(key, value)
+            }
+
+            pub fn remove(&mut self, key: &$key) -> Option<NodeValue<M>> {
+                self.0.remove(key)
+            }
+
+            pub fn iter(&self) -> impl Iterator<Item = (&$key, &NodeValue<M>)> {
+                self.0.iter()
+            }
+
+            pub fn keys(&self) -> impl Iterator<Item = &$key> {
+                self.0.keys()
+            }
+        }
+        )+
+    };
 }
 
-impl<M: Mode> FromIterator<(NodeKey, NodeValue<M>)> for Tree<M> {
-    fn from_iter<I: IntoIterator<Item = (NodeKey, NodeValue<M>)>>(iter: I) -> Self {
-        Tree(
-            iter.into_iter()
-                .inspect(|(k, v)| assert!(consistent_key_value(k, v)))
-                .collect::<BTreeMap<_, _>>(),
-        )
-    }
-}
+impl_for_tree!((Tree, NodeKey), (FuzzyTree, FuzzyNodeKey),);
 
-impl<M: Mode> IntoIterator for Tree<M> {
-    type Item = (NodeKey, NodeValue<M>);
-    type IntoIter = btree_map::IntoIter<NodeKey, NodeValue<M>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-impl<M: Mode> Tree<M> {
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    pub fn get(&self, key: &NodeKey) -> Option<&NodeValue<M>> {
-        self.0.get(key)
-    }
-
-    pub fn insert(&mut self, key: NodeKey, value: NodeValue<M>) -> Option<NodeValue<M>> {
-        assert!(consistent_key_value(&key, &value));
-        self.0.insert(key, value)
-    }
-
-    pub fn remove(&mut self, key: &NodeKey) -> Option<NodeValue<M>> {
-        self.0.remove(key)
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = (&NodeKey, &NodeValue<M>)> {
-        self.0.iter()
-    }
-
-    pub fn keys(&self) -> impl Iterator<Item = &NodeKey> {
-        self.0.keys()
-    }
+#[macro_export]
+macro_rules! node {
+    (_ $node_type:ident, $key:expr, $value:expr) => {
+        ($crate::NodeKey::$node_type($key), $crate::NodeValue::$node_type($value.into()))
+    };
+    ($node_type:ident, $value:expr) => {
+        $crate::node!(_ $node_type, (), $value)
+    };
+    ($node_type:ident, $k0:expr, $value:expr) => {
+        $crate::node!(_ $node_type, Rc::new($k0), $value)
+    };
+    ($node_type:ident, $k0:expr, $k1:expr, $value:expr) => {
+        $crate::node!(_ $node_type, (Rc::new($k0), Rc::new($k1)), $value)
+    };
+    ($node_type:ident, $k0:expr, $k1:expr, $k2:expr, $value:expr) => {
+        $crate::node!(_ $node_type, (Rc::new($k0), Rc::new($k1), Rc::new($k2)), $value)
+    };
+    ($node_type:ident, $k0:expr, $k1:expr, $k2:expr, $k3:expr, $value:expr) => {
+        $crate::node!(_ $node_type, (Rc::new($k0), Rc::new($k1), Rc::new($k2), Rc::new($k3)), $value)
+    };
 }
 
 #[macro_export]
-macro_rules! node_key_value {
-    (_ $node:ident, $key:expr, $value:expr) => {
-        ($crate::NodeKey::$node($key), $crate::NodeValue::$node($value))
+macro_rules! fuzzy_node {
+    (_ $node_type:ident, $key:expr, $value:expr) => {
+        ($crate::FuzzyNodeKey::$node_type($key), $crate::NodeValue::$node_type($value.into()))
     };
-    ($node:ident, $value:expr) => {
-        node_key_value!(_ $node, (), $value)
+    ($node_type:ident, $value:expr) => {
+        $crate::fuzzy_node!(_ $node_type, (), $value)
     };
-    ($node:ident, $k0:expr, $value:expr) => {
-        node_key_value!(_ $node, Some(Rc::new($k0)), $value)
+    ($node_type:ident, $k0:expr, $value:expr) => {
+        $crate::fuzzy_node!(_ $node_type, $k0, $value)
     };
-    ($node:ident, $k0:expr, $k1:expr, $value:expr) => {
-        node_key_value!(_ $node, (Some(Rc::new($k0)), Some(Rc::new($k1))), $value)
+    ($node_type:ident, $k0:expr, $k1:expr, $value:expr) => {
+        $crate::fuzzy_node!(_ $node_type, ($k0, $k1), $value)
     };
-    ($node:ident, $k0:expr, $k1:expr, $k2:expr, $value:expr) => {
-        node_key_value!(_ $node, (Some(Rc::new($k0)), Some(Rc::new($k1)), Some(Rc::new($k2))), $value)
+    ($node_type:ident, $k0:expr, $k1:expr, $k2:expr, $value:expr) => {
+        $crate::fuzzy_node!(_ $node_type, ($k0, $k1, $k2), $value)
     };
-    ($node:ident, $k0:expr, $k1:expr, $k2:expr, $k3:expr, $value:expr) => {
-        node_key_value!(_ $node, (Some(Rc::new($k0)), Some(Rc::new($k1)), Some(Rc::new($k2)), Some(Rc::new($k3))), $value)
+    ($node_type:ident, $k0:expr, $k1:expr, $k2:expr, $k3:expr, $value:expr) => {
+        $crate::fuzzy_node!(_ $node_type, ($k0, $k1, $k2, $k3), $value)
     };
 }
 
@@ -426,10 +526,10 @@ pub mod transitional {
     pub struct PermissionId(String);
 
     #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, From, Decode, Encode)]
-    pub struct ConditionId(dm::HashOf<state::tr::ConditionValue>);
+    pub struct ConditionId(dm::HashOf<state::tr::ConditionV>);
 
     #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, From, Decode, Encode)]
-    pub struct ExecutableId(dm::HashOf<state::tr::ExecutableValue>);
+    pub struct ExecutableId(dm::HashOf<state::tr::ExecutableV>);
 }
 
 use transitional as tr;

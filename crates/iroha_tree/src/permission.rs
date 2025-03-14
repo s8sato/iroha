@@ -1,10 +1,10 @@
 use super::*;
 
-pub type Permission = Tree<ReadWriteStatusFilter>;
+pub type Permission = FuzzyTree<ReadWriteStatusFilter>;
 
 pub type ReadWriteStatusFilter = receptor::ReadWriteStatusFilter;
 
-impl Filtered for readset::ReadSet {
+impl Filtered for state::PartialState {
     type Filter = Permission;
 
     fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter> {
@@ -46,7 +46,7 @@ mod transitional {
             impl From<$can> for Permission {
                 fn from($source: $can) -> Self {
                     [(
-                        NodeKey::$node($key),
+                        FuzzyNodeKey::$node($key),
                         NodeValue::$node(
                             $statuses
                                 .into_iter()

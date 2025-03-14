@@ -1,36 +1,47 @@
 use super::*;
 
-pub type PartialState = Tree<()>;
+pub type PartialState = Tree<State>;
 
-impl Mode for () {
-    type Authorizer = tr::AuthorizerValue;
-    type Parameter = tr::ParameterValue;
-    type Peer = ();
-    type Domain = tr::DomainValue;
-    type Account = ();
-    type Asset = tr::AssetValue;
-    type Nft = tr::NftValue;
-    type AccountAsset = tr::AccountAssetValue;
-    type Role = ();
-    type Permission = tr::PermissionValue;
-    type AccountRole = ();
-    type AccountPermission = ();
-    type RolePermission = ();
-    type Trigger = tr::TriggerValue;
-    type Condition = tr::ConditionValue;
-    type Executable = tr::ExecutableValue;
-    type TriggerCondition = ();
-    type TriggerExecutable = ();
-    type DomainMetadata = tr::MetadataValue;
-    type AccountMetadata = tr::MetadataValue;
-    type AssetMetadata = tr::MetadataValue;
-    type NftData = tr::MetadataValue;
-    type TriggerMetadata = tr::MetadataValue;
-    type DomainAdmin = ();
-    type AssetAdmin = ();
-    type NftAdmin = ();
-    type NftOwner = ();
-    type TriggerAdmin = ();
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+pub struct State;
+
+impl Mode for State {
+    type Authorizer = tr::AuthorizerV;
+    type Parameter = tr::ParameterV;
+    type Peer = tr::UnitV;
+    type Domain = tr::DomainV;
+    type Account = tr::UnitV;
+    type Asset = tr::AssetV;
+    type Nft = tr::NftV;
+    type AccountAsset = tr::AccountAssetV;
+    type Role = tr::UnitV;
+    type Permission = tr::PermissionV;
+    type AccountRole = tr::UnitV;
+    type AccountPermission = tr::UnitV;
+    type RolePermission = tr::UnitV;
+    type Trigger = tr::TriggerV;
+    type Condition = tr::ConditionV;
+    type Executable = tr::ExecutableV;
+    type TriggerCondition = tr::UnitV;
+    type TriggerExecutable = tr::UnitV;
+    type DomainMetadata = tr::MetadataV;
+    type AccountMetadata = tr::MetadataV;
+    type AssetMetadata = tr::MetadataV;
+    type NftData = tr::MetadataV;
+    type TriggerMetadata = tr::MetadataV;
+    type DomainAdmin = tr::UnitV;
+    type AssetAdmin = tr::UnitV;
+    type NftAdmin = tr::UnitV;
+    type NftOwner = tr::UnitV;
+    type TriggerAdmin = tr::UnitV;
+}
+
+impl NodeReadWrite for PartialState {
+    type Status = event::Event;
+
+    fn as_status(&self) -> Self::Status {
+        self.iter().map(|(k, v)| (k.clone(), v.into())).collect()
+    }
 }
 
 pub mod transitional {
@@ -39,45 +50,48 @@ pub mod transitional {
     use super::*;
 
     #[derive(Debug, PartialEq, Eq, Decode, Encode)]
-    pub struct AuthorizerValue;
+    pub struct UnitV;
+
+    #[derive(Debug, PartialEq, Eq, Decode, Encode)]
+    pub struct AuthorizerV;
 
     #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
-    pub struct ParameterValue {
+    pub struct ParameterV {
         pub(crate) parameter: dm::Parameter,
     }
 
     #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
-    pub struct DomainValue {
+    pub struct DomainV {
         pub(crate) logo: Option<dm::IpfsPath>,
     }
 
     #[derive(Debug, PartialEq, Eq, Constructor, Decode, Encode)]
-    pub struct AssetValue {
+    pub struct AssetV {
         pub(crate) total_quantity: dm::Numeric,
         pub(crate) mintable: dm::Mintable,
         pub(crate) logo: Option<dm::IpfsPath>,
     }
 
     #[derive(Debug, PartialEq, Eq, Decode, Encode)]
-    pub struct NftValue;
+    pub struct NftV;
 
     #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
-    pub struct AccountAssetValue {
+    pub struct AccountAssetV {
         pub(crate) balance: dm::Numeric,
     }
 
     #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
-    pub struct PermissionValue {
+    pub struct PermissionV {
         pub(crate) permission: permission::Permission,
     }
 
     #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
-    pub struct TriggerValue {
+    pub struct TriggerV {
         pub(crate) repeats: dm::Repeats,
     }
 
     #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
-    pub enum ConditionValue {
+    pub enum ConditionV {
         World(receptor::Receptor),
         Time(dm::TimeSchedule),
         Block(BlockCommit),
@@ -87,7 +101,7 @@ pub mod transitional {
     pub struct BlockCommit;
 
     #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
-    pub enum ExecutableValue {
+    pub enum ExecutableV {
         Static(changeset::ChangeSet),
         Dynamic(WasmExecutable),
     }
@@ -96,22 +110,22 @@ pub mod transitional {
     pub struct WasmExecutable;
 
     #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
-    pub struct MetadataValue {
+    pub struct MetadataV {
         pub(crate) json: dm::Json,
     }
 
     #[derive(Debug, PartialEq, Eq, Constructor, Clone)]
     pub struct TriggerEntry<'a> {
         pub id: &'a dm::TriggerId,
-        pub condition: &'a ConditionValue,
-        pub executable: &'a ExecutableValue,
+        pub condition: &'a ConditionV,
+        pub executable: &'a ExecutableV,
     }
 
     #[derive(Debug, PartialEq, Eq, Constructor, Clone)]
     pub struct WorldTriggerEntry<'a> {
         pub id: &'a dm::TriggerId,
         pub receptor: &'a receptor::Receptor,
-        pub executable: &'a ExecutableValue,
+        pub executable: &'a ExecutableV,
     }
 
     impl<'a> TryFrom<TriggerEntry<'a>> for WorldTriggerEntry<'a> {
@@ -119,7 +133,7 @@ pub mod transitional {
 
         fn try_from(entry: TriggerEntry<'a>) -> Result<Self, Self::Error> {
             match entry.condition {
-                ConditionValue::World(receptor) => {
+                ConditionV::World(receptor) => {
                     Ok(WorldTriggerEntry::new(entry.id, receptor, entry.executable))
                 }
                 _ => Err("conversion succeeds only when this trigger subscribes to world events"),
@@ -130,15 +144,15 @@ pub mod transitional {
     impl PartialState {
         pub fn triggers(&self) -> impl Iterator<Item = TriggerEntry> {
             let ids = self.keys().filter_map(|k| match k {
-                NodeKey::Trigger(Some(id)) => Some(&**id),
+                NodeKey::Trigger(id) => Some(&**id),
                 _ => None,
             });
             let conditions: HashMap<_, _> = self
                 .keys()
                 .filter_map(|k| match k {
-                    NodeKey::TriggerCondition((Some(trg), Some(con))) => {
+                    NodeKey::TriggerCondition((trg, con)) => {
                         let Some(NodeValue::Condition(condition)) =
-                            self.get(&NodeKey::Condition(Some(con.clone())))
+                            self.get(&NodeKey::Condition(con.clone()))
                         else {
                             panic!("should be loaded into the partial state")
                         };
@@ -150,9 +164,9 @@ pub mod transitional {
             let executables: HashMap<_, _> = self
                 .keys()
                 .filter_map(|k| match k {
-                    NodeKey::TriggerExecutable((Some(trg), Some(exe))) => {
+                    NodeKey::TriggerExecutable((trg, exe)) => {
                         let Some(NodeValue::Executable(executable)) =
-                            self.get(&NodeKey::Executable(Some(exe.clone())))
+                            self.get(&NodeKey::Executable(exe.clone()))
                         else {
                             panic!("should be loaded into the partial state")
                         };
@@ -195,8 +209,8 @@ pub mod transitional {
                 }
                 seen.insert(trigger_id);
                 let event_expected = match &world_triggers[trigger_id].1 {
-                    state::tr::ExecutableValue::Static(changeset) => changeset.as_status(),
-                    state::tr::ExecutableValue::Dynamic(_wasm) => {
+                    state::tr::ExecutableV::Static(changeset) => changeset.as_status(),
+                    state::tr::ExecutableV::Dynamic(_wasm) => {
                         todo!("Wasm executable should declare the union of possible events")
                     }
                 };
@@ -219,7 +233,7 @@ pub mod transitional {
         }
     }
 
-    impl TryFrom<(dm::AccountId, dm::Executable)> for ExecutableValue {
+    impl TryFrom<(dm::AccountId, dm::Executable)> for ExecutableV {
         type Error = Box<NodeConflict<changeset::Write>>;
 
         fn try_from(
@@ -253,19 +267,20 @@ mod tests {
     };
 
     /// See the corresponding integration test `triggers::not_registered_when_potential_event_loop_detected`.
+    #[expect(clippy::too_many_lines)]
     #[test]
     fn event_loop_detection() {
         // Subscribes to changes in the domain "dom_{i}" with statuses "{s}".
         let receptor = |i: usize, s: &str| {
-            Receptor::from_iter([node_key_value!(
+            Receptor::from_iter([fuzzy_node!(
                 Domain,
-                DomainId::from_str(&format!("dom_{i}")).unwrap(),
+                Some(Rc::new(DomainId::from_str(&format!("dom_{i}")).unwrap())),
                 FilterU8::from_str(s).unwrap()
             )])
         };
         // Publishes the deletion of the domain "dom_{j}".
         let changeset = |j: usize| {
-            ChangeSet::from_iter([node_key_value!(
+            ChangeSet::from_iter([node!(
                 Domain,
                 DomainId::from_str(&format!("dom_{j}")).unwrap(),
                 DomainW::Delete(())
@@ -273,12 +288,12 @@ mod tests {
         };
         // Bridges the above subscriber and publisher.
         let trigger = |i: usize, s: &str, j: usize| {
-            let condition = tr::ConditionValue::from(receptor(i, s));
-            let executable = tr::ExecutableValue::from(changeset(j));
+            let condition = tr::ConditionV::from(receptor(i, s));
+            let executable = tr::ExecutableV::from(changeset(j));
             (
                 (
                     TriggerId::from_str(&format!("trg_{i}{s}_{j}d")).unwrap(),
-                    tr::TriggerValue::from(Repeats::Indefinitely),
+                    tr::TriggerV::from(Repeats::Indefinitely),
                 ),
                 (
                     crate::tr::ConditionId::from(dm::HashOf::new(&condition)),
@@ -294,26 +309,36 @@ mod tests {
         let (trg_0d_1d, trg_1d_2d) = (trigger(0, "d", 1), trigger(1, "d", 2));
         // The state after registering the above triggers.
         let state = PartialState::from_iter([
-            node_key_value!(Condition, trg_0d_1d.1 .0.clone(), trg_0d_1d.1 .1),
-            node_key_value!(Condition, trg_1d_2d.1 .0.clone(), trg_1d_2d.1 .1),
-            node_key_value!(Executable, trg_0d_1d.2 .0.clone(), trg_0d_1d.2 .1),
-            node_key_value!(Executable, trg_1d_2d.2 .0.clone(), trg_1d_2d.2 .1),
-            node_key_value!(TriggerCondition, trg_0d_1d.0 .0.clone(), trg_0d_1d.1 .0, ()),
-            node_key_value!(TriggerCondition, trg_1d_2d.0 .0.clone(), trg_1d_2d.1 .0, ()),
-            node_key_value!(
+            node!(Condition, trg_0d_1d.1 .0.clone(), trg_0d_1d.1 .1),
+            node!(Condition, trg_1d_2d.1 .0.clone(), trg_1d_2d.1 .1),
+            node!(Executable, trg_0d_1d.2 .0.clone(), trg_0d_1d.2 .1),
+            node!(Executable, trg_1d_2d.2 .0.clone(), trg_1d_2d.2 .1),
+            node!(
+                TriggerCondition,
+                trg_0d_1d.0 .0.clone(),
+                trg_0d_1d.1 .0,
+                tr::UnitV
+            ),
+            node!(
+                TriggerCondition,
+                trg_1d_2d.0 .0.clone(),
+                trg_1d_2d.1 .0,
+                tr::UnitV
+            ),
+            node!(
                 TriggerExecutable,
                 trg_0d_1d.0 .0.clone(),
                 trg_0d_1d.2 .0,
-                ()
+                tr::UnitV
             ),
-            node_key_value!(
+            node!(
                 TriggerExecutable,
                 trg_1d_2d.0 .0.clone(),
                 trg_1d_2d.2 .0,
-                ()
+                tr::UnitV
             ),
-            node_key_value!(Trigger, trg_0d_1d.0 .0, trg_0d_1d.0 .1),
-            node_key_value!(Trigger, trg_1d_2d.0 .0, trg_1d_2d.0 .1),
+            node!(Trigger, trg_0d_1d.0 .0, trg_0d_1d.0 .1),
+            node!(Trigger, trg_1d_2d.0 .0, trg_1d_2d.0 .1),
         ]);
 
         for (entry, leads_to_event_loop) in [
@@ -331,29 +356,29 @@ mod tests {
                 let mut trg_3d_x = trigger(3, "d", 4);
                 let another = trigger(10, "", 20);
                 trg_3d_x.2 .1 = ChangeSet::from_iter([
-                    node_key_value!(
+                    node!(
                         Condition,
                         another.1 .0.clone(),
                         ConditionW::Set(another.1 .1)
                     ),
-                    node_key_value!(
+                    node!(
                         Executable,
                         another.2 .0.clone(),
                         ExecutableW::Set(another.2 .1)
                     ),
-                    node_key_value!(
+                    node!(
                         TriggerCondition,
                         another.0 .0.clone(),
                         another.1 .0,
                         UnitW::Create(())
                     ),
-                    node_key_value!(
+                    node!(
                         TriggerExecutable,
                         another.0 .0.clone(),
                         another.2 .0,
                         UnitW::Create(())
                     ),
-                    node_key_value!(Trigger, another.0 .0, TriggerW::Create(another.0 .1)),
+                    node!(Trigger, another.0 .0, TriggerW::Create(another.0 .1)),
                 ])
                 .into();
                 // Creating an additional trigger.

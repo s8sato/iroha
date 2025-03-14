@@ -1,6 +1,6 @@
 use super::*;
 
-pub type ReadSet = Tree<Read>;
+pub type ReadSet = FuzzyTree<Read>;
 
 #[derive(Debug, PartialEq, Eq, Decode, Encode)]
 pub struct Read;
@@ -36,14 +36,5 @@ impl Mode for Read {
     type TriggerAdmin = UnitR;
 }
 
-pub type UnitR = ();
-
-impl NodeReadWrite for ReadSet {
-    type Status = event::Event;
-
-    fn as_status(&self) -> Self::Status {
-        self.iter()
-            .map(|(k, read)| (k.clone(), read.into()))
-            .collect()
-    }
-}
+#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+pub struct UnitR;

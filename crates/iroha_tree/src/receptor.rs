@@ -1,8 +1,6 @@
-use hashbrown::HashSet;
-
 use super::*;
 
-pub type Receptor = Tree<ReadWriteStatusFilter>;
+pub type Receptor = FuzzyTree<ReadWriteStatusFilter>;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ReadWriteStatusFilter;
@@ -42,7 +40,7 @@ impl Filtered for event::Event {
     type Filter = Receptor;
 
     fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter> {
-        let mut obstacle = Tree::default();
+        let mut obstacle = Self::Filter::default();
         for (key, signal) in self.iter() {
             let signal: FilterU8 = signal.into();
             let receptor_keys = key.receptor_keys();
@@ -51,7 +49,7 @@ impl Filtered for event::Event {
                 .filter_map(|(k, v)| receptor_keys.contains(k).then_some(v).map(FilterU8::from))
                 .fold(FilterU8::DENY, |acc, x| acc | x);
             if let Err(obs) = signal.passes(&receptor_union) {
-                obstacle.insert(key.clone(), NodeValue::from((key, obs)));
+                obstacle.insert(key.fuzzy(), NodeValue::from((key, obs)));
             }
         }
         if obstacle.is_empty() {
@@ -63,106 +61,118 @@ impl Filtered for event::Event {
 }
 
 macro_rules! receptor_keys {
-    (0 $node:ident) => {
-        [$node(())].into()
+    (0 $node_type:ident) => {
+        [$node_type(())].into()
     };
-    (1 $node:ident, $key:expr) => {
-        match $key {
-            Some(k) => [$node(Some(k.clone())), $node(None)].into(),
-            _ => unreachable!(),
-        }
+    (1 $node_type:ident, $key:expr) => {
+        [$node_type(Some($key.clone())), $node_type(None)].into()
     };
-    (2 $node:ident, $key:expr) => {
-        match $key {
-            (Some(k0), Some(k1)) => [
-                $node((Some(k0.clone()), Some(k1.clone()))),
-                $node((Some(k0.clone()), None)),
-                $node((None, Some(k1.clone()))),
-                $node((None, None)),
-            ]
-            .into(),
-            _ => unreachable!(),
-        }
+    (2 $node_type:ident, $key:expr) => {
+        [
+            $node_type((Some($key.0.clone()), Some($key.1.clone()))),
+            $node_type((Some($key.0.clone()), None)),
+            $node_type((None, Some($key.1.clone()))),
+            $node_type((None, None)),
+        ]
+        .into()
     };
-    (3 $node:ident, $key:expr) => {
-        match $key {
-            (Some(k0), Some(k1), Some(k2)) => [
-                $node((Some(k0.clone()), Some(k1.clone()), Some(k2.clone()))),
-                $node((Some(k0.clone()), Some(k1.clone()), None)),
-                $node((Some(k0.clone()), None, Some(k2.clone()))),
-                $node((Some(k0.clone()), None, None)),
-                $node((None, Some(k1.clone()), Some(k2.clone()))),
-                $node((None, Some(k1.clone()), None)),
-                $node((None, None, Some(k2.clone()))),
-                $node((None, None, None)),
-            ]
-            .into(),
-            _ => unreachable!(),
-        }
+    (3 $node_type:ident, $key:expr) => {
+        [
+            $node_type((
+                Some($key.0.clone()),
+                Some($key.1.clone()),
+                Some($key.2.clone()),
+            )),
+            $node_type((Some($key.0.clone()), Some($key.1.clone()), None)),
+            $node_type((Some($key.0.clone()), None, Some($key.2.clone()))),
+            $node_type((Some($key.0.clone()), None, None)),
+            $node_type((None, Some($key.1.clone()), Some($key.2.clone()))),
+            $node_type((None, Some($key.1.clone()), None)),
+            $node_type((None, None, Some($key.2.clone()))),
+            $node_type((None, None, None)),
+        ]
+        .into()
     };
-    (4 $node:ident, $key:expr) => {
-        match $key {
-            (Some(k0), Some(k1), Some(k2), Some(k3)) => [
-                $node((
-                    Some(k0.clone()),
-                    Some(k1.clone()),
-                    Some(k2.clone()),
-                    Some(k3.clone()),
-                )),
-                $node((Some(k0.clone()), Some(k1.clone()), Some(k2.clone()), None)),
-                $node((Some(k0.clone()), Some(k1.clone()), None, Some(k3.clone()))),
-                $node((Some(k0.clone()), Some(k1.clone()), None, None)),
-                $node((Some(k0.clone()), None, Some(k2.clone()), Some(k3.clone()))),
-                $node((Some(k0.clone()), None, Some(k2.clone()), None)),
-                $node((Some(k0.clone()), None, None, Some(k3.clone()))),
-                $node((Some(k0.clone()), None, None, None)),
-                $node((None, Some(k1.clone()), Some(k2.clone()), Some(k3.clone()))),
-                $node((None, Some(k1.clone()), Some(k2.clone()), None)),
-                $node((None, Some(k1.clone()), None, Some(k3.clone()))),
-                $node((None, Some(k1.clone()), None, None)),
-                $node((None, None, Some(k2.clone()), Some(k3.clone()))),
-                $node((None, None, Some(k2.clone()), None)),
-                $node((None, None, None, Some(k3.clone()))),
-                $node((None, None, None, None)),
-            ]
-            .into(),
-            _ => unreachable!(),
-        }
+    (4 $node_type:ident, $key:expr) => {
+        [
+            $node_type((
+                Some($key.0.clone()),
+                Some($key.1.clone()),
+                Some($key.2.clone()),
+                Some($key.3.clone()),
+            )),
+            $node_type((
+                Some($key.0.clone()),
+                Some($key.1.clone()),
+                Some($key.2.clone()),
+                None,
+            )),
+            $node_type((
+                Some($key.0.clone()),
+                Some($key.1.clone()),
+                None,
+                Some($key.3.clone()),
+            )),
+            $node_type((Some($key.0.clone()), Some($key.1.clone()), None, None)),
+            $node_type((
+                Some($key.0.clone()),
+                None,
+                Some($key.2.clone()),
+                Some($key.3.clone()),
+            )),
+            $node_type((Some($key.0.clone()), None, Some($key.2.clone()), None)),
+            $node_type((Some($key.0.clone()), None, None, Some($key.3.clone()))),
+            $node_type((Some($key.0.clone()), None, None, None)),
+            $node_type((
+                None,
+                Some($key.1.clone()),
+                Some($key.2.clone()),
+                Some($key.3.clone()),
+            )),
+            $node_type((None, Some($key.1.clone()), Some($key.2.clone()), None)),
+            $node_type((None, Some($key.1.clone()), None, Some($key.3.clone()))),
+            $node_type((None, Some($key.1.clone()), None, None)),
+            $node_type((None, None, Some($key.2.clone()), Some($key.3.clone()))),
+            $node_type((None, None, Some($key.2.clone()), None)),
+            $node_type((None, None, None, Some($key.3.clone()))),
+            $node_type((None, None, None, None)),
+        ]
+        .into()
     };
 }
 
 impl NodeKey {
-    fn receptor_keys(&self) -> HashSet<NodeKey> {
-        use NodeKey::*;
+    pub(crate) fn receptor_keys(&self) -> BTreeSet<FuzzyNodeKey> {
+        use FuzzyNodeKey::*;
         match self {
-            Authorizer(()) => receptor_keys!(0 Authorizer),
-            Parameter(key) => receptor_keys!(1 Parameter, key),
-            Peer(key) => receptor_keys!(1 Peer, key),
-            Domain(key) => receptor_keys!(1 Domain, key),
-            Account(key) => receptor_keys!(2 Account, key),
-            Asset(key) => receptor_keys!(2 Asset, key),
-            Nft(key) => receptor_keys!(2 Nft, key),
-            AccountAsset(key) => receptor_keys!(4 AccountAsset, key),
-            Role(key) => receptor_keys!(1 Role, key),
-            Permission(key) => receptor_keys!(1 Permission, key),
-            AccountRole(key) => receptor_keys!(3 AccountRole, key),
-            AccountPermission(key) => receptor_keys!(3 AccountPermission, key),
-            RolePermission(key) => receptor_keys!(2 RolePermission, key),
-            Trigger(key) => receptor_keys!(1 Trigger, key),
-            Condition(key) => receptor_keys!(1 Condition, key),
-            Executable(key) => receptor_keys!(1 Executable, key),
-            TriggerCondition(key) => receptor_keys!(2 TriggerCondition, key),
-            TriggerExecutable(key) => receptor_keys!(2 TriggerExecutable, key),
-            DomainMetadata(key) => receptor_keys!(2 DomainMetadata, key),
-            AccountMetadata(key) => receptor_keys!(3 AccountMetadata, key),
-            AssetMetadata(key) => receptor_keys!(3 AssetMetadata, key),
-            NftData(key) => receptor_keys!(3 NftData, key),
-            TriggerMetadata(key) => receptor_keys!(2 TriggerMetadata, key),
-            DomainAdmin(key) => receptor_keys!(3 DomainAdmin, key),
-            AssetAdmin(key) => receptor_keys!(4 AssetAdmin, key),
-            NftAdmin(key) => receptor_keys!(4 NftAdmin, key),
-            NftOwner(key) => receptor_keys!(4 NftOwner, key),
-            TriggerAdmin(key) => receptor_keys!(3 TriggerAdmin, key),
+            Self::Authorizer(()) => receptor_keys!(0 Authorizer),
+            Self::Parameter(key) => receptor_keys!(1 Parameter, key),
+            Self::Peer(key) => receptor_keys!(1 Peer, key),
+            Self::Domain(key) => receptor_keys!(1 Domain, key),
+            Self::Account(key) => receptor_keys!(2 Account, key),
+            Self::Asset(key) => receptor_keys!(2 Asset, key),
+            Self::Nft(key) => receptor_keys!(2 Nft, key),
+            Self::AccountAsset(key) => receptor_keys!(4 AccountAsset, key),
+            Self::Role(key) => receptor_keys!(1 Role, key),
+            Self::Permission(key) => receptor_keys!(1 Permission, key),
+            Self::AccountRole(key) => receptor_keys!(3 AccountRole, key),
+            Self::AccountPermission(key) => receptor_keys!(3 AccountPermission, key),
+            Self::RolePermission(key) => receptor_keys!(2 RolePermission, key),
+            Self::Trigger(key) => receptor_keys!(1 Trigger, key),
+            Self::Condition(key) => receptor_keys!(1 Condition, key),
+            Self::Executable(key) => receptor_keys!(1 Executable, key),
+            Self::TriggerCondition(key) => receptor_keys!(2 TriggerCondition, key),
+            Self::TriggerExecutable(key) => receptor_keys!(2 TriggerExecutable, key),
+            Self::DomainMetadata(key) => receptor_keys!(2 DomainMetadata, key),
+            Self::AccountMetadata(key) => receptor_keys!(3 AccountMetadata, key),
+            Self::AssetMetadata(key) => receptor_keys!(3 AssetMetadata, key),
+            Self::NftData(key) => receptor_keys!(3 NftData, key),
+            Self::TriggerMetadata(key) => receptor_keys!(2 TriggerMetadata, key),
+            Self::DomainAdmin(key) => receptor_keys!(3 DomainAdmin, key),
+            Self::AssetAdmin(key) => receptor_keys!(4 AssetAdmin, key),
+            Self::NftAdmin(key) => receptor_keys!(4 NftAdmin, key),
+            Self::NftOwner(key) => receptor_keys!(4 NftOwner, key),
+            Self::TriggerAdmin(key) => receptor_keys!(3 TriggerAdmin, key),
         }
     }
 }
@@ -171,7 +181,7 @@ mod transitional {
     use super::*;
     use crate::event::*;
 
-    impl TryFrom<dm::EventFilterBox> for state::tr::ConditionValue {
+    impl TryFrom<dm::EventFilterBox> for state::tr::ConditionV {
         type Error = &'static str;
 
         fn try_from(value: dm::EventFilterBox) -> Result<Self, Self::Error> {
@@ -188,27 +198,6 @@ mod transitional {
         }
     }
 
-    macro_rules! node_key_filter {
-        (_ $node:ident, $key:expr, $status:expr) => {
-            (NodeKey::$node($key), NodeValue::<ReadWriteStatusFilter>::$node($status.into()))
-        };
-        ($node:ident, $status:expr) => {
-            node_key_filter!(_ $node, (), $status)
-        };
-        ($node:ident, $k0:expr, $status:expr) => {
-            node_key_filter!(_ $node, $k0, $status)
-        };
-        ($node:ident, $k0:expr, $k1:expr, $status:expr) => {
-            node_key_filter!(_ $node, ($k0, $k1), $status)
-        };
-        ($node:ident, $k0:expr, $k1:expr, $k2:expr, $status:expr) => {
-            node_key_filter!(_ $node, ($k0, $k1, $k2), $status)
-        };
-        ($node:ident, $k0:expr, $k1:expr, $k2:expr, $k3:expr, $status:expr) => {
-            node_key_filter!(_ $node, ($k0, $k1, $k2, $k3), $status)
-        };
-    }
-
     impl From<dm::DataEventFilter> for Receptor {
         #[expect(clippy::too_many_lines)]
         fn from(value: dm::DataEventFilter) -> Self {
@@ -220,26 +209,26 @@ mod transitional {
 
             let map: BTreeMap<_, _> = match value {
                 Any => [
-                    node_key_filter!(Authorizer, FilterU8::ANY),
-                    node_key_filter!(Parameter, None, FilterU8::ANY),
-                    node_key_filter!(Peer, None, FilterU8::ANY),
-                    node_key_filter!(Domain, None, FilterU8::ANY),
-                    node_key_filter!(Account, None, None, FilterU8::ANY),
-                    node_key_filter!(Asset, None, None, FilterU8::ANY),
-                    node_key_filter!(Nft, None, None, FilterU8::ANY),
-                    node_key_filter!(AccountAsset, None, None, None, None, FilterU8::ANY),
-                    node_key_filter!(Role, None, FilterU8::ANY),
-                    node_key_filter!(Permission, None, FilterU8::ANY),
-                    node_key_filter!(AccountRole, None, None, None, FilterU8::ANY),
-                    node_key_filter!(AccountPermission, None, None, None, FilterU8::ANY),
-                    node_key_filter!(RolePermission, None, None, FilterU8::ANY),
-                    node_key_filter!(Trigger, None, FilterU8::ANY),
-                    node_key_filter!(Executable, None, FilterU8::ANY),
-                    node_key_filter!(DomainMetadata, None, None, FilterU8::ANY),
-                    node_key_filter!(AccountMetadata, None, None, None, FilterU8::ANY),
-                    node_key_filter!(AssetMetadata, None, None, None, FilterU8::ANY),
-                    node_key_filter!(NftData, None, None, None, FilterU8::ANY),
-                    node_key_filter!(TriggerMetadata, None, None, FilterU8::ANY),
+                    fuzzy_node!(Authorizer, FilterU8::ANY),
+                    fuzzy_node!(Parameter, None, FilterU8::ANY),
+                    fuzzy_node!(Peer, None, FilterU8::ANY),
+                    fuzzy_node!(Domain, None, FilterU8::ANY),
+                    fuzzy_node!(Account, None, None, FilterU8::ANY),
+                    fuzzy_node!(Asset, None, None, FilterU8::ANY),
+                    fuzzy_node!(Nft, None, None, FilterU8::ANY),
+                    fuzzy_node!(AccountAsset, None, None, None, None, FilterU8::ANY),
+                    fuzzy_node!(Role, None, FilterU8::ANY),
+                    fuzzy_node!(Permission, None, FilterU8::ANY),
+                    fuzzy_node!(AccountRole, None, None, None, FilterU8::ANY),
+                    fuzzy_node!(AccountPermission, None, None, None, FilterU8::ANY),
+                    fuzzy_node!(RolePermission, None, None, FilterU8::ANY),
+                    fuzzy_node!(Trigger, None, FilterU8::ANY),
+                    fuzzy_node!(Executable, None, FilterU8::ANY),
+                    fuzzy_node!(DomainMetadata, None, None, FilterU8::ANY),
+                    fuzzy_node!(AccountMetadata, None, None, None, FilterU8::ANY),
+                    fuzzy_node!(AssetMetadata, None, None, None, FilterU8::ANY),
+                    fuzzy_node!(NftData, None, None, None, FilterU8::ANY),
+                    fuzzy_node!(TriggerMetadata, None, None, FilterU8::ANY),
                 ]
                 .into(),
                 Peer(ef) => {
@@ -249,10 +238,10 @@ mod transitional {
                         .into_iter()
                         .map(|es| match es {
                             PeerEventSet::Added => {
-                                node_key_filter!(Peer, id.clone(), UnitS::Create)
+                                fuzzy_node!(Peer, id.clone(), UnitS::Create)
                             }
                             PeerEventSet::Removed => {
-                                node_key_filter!(Peer, id.clone(), UnitS::Delete)
+                                fuzzy_node!(Peer, id.clone(), UnitS::Delete)
                             }
                             _ => unreachable!(),
                         })
@@ -265,24 +254,18 @@ mod transitional {
                         .into_iter()
                         .map(|es| match es {
                             DomainEventSet::Created => {
-                                node_key_filter!(Domain, domain.clone(), DomainS::Create)
+                                fuzzy_node!(Domain, domain.clone(), DomainS::Create)
                             }
                             DomainEventSet::Deleted => {
-                                node_key_filter!(Domain, domain.clone(), DomainS::Delete)
+                                fuzzy_node!(Domain, domain.clone(), DomainS::Delete)
                             }
-                            DomainEventSet::MetadataInserted => node_key_filter!(
-                                DomainMetadata,
-                                domain.clone(),
-                                None,
-                                MetadataS::Set
-                            ),
-                            DomainEventSet::MetadataRemoved => node_key_filter!(
-                                DomainMetadata,
-                                domain.clone(),
-                                None,
-                                MetadataS::Unset
-                            ),
-                            DomainEventSet::OwnerChanged => node_key_filter!(
+                            DomainEventSet::MetadataInserted => {
+                                fuzzy_node!(DomainMetadata, domain.clone(), None, MetadataS::Set)
+                            }
+                            DomainEventSet::MetadataRemoved => {
+                                fuzzy_node!(DomainMetadata, domain.clone(), None, MetadataS::Unset)
+                            }
+                            DomainEventSet::OwnerChanged => fuzzy_node!(
                                 DomainAdmin,
                                 domain.clone(),
                                 None,
@@ -302,54 +285,54 @@ mod transitional {
                         .decompose()
                         .into_iter()
                         .map(|es| match es {
-                            AccountEventSet::Created => node_key_filter!(
+                            AccountEventSet::Created => fuzzy_node!(
                                 Account,
                                 signatory.clone(),
                                 domain.clone(),
                                 UnitS::Create
                             ),
-                            AccountEventSet::Deleted => node_key_filter!(
+                            AccountEventSet::Deleted => fuzzy_node!(
                                 Account,
                                 signatory.clone(),
                                 domain.clone(),
                                 UnitS::Delete
                             ),
-                            AccountEventSet::PermissionAdded => node_key_filter!(
+                            AccountEventSet::PermissionAdded => fuzzy_node!(
                                 AccountPermission,
                                 signatory.clone(),
                                 domain.clone(),
                                 None,
                                 UnitS::Create
                             ),
-                            AccountEventSet::PermissionRemoved => node_key_filter!(
+                            AccountEventSet::PermissionRemoved => fuzzy_node!(
                                 AccountPermission,
                                 signatory.clone(),
                                 domain.clone(),
                                 None,
                                 UnitS::Delete
                             ),
-                            AccountEventSet::RoleGranted => node_key_filter!(
+                            AccountEventSet::RoleGranted => fuzzy_node!(
                                 AccountRole,
                                 signatory.clone(),
                                 domain.clone(),
                                 None,
                                 UnitS::Create
                             ),
-                            AccountEventSet::RoleRevoked => node_key_filter!(
+                            AccountEventSet::RoleRevoked => fuzzy_node!(
                                 AccountRole,
                                 signatory.clone(),
                                 domain.clone(),
                                 None,
                                 UnitS::Delete
                             ),
-                            AccountEventSet::MetadataInserted => node_key_filter!(
+                            AccountEventSet::MetadataInserted => fuzzy_node!(
                                 AccountMetadata,
                                 signatory.clone(),
                                 domain.clone(),
                                 None,
                                 MetadataS::Set
                             ),
-                            AccountEventSet::MetadataRemoved => node_key_filter!(
+                            AccountEventSet::MetadataRemoved => fuzzy_node!(
                                 AccountMetadata,
                                 signatory.clone(),
                                 domain.clone(),
@@ -373,39 +356,33 @@ mod transitional {
                         .decompose()
                         .into_iter()
                         .map(|es| match es {
-                            AssetDefinitionEventSet::Created => node_key_filter!(
-                                Asset,
-                                name.clone(),
-                                domain.clone(),
-                                AssetS::Create
-                            ),
-                            AssetDefinitionEventSet::Deleted => node_key_filter!(
-                                Asset,
-                                name.clone(),
-                                domain.clone(),
-                                AssetS::Delete
-                            ),
-                            AssetDefinitionEventSet::MetadataInserted => node_key_filter!(
+                            AssetDefinitionEventSet::Created => {
+                                fuzzy_node!(Asset, name.clone(), domain.clone(), AssetS::Create)
+                            }
+                            AssetDefinitionEventSet::Deleted => {
+                                fuzzy_node!(Asset, name.clone(), domain.clone(), AssetS::Delete)
+                            }
+                            AssetDefinitionEventSet::MetadataInserted => fuzzy_node!(
                                 AssetMetadata,
                                 name.clone(),
                                 domain.clone(),
                                 None,
                                 MetadataS::Set
                             ),
-                            AssetDefinitionEventSet::MetadataRemoved => node_key_filter!(
+                            AssetDefinitionEventSet::MetadataRemoved => fuzzy_node!(
                                 AssetMetadata,
                                 name.clone(),
                                 domain.clone(),
                                 None,
                                 MetadataS::Unset
                             ),
-                            AssetDefinitionEventSet::MintabilityChanged => node_key_filter!(
+                            AssetDefinitionEventSet::MintabilityChanged => fuzzy_node!(
                                 Asset,
                                 name.clone(),
                                 domain.clone(),
                                 AssetS::MintabilityUpdate
                             ),
-                            AssetDefinitionEventSet::TotalQuantityChanged => node_key_filter!(
+                            AssetDefinitionEventSet::TotalQuantityChanged => fuzzy_node!(
                                 AccountAsset,
                                 None,
                                 None,
@@ -413,7 +390,7 @@ mod transitional {
                                 domain.clone(),
                                 AccountAssetS::Mint as u8 | AccountAssetS::Burn as u8
                             ),
-                            AssetDefinitionEventSet::OwnerChanged => node_key_filter!(
+                            AssetDefinitionEventSet::OwnerChanged => fuzzy_node!(
                                 AssetAdmin,
                                 name.clone(),
                                 domain.clone(),
@@ -438,26 +415,26 @@ mod transitional {
                         .into_iter()
                         .map(|es| match es {
                             NftEventSet::Created => {
-                                node_key_filter!(Nft, name.clone(), domain.clone(), NftS::Create)
+                                fuzzy_node!(Nft, name.clone(), domain.clone(), NftS::Create)
                             }
                             NftEventSet::Deleted => {
-                                node_key_filter!(Nft, name.clone(), domain.clone(), NftS::Delete)
+                                fuzzy_node!(Nft, name.clone(), domain.clone(), NftS::Delete)
                             }
-                            NftEventSet::MetadataInserted => node_key_filter!(
+                            NftEventSet::MetadataInserted => fuzzy_node!(
                                 NftData,
                                 name.clone(),
                                 domain.clone(),
                                 None,
                                 MetadataS::Set
                             ),
-                            NftEventSet::MetadataRemoved => node_key_filter!(
+                            NftEventSet::MetadataRemoved => fuzzy_node!(
                                 NftData,
                                 name.clone(),
                                 domain.clone(),
                                 None,
                                 MetadataS::Unset
                             ),
-                            NftEventSet::OwnerChanged => node_key_filter!(
+                            NftEventSet::OwnerChanged => fuzzy_node!(
                                 NftOwner,
                                 name.clone(),
                                 domain.clone(),
@@ -476,26 +453,23 @@ mod transitional {
                         .into_iter()
                         .map(|es| match es {
                             TriggerEventSet::Created => {
-                                node_key_filter!(Trigger, id.clone(), TriggerS::Create)
+                                fuzzy_node!(Trigger, id.clone(), TriggerS::Create)
                             }
                             TriggerEventSet::Deleted => {
-                                node_key_filter!(Trigger, id.clone(), TriggerS::Delete)
+                                fuzzy_node!(Trigger, id.clone(), TriggerS::Delete)
                             }
                             TriggerEventSet::Extended => {
-                                node_key_filter!(Trigger, id.clone(), TriggerS::Increase)
+                                fuzzy_node!(Trigger, id.clone(), TriggerS::Increase)
                             }
                             TriggerEventSet::Shortened => {
-                                node_key_filter!(Trigger, id.clone(), TriggerS::Decrease)
+                                fuzzy_node!(Trigger, id.clone(), TriggerS::Decrease)
                             }
                             TriggerEventSet::MetadataInserted => {
-                                node_key_filter!(TriggerMetadata, id.clone(), None, MetadataS::Set)
+                                fuzzy_node!(TriggerMetadata, id.clone(), None, MetadataS::Set)
                             }
-                            TriggerEventSet::MetadataRemoved => node_key_filter!(
-                                TriggerMetadata,
-                                id.clone(),
-                                None,
-                                MetadataS::Unset
-                            ),
+                            TriggerEventSet::MetadataRemoved => {
+                                fuzzy_node!(TriggerMetadata, id.clone(), None, MetadataS::Unset)
+                            }
                             _ => unreachable!(),
                         })
                         .collect()
@@ -507,16 +481,16 @@ mod transitional {
                         .into_iter()
                         .map(|es| match es {
                             RoleEventSet::Created => {
-                                node_key_filter!(Role, id.clone(), UnitS::Create)
+                                fuzzy_node!(Role, id.clone(), UnitS::Create)
                             }
                             RoleEventSet::Deleted => {
-                                node_key_filter!(Role, id.clone(), UnitS::Delete)
+                                fuzzy_node!(Role, id.clone(), UnitS::Delete)
                             }
                             RoleEventSet::PermissionAdded => {
-                                node_key_filter!(RolePermission, id.clone(), None, UnitS::Create)
+                                fuzzy_node!(RolePermission, id.clone(), None, UnitS::Create)
                             }
                             RoleEventSet::PermissionRemoved => {
-                                node_key_filter!(RolePermission, id.clone(), None, UnitS::Delete)
+                                fuzzy_node!(RolePermission, id.clone(), None, UnitS::Delete)
                             }
                             _ => unreachable!(),
                         })
@@ -528,7 +502,7 @@ mod transitional {
                     .into_iter()
                     .map(|es| match es {
                         ConfigurationEventSet::Changed => {
-                            node_key_filter!(Parameter, None, ParameterS::Set)
+                            fuzzy_node!(Parameter, None, ParameterS::Set)
                         }
                         _ => unreachable!(),
                     })
@@ -539,7 +513,7 @@ mod transitional {
                     .into_iter()
                     .map(|es| match es {
                         ExecutorEventSet::Upgraded => {
-                            node_key_filter!(Authorizer, AuthorizerS::Set)
+                            fuzzy_node!(Authorizer, AuthorizerS::Set)
                         }
                         _ => unreachable!(),
                     })
