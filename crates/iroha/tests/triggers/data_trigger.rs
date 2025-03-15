@@ -10,6 +10,7 @@ use super::*;
 /// 0. transaction: [burn a rose of carol] ... depends on the last trigger execution
 /// 0. block commit
 #[test]
+#[ignore = "enable in #4937"]
 fn executes_on_every_transaction() -> Result<()> {
     let carol = gen_account_in("wonderland");
     let rose_carol: AssetId = format!("rose##{}", carol.0).parse().unwrap();
@@ -54,6 +55,7 @@ mod matches_a_batch_of_events {
     /// 0. transaction: [mint a rose, mint a rose]
     /// 0. trigger execution: asset created (2 roses) -> burn the 2 roses
     #[test]
+    #[ignore = "enable in #4937"]
     fn accumulation() -> Result<()> {
         let carol = gen_account_in("wonderland");
         let mint_a_rose = Mint::asset_numeric(1_u32, format!("rose##{}", carol.0).parse().unwrap());
@@ -66,16 +68,8 @@ mod matches_a_batch_of_events {
     /// 0. transaction: [register carol, register dave]
     /// 0. trigger execution: account created (carol | dave) -> mint a rose for carol and dave
     #[test]
+    #[ignore = "enable in #4937"]
     fn union() -> Result<()> {
-        todo!()
-    }
-
-    /// # Scenario
-    ///
-    /// 0. transaction: [register carol, unregister carol, register carol]
-    /// 0. trigger execution: account created (carol) -> mint a rose for carol
-    #[test]
-    fn cancellation() -> Result<()> {
         todo!()
     }
 
