@@ -12,6 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+iroha_tree = { workspace = true }
 
 [lints]
 workspace = true

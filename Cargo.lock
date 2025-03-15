@@ -3112,6 +3112,9 @@ dependencies = [
 [[package]]
 name = "iroha_authorizer"
 version = "2.0.0-rc.1.0"
+dependencies = [
+ "iroha_tree",
+]
 
 [[package]]
 name = "iroha_cli"
