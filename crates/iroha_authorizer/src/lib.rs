@@ -1,4 +1,4 @@
-//! A runtime component for user-defined logic that authorizes or rejects executables and queries based on the authority’s permissions.
+//! User-defined logic that authorizes or rejects executables and queries based on the authority’s permissions and ownerships.
 //!
 //! This is a reduced version of the executor, responsible only for permission validation, without handling instruction definitions or executions.
 

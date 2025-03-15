@@ -27,7 +27,7 @@ fn get_asset_value(client: &Client, asset_id: AssetId) -> Numeric {
 }
 
 /// See the corresponding unit test `iroha_tree::state::tests::event_loop_detection`.
-#[cfg(feature = "prediction")]
+// #[cfg(feature = "prediction")]
 #[test]
 fn not_registered_when_potential_event_loop_detected() -> eyre::Result<()> {
     // Trigger that:

@@ -44,6 +44,56 @@ impl NodeReadWrite for PartialState {
     }
 }
 
+/// Interface for interacting with the main state of the application.
+pub trait WorldState {
+    /// Indicates that the write request was rejected due to data integrity violations.
+    type InvariantViolation: From<Box<NodeConflict<changeset::Write>>>;
+
+    /// Applies an write entry to the state.
+    ///
+    /// # Errors
+    ///
+    /// Fails if the update violates data integrity constraints.
+    fn update_by(
+        &mut self,
+        key: NodeKey,
+        value: NodeValue<changeset::Write>,
+    ) -> Result<(), Self::InvariantViolation>;
+
+    /// Scans for inconsistencies based on event predictions and attempts to resolve them, returning an additional changeset.
+    ///
+    /// # Errors
+    ///
+    /// Fails if the expected change is determined to break data integrity.
+    fn sanitize(
+        &self,
+        event_prediction: &event::Event,
+    ) -> Result<changeset::ChangeSet, Self::InvariantViolation>;
+
+    /// Retrieve stored values based on the `readset` query.
+    fn load(&self, readset: &readset::ReadSet) -> PartialState;
+
+    /// Applies an unordered changeset to the state, resulting in events.
+    ///
+    /// # Errors
+    ///
+    /// Fails if the update violates data integrity constraints.
+    fn update(
+        &mut self,
+        changeset: changeset::ChangeSet,
+    ) -> Result<event::Event, Self::InvariantViolation> {
+        let event_prediction = changeset.as_status();
+        let changeset = (changeset + self.sanitize(&event_prediction)?)?;
+        let event = changeset.as_status();
+
+        for (key, value) in changeset {
+            self.update_by(key, value)?;
+        }
+
+        Ok(event)
+    }
+}
+
 pub mod transitional {
     use hashbrown::{HashMap, HashSet};
 

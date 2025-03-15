@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use iroha_tree::{
     changeset, event, node, readset, receptor, state, transitional as tr, FuzzyNodeKey,
-    NodeReadWrite,
+    NodeConflict, NodeKey, NodeValue,
 };
 use mv::storage::StorageReadOnly;
 
@@ -18,36 +18,36 @@ use crate::{
     state::{StateReadOnly, StateTransaction, WorldReadOnly},
 };
 
-type State<'block, 'state> = StateTransaction<'block, 'state>;
+/// TODO when instructions as an executable were replaced with a changeset
+#[derive(Debug, Clone, Copy)]
+pub struct InvariantViolation;
 
-struct InvariantsViolation;
+impl From<Box<NodeConflict<changeset::Write>>> for InvariantViolation {
+    fn from(_value: Box<NodeConflict<changeset::Write>>) -> Self {
+        unimplemented!("TODO when instructions as an executable were replaced with a changeset")
+    }
+}
 
-impl State<'_, '_> {
-    /// Unordered reflection to state, allowing inconsistencies between nodes.
-    fn update(
+impl state::WorldState for StateTransaction<'_, '_> {
+    type InvariantViolation = InvariantViolation;
+
+    fn update_by(
         &mut self,
-        changeset: changeset::ChangeSet,
-    ) -> Result<event::Event, InvariantsViolation> {
-        let event = changeset.as_status();
-
-        #[expect(clippy::never_loop)]
-        for (_k, _v) in changeset {
-            unimplemented!("todo when instructions as an executable were replaced with a changeset")
-        }
-
-        self.sanitize(&event)?;
-        Ok(event)
+        _key: NodeKey,
+        _value: NodeValue<changeset::Write>,
+    ) -> Result<(), Self::InvariantViolation> {
+        unimplemented!("TODO when instructions as an executable were replaced with a changeset")
     }
 
-    /// Scan and resolve inconsistencies based on events.
-    #[expect(clippy::unused_self)]
-    fn sanitize(&mut self, _event: &event::Event) -> Result<(), InvariantsViolation> {
-        // TODO #4672 Cascade or restrict on delete.
-        unimplemented!("todo when instructions as an executable were replaced with a changeset")
+    fn sanitize(
+        &self,
+        _event_prediction: &event::Event,
+    ) -> Result<changeset::ChangeSet, Self::InvariantViolation> {
+        // TODO #4672 Cascade or restrict on delete?
+        unimplemented!("TODO when instructions as an executable were replaced with a changeset")
     }
 
-    /// Retrieve stored values based on the `readset` query.
-    pub fn load(&self, readset: &readset::ReadSet) -> state::PartialState {
+    fn load(&self, readset: &readset::ReadSet) -> state::PartialState {
         let mut res = state::PartialState::default();
         for (k, _v) in readset.iter() {
             match k {

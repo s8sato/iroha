@@ -30,7 +30,7 @@ pub mod isi {
         ) -> Result<(), Error> {
             #[cfg(feature = "prediction")]
             {
-                use iroha_tree::{fuzzy_node, readset, state};
+                use iroha_tree::{fuzzy_node, readset, state, state::WorldState};
 
                 let object = self.object.clone();
                 let id = object.id;
@@ -51,9 +51,7 @@ pub mod isi {
                 };
                 let entry = state::tr::TriggerEntry::new(&id, &condition, &executable);
                 let partial_state = {
-                    let readset: readset::ReadSet = [fuzzy_node!(Trigger, None, readset::UnitR)]
-                        .into_iter()
-                        .collect();
+                    let readset = readset::ReadSet::from_iter([fuzzy_node!(Trigger, None, readset::UnitR)]);
                     state_transaction.load(&readset)
                 };
                 if entry.leads_to_event_loop(&partial_state) {
