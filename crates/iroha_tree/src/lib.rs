@@ -44,11 +44,11 @@ use serde_with::{DeserializeFromStr, SerializeDisplay};
 
 /// A flattened node map with a fixed skeleton equivalent to the world state.
 /// Node values may vary by [`Mode`].
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub struct Tree<M: Mode>(BTreeMap<NodeKey, NodeValue<M>>);
 
 /// The same structure as [`Tree`], except that node keys can represent a certain group of nodes.
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub struct FuzzyTree<M: Mode>(BTreeMap<FuzzyNodeKey, NodeValue<M>>);
 
 macro_rules! declare_nodes {
@@ -81,7 +81,7 @@ macro_rules! declare_nodes {
         )+
 
         /// Represents various states such as the current state, intention, result, or readiness at the node.
-        #[derive(Debug, PartialEq, Eq, Decode, Encode)]
+        #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
         pub enum NodeValue<M: Mode> {
             $(
             $variant(M::$variant),
@@ -91,7 +91,7 @@ macro_rules! declare_nodes {
         /// This trait implementation serves as a declaration of node values.
         pub trait Mode {
             $(
-            type $variant: Debug + PartialEq + Eq + Decode + Encode;
+            type $variant: Debug + PartialEq + Eq + Clone + Decode + Encode;
             )+
         }
     };
@@ -221,7 +221,7 @@ impl FilterU8 {
     const DENY: Self = Self(u8::MIN);
 }
 
-#[derive(Debug, Constructor)]
+#[derive(Debug, PartialEq, Eq, Clone, Constructor)]
 /// Indicates an invariant violation while aggregating node values at the node key.
 pub struct NodeConflict<M: Mode> {
     pub key: NodeKey,

@@ -2,7 +2,7 @@ use super::*;
 
 pub type PartialState = Tree<State>;
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub struct State;
 
 impl Mode for State {
@@ -99,67 +99,67 @@ pub mod transitional {
 
     use super::*;
 
-    #[derive(Debug, PartialEq, Eq, Decode, Encode)]
+    #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
     pub struct UnitV;
 
-    #[derive(Debug, PartialEq, Eq, Decode, Encode)]
+    #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
     pub struct AuthorizerV;
 
-    #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
+    #[derive(Debug, PartialEq, Eq, From, Clone, Decode, Encode)]
     pub struct ParameterV {
         pub(crate) parameter: dm::Parameter,
     }
 
-    #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
+    #[derive(Debug, PartialEq, Eq, From, Clone, Decode, Encode)]
     pub struct DomainV {
         pub(crate) logo: Option<dm::IpfsPath>,
     }
 
-    #[derive(Debug, PartialEq, Eq, Constructor, Decode, Encode)]
+    #[derive(Debug, PartialEq, Eq, Constructor, Clone, Decode, Encode)]
     pub struct AssetV {
         pub(crate) total_quantity: dm::Numeric,
         pub(crate) mintable: dm::Mintable,
         pub(crate) logo: Option<dm::IpfsPath>,
     }
 
-    #[derive(Debug, PartialEq, Eq, Decode, Encode)]
+    #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
     pub struct NftV;
 
-    #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
+    #[derive(Debug, PartialEq, Eq, From, Clone, Decode, Encode)]
     pub struct AccountAssetV {
         pub(crate) balance: dm::Numeric,
     }
 
-    #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
+    #[derive(Debug, PartialEq, Eq, From, Clone, Decode, Encode)]
     pub struct PermissionV {
         pub(crate) permission: permission::Permission,
     }
 
-    #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
+    #[derive(Debug, PartialEq, Eq, From, Clone, Decode, Encode)]
     pub struct TriggerV {
         pub(crate) repeats: dm::Repeats,
     }
 
-    #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
+    #[derive(Debug, PartialEq, Eq, From, Clone, Decode, Encode)]
     pub enum ConditionV {
         World(receptor::Receptor),
         Time(dm::TimeSchedule),
         Block(BlockCommit),
     }
 
-    #[derive(Debug, PartialEq, Eq, Decode, Encode)]
+    #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
     pub struct BlockCommit;
 
-    #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
+    #[derive(Debug, PartialEq, Eq, From, Clone, Decode, Encode)]
     pub enum ExecutableV {
         Static(changeset::ChangeSet),
         Dynamic(WasmExecutable),
     }
 
-    #[derive(Debug, PartialEq, Eq, Decode, Encode)]
+    #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
     pub struct WasmExecutable;
 
-    #[derive(Debug, PartialEq, Eq, From, Decode, Encode)]
+    #[derive(Debug, PartialEq, Eq, From, Clone, Decode, Encode)]
     pub struct MetadataV {
         pub(crate) json: dm::Json,
     }
@@ -319,7 +319,7 @@ mod tests {
     /// See the corresponding integration test `triggers::not_registered_when_potential_event_loop_detected`.
     #[expect(clippy::too_many_lines)]
     #[test]
-    fn event_loop_detection() {
+    fn detects_event_loop() {
         // Subscribes to changes in the domain "dom_{i}" with statuses "{s}".
         let receptor = |i: usize, s: &str| {
             Receptor::from_iter([fuzzy_node!(
@@ -433,6 +433,36 @@ mod tests {
         .map(|(trg, b)| (TriggerEntry::new(&trg.0 .0, &trg.1 .1, &trg.2 .1), *b))
         {
             assert_eq!(leads_to_event_loop, entry.leads_to_event_loop(&state));
+        }
+    }
+
+    #[test]
+    fn passes_permission() {
+        use permission::Permission;
+
+        let key = |i: usize| dm::RoleId::from_str(&format!("role_{i}")).unwrap();
+        let states = [
+            PartialState::default(),
+            PartialState::from_iter([node!(Role, key(0), tr::UnitV)]),
+            PartialState::from_iter([
+                node!(Role, key(0), tr::UnitV),
+                node!(Role, key(1), tr::UnitV),
+            ]),
+        ];
+        let permissions = [
+            Permission::default(),
+            Permission::from_iter([fuzzy_node!(Role, Some(Rc::new(key(0))), event::UnitS::Read)]),
+            Permission::from_iter([fuzzy_node!(Role, None, FilterU8::from_str("r").unwrap())]),
+        ];
+
+        let missing_permission = states[2].passes(&permissions[1]).unwrap_err();
+        let complemented_permission = permissions[1].clone() | missing_permission;
+        assert!(states[2].passes(&complemented_permission).is_ok());
+
+        for (i, state) in states.iter().enumerate() {
+            for (j, permission) in permissions.iter().enumerate() {
+                assert_eq!(i <= j, state.passes(&permission).is_ok());
+            }
         }
     }
 }

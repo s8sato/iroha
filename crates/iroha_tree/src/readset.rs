@@ -2,7 +2,7 @@ use super::*;
 
 pub type ReadSet = FuzzyTree<Read>;
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub struct Read;
 
 impl Mode for Read {
@@ -36,5 +36,5 @@ impl Mode for Read {
     type TriggerAdmin = UnitR;
 }
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub struct UnitR;

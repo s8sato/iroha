@@ -2,7 +2,7 @@ use super::*;
 
 pub type Receptor = FuzzyTree<ReadWriteStatusFilter>;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub struct ReadWriteStatusFilter;
 
 impl Mode for ReadWriteStatusFilter {

@@ -2,7 +2,7 @@ use super::*;
 
 pub type ChangeSet = Tree<Write>;
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub struct Write;
 
 impl Mode for Write {
@@ -36,43 +36,43 @@ impl Mode for Write {
     type TriggerAdmin = UnitW;
 }
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum AuthorizerW {
     Set(state::tr::AuthorizerV),
 }
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum UnitW {
     Create(()),
     Delete(()),
 }
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum ParameterW {
     Set(state::tr::ParameterV),
     Unset(()),
 }
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum DomainW {
     Create(state::tr::DomainV),
     Delete(()),
 }
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum AssetW {
     MintabilityUpdate(dm::Mintable),
     Create(state::tr::AssetV),
     Delete(()),
 }
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum NftW {
     Create(state::tr::NftV),
     Delete(()),
 }
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum AccountAssetW {
     Receive(dm::Numeric),
     Send(dm::Numeric),
@@ -80,13 +80,13 @@ pub enum AccountAssetW {
     Burn(dm::Numeric),
 }
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum PermissionW {
     Set(state::tr::PermissionV),
     Unset(()),
 }
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum TriggerW {
     Increase(u32),
     Decrease(u32),
@@ -94,19 +94,19 @@ pub enum TriggerW {
     Delete(()),
 }
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum ConditionW {
     Set(state::tr::ConditionV),
     Unset(()),
 }
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum ExecutableW {
     Set(state::tr::ExecutableV),
     Unset(()),
 }
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum MetadataW {
     Set(state::tr::MetadataV),
     Unset(()),
@@ -673,6 +673,82 @@ mod transitional {
             };
 
             Ok(map.into_iter().collect())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(not(feature = "std"))]
+    use alloc::format;
+
+    use super::*;
+    use crate::event::UnitS;
+
+    #[test]
+    fn aggregates() {
+        let role_w = |i: usize, w: UnitW| node!(Role, format!("role_{i}").parse().unwrap(), w);
+        let role_w_set = |i: usize, w: UnitW| ChangeSet::from_iter([role_w(i, w)]);
+        assert!((role_w_set(0, UnitW::Create(())) + role_w_set(0, UnitW::Create(()))).is_err());
+        assert_eq!(
+            role_w_set(0, UnitW::Create(())) + role_w_set(1, UnitW::Create(())),
+            Ok(ChangeSet::from_iter([
+                role_w(0, UnitW::Create(())),
+                role_w(1, UnitW::Create(()))
+            ]))
+        );
+        assert_eq!(
+            role_w_set(0, UnitW::Create(())) + role_w_set(0, UnitW::Delete(())),
+            Err(Box::new(NodeConflict::new(
+                NodeKey::Role(Rc::new("role_0".parse().unwrap())),
+                NodeValue::Role(UnitW::Create(())),
+                NodeValue::Role(UnitW::Delete(())),
+            )))
+        );
+
+        let trigger_inc =
+            |n: u32| node!(Trigger, "trigger".parse().unwrap(), TriggerW::Increase(n));
+        let trigger_inc_set = |n: u32| ChangeSet::from_iter([trigger_inc(n)]);
+        assert_eq!(
+            (0..5)
+                .map(|_| trigger_inc_set(1))
+                .try_fold(ChangeSet::default(), |acc, x| acc + x),
+            Ok(ChangeSet::from_iter([trigger_inc(5)]))
+        );
+    }
+
+    #[test]
+    fn passes_permission() {
+        use permission::Permission;
+
+        let key = |i: usize| dm::RoleId::from_str(&format!("role_{i}")).unwrap();
+        let changesets = [
+            ChangeSet::default(),
+            ChangeSet::from_iter([node!(Role, key(0), UnitW::Create(()))]),
+            ChangeSet::from_iter([
+                node!(Role, key(0), UnitW::Create(())),
+                node!(Role, key(1), UnitW::Create(())),
+            ]),
+            ChangeSet::from_iter([
+                node!(Role, key(0), UnitW::Create(())),
+                node!(Role, key(1), UnitW::Delete(())),
+            ]),
+        ];
+        let permissions = [
+            Permission::default(),
+            Permission::from_iter([fuzzy_node!(Role, Some(Rc::new(key(0))), UnitS::Create)]),
+            Permission::from_iter([fuzzy_node!(Role, None, FilterU8::from_str("c").unwrap())]),
+            Permission::from_iter([fuzzy_node!(Role, None, FilterU8::from_str("cd").unwrap())]),
+        ];
+
+        let missing_permission = changesets[3].passes(&permissions[1]).unwrap_err();
+        let complemented_permission = permissions[1].clone() | missing_permission;
+        assert!(changesets[3].passes(&complemented_permission).is_ok());
+
+        for (i, changeset) in changesets.iter().enumerate() {
+            for (j, permission) in permissions.iter().enumerate() {
+                assert_eq!(i <= j, changeset.passes(&permission).is_ok());
+            }
         }
     }
 }

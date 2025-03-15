@@ -4,7 +4,7 @@ use super::*;
 
 pub type Event = Tree<ReadWriteStatus>;
 
-#[derive(Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub struct ReadWriteStatus;
 
 impl Mode for ReadWriteStatus {
@@ -320,6 +320,49 @@ mod transitional {
             };
 
             map.into_iter().collect()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(not(feature = "std"))]
+    use alloc::format;
+
+    use super::*;
+
+    #[test]
+    fn passes_receptor() {
+        use receptor::Receptor;
+
+        let key = |i: usize| dm::RoleId::from_str(&format!("role_{i}")).unwrap();
+        let events = [
+            Event::default(),
+            Event::from_iter([node!(Role, key(0), UnitS::Create)]),
+            Event::from_iter([
+                node!(Role, key(0), UnitS::Create),
+                node!(Role, key(1), UnitS::Create),
+            ]),
+            Event::from_iter([
+                node!(Role, key(0), UnitS::Create),
+                node!(Role, key(1), UnitS::Delete),
+            ]),
+        ];
+        let receptors = [
+            Receptor::default(),
+            Receptor::from_iter([fuzzy_node!(Role, Some(Rc::new(key(0))), UnitS::Create)]),
+            Receptor::from_iter([fuzzy_node!(Role, None, FilterU8::from_str("c").unwrap())]),
+            Receptor::from_iter([fuzzy_node!(Role, None, FilterU8::from_str("cd").unwrap())]),
+        ];
+
+        let missing_permission = events[3].passes(&receptors[1]).unwrap_err();
+        let complemented_permission = receptors[1].clone() | missing_permission;
+        assert!(events[3].passes(&complemented_permission).is_ok());
+
+        for (i, event) in events.iter().enumerate() {
+            for (j, permission) in receptors.iter().enumerate() {
+                assert_eq!(i <= j, event.passes(&permission).is_ok());
+            }
         }
     }
 }

@@ -288,3 +288,32 @@ mod transitional {
         ),
     );
 }
+
+#[cfg(test)]
+mod tests {
+    #[cfg(not(feature = "std"))]
+    use alloc::format;
+
+    use super::*;
+
+    #[test]
+    fn aggregates() {
+        let role_f = |i: usize, f: &str| {
+            fuzzy_node!(
+                Role,
+                Some(Rc::new(format!("role_{i}").parse().unwrap())),
+                FilterU8::from_str(f).unwrap()
+            )
+        };
+        let role_f_set = |i: usize, f: &str| Permission::from_iter([role_f(i, f)]);
+        assert_eq!(role_f_set(0, "c") | role_f_set(0, "c"), role_f_set(0, "c"));
+        assert_eq!(
+            role_f_set(0, "c") | role_f_set(1, "c"),
+            Permission::from_iter([role_f(0, "c"), role_f(1, "c")])
+        );
+        assert_eq!(
+            role_f_set(0, "c") | role_f_set(0, "d"),
+            Permission::from_iter([role_f(0, "cd"),])
+        );
+    }
+}
