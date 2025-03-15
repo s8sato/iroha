@@ -49,7 +49,7 @@ pub trait WorldState {
     /// Indicates that the write request was rejected due to data integrity violations.
     type InvariantViolation: From<Box<NodeConflict<changeset::Write>>>;
 
-    /// Applies an write entry to the state.
+    /// Applies a write entry to the state.
     ///
     /// # Errors
     ///
@@ -461,7 +461,7 @@ mod tests {
 
         for (i, state) in states.iter().enumerate() {
             for (j, permission) in permissions.iter().enumerate() {
-                assert_eq!(i <= j, state.passes(&permission).is_ok());
+                assert_eq!(i <= j, state.passes(permission).is_ok());
             }
         }
     }

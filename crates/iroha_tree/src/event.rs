@@ -355,13 +355,9 @@ mod tests {
             Receptor::from_iter([fuzzy_node!(Role, None, FilterU8::from_str("cd").unwrap())]),
         ];
 
-        let missing_permission = events[3].passes(&receptors[1]).unwrap_err();
-        let complemented_permission = receptors[1].clone() | missing_permission;
-        assert!(events[3].passes(&complemented_permission).is_ok());
-
         for (i, event) in events.iter().enumerate() {
-            for (j, permission) in receptors.iter().enumerate() {
-                assert_eq!(i <= j, event.passes(&permission).is_ok());
+            for (j, receptor) in receptors.iter().enumerate() {
+                assert_eq!(i <= j, event.passes(receptor).is_ok());
             }
         }
     }

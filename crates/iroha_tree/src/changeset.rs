@@ -747,7 +747,7 @@ mod tests {
 
         for (i, changeset) in changesets.iter().enumerate() {
             for (j, permission) in permissions.iter().enumerate() {
-                assert_eq!(i <= j, changeset.passes(&permission).is_ok());
+                assert_eq!(i <= j, changeset.passes(permission).is_ok());
             }
         }
     }
