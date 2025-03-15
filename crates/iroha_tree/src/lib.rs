@@ -562,4 +562,29 @@ mod tests {
         assert_eq!(de::<FilterU8>(r#""dc--u--r""#).unwrap(), 0b1100_1001.into());
         assert_eq!(de::<FilterU8>(r#""rdrdr""#).unwrap(), 0b1000_0001.into());
     }
+
+    #[test]
+    fn exact_key_as_fuzzy() {
+        let id = dm::AssetId::from_str(
+            "asset##ed0120CE7FA46C9DCE7EA4B125E2E36BDB63EA33073E7590AC92816AE1E861B7048B03@domain",
+        )
+        .unwrap();
+        let (exact_key, _value): (_, NodeValue<event::ReadWriteStatus>) = node!(
+            AccountAsset,
+            id.account.signatory.clone(),
+            id.account.domain.clone(),
+            id.definition.name.clone(),
+            id.definition.domain.clone(),
+            event::AccountAssetS::Receive
+        );
+        let (fuzzy_key, _value): (_, NodeValue<receptor::ReadWriteStatusFilter>) = fuzzy_node!(
+            AccountAsset,
+            Some(Rc::new(id.account.signatory)),
+            Some(Rc::new(id.account.domain)),
+            Some(Rc::new(id.definition.name)),
+            Some(Rc::new(id.definition.domain)),
+            FilterU8::ANY
+        );
+        assert_eq!(exact_key.fuzzy(), fuzzy_key);
+    }
 }
