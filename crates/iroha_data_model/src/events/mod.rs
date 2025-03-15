@@ -180,14 +180,7 @@ impl EventFilter for EventFilterBox {
     fn matches(&self, event: &EventBox) -> bool {
         match (event, self) {
             (EventBox::Pipeline(event), Self::Pipeline(filter)) => filter.matches(event),
-            // SATO EventFilterBox::matches
             (EventBox::Data(event), Self::Data(filter)) => filter.matches(event),
-            // (EventBox::Data(event), Self::Data(filter)) => {
-            //     let event = tree::Event::from(event);
-            //     let receptor = tree::Receptor::from(filter);
-            //     event.passes(&receptor)
-            // },
-            // SATO end
             (EventBox::Time(event), Self::Time(filter)) => filter.matches(event),
             (EventBox::ExecuteTrigger(event), Self::ExecuteTrigger(filter)) => {
                 filter.matches(event)

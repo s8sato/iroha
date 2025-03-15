@@ -1,7 +1,5 @@
 //! Transitional interface for [`iroha_tree`].
 
-#![allow(dead_code)] // SATO disallow
-
 use std::rc::Rc;
 
 use iroha_tree::{

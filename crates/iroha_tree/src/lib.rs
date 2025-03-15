@@ -11,7 +11,6 @@
 //! - Permissions, roles, and ownerships into a single [`Permission`] per validation.
 
 #![allow(missing_docs)] // SATO disallow
-#![allow(dead_code)] // SATO disallow
 #![expect(missing_copy_implementations)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
