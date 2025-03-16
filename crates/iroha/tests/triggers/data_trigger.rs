@@ -5,10 +5,10 @@ use super::*;
 
 /// # Scenario
 ///
-/// 0. transaction: [register carol]
-/// 0. trigger execution: account created (carol) -> mint roses for carol
-/// 0. transaction: [burn a rose of carol] ... depends on the last trigger execution
-/// 0. block commit
+/// 0. Transaction: [register Carol]
+/// 0. Trigger execution: account created (Carol) -> mint roses for Carol
+/// 0. Transaction: [burn one of Carol's roses] ... Depends on the previous trigger execution
+/// 0. Block commit
 #[test]
 #[ignore = "enable in #4937"]
 fn executes_on_every_transaction() -> Result<()> {
@@ -52,8 +52,8 @@ mod matches_a_batch_of_events {
 
     /// # Scenario
     ///
-    /// 0. transaction: [mint a rose, mint a rose]
-    /// 0. trigger execution: asset created (2 roses) -> burn the 2 roses
+    /// 0. Transaction: [mint a rose, mint another rose]
+    /// 0. Trigger execution: asset minted (some roses) -> burn both roses
     #[test]
     #[ignore = "enable in #4937"]
     fn accumulation() -> Result<()> {
@@ -65,8 +65,8 @@ mod matches_a_batch_of_events {
 
     /// # Scenario
     ///
-    /// 0. transaction: [register carol, register dave]
-    /// 0. trigger execution: account created (carol | dave) -> mint a rose for carol and dave
+    /// 0. Transaction: [register Carol, register Dave]
+    /// 0. Trigger execution: account created (Carol and Dave) -> mint a rose for each
     #[test]
     #[ignore = "enable in #4937"]
     fn union() -> Result<()> {
@@ -106,10 +106,10 @@ mod matches_a_batch_of_events {
 
 /// # Scenario
 ///
-/// 0. register `trigger_1` with `filter_1`
-/// 0. register `trigger_2` with `filter_2`
-/// 0. emit an event that matches both `filter_1` and `filter_2`
-/// 0. both `trigger_1` and `trigger_2` execute
+/// 0. Register `trigger_1` with `filter_1`
+/// 0. Register `trigger_2` with `filter_2`
+/// 0. Emit an event that matches both `filter_1` and `filter_2`
+/// 0. Both `trigger_1` and `trigger_2` execute
 #[test]
 fn subscribe_events() -> Result<()> {
     let (network, _rt) = NetworkBuilder::new().start_blocking()?;

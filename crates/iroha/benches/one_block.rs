@@ -90,8 +90,8 @@ struct Input {
 
 /// # Scenario
 ///
-/// 0. transaction: [mint a rose at alice, mint a rose at alice]
-/// 0. trigger execution: asset created (some roses at alice) -> transfer a rose from alice to bob
+/// 0. Transaction: [mint a rose for Alice, mint another rose for Alice]
+/// 0. Trigger execution: asset created (some roses for Alice) -> transfer a rose from Alice to Bob
 fn routine(
     Input {
         network: _network,
