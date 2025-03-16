@@ -298,7 +298,7 @@ pub struct NodeConflict<M: Mode> {
     rhs: NodeValue<M>,
 }
 
-/// Indicates type inconsistency between node keys or values.
+/// Indicates a type inconsistency between node keys or values.
 #[derive(Debug, PartialEq, Eq, Clone, Constructor)]
 pub struct NodeTypeMismatch {
     lhs: NodeType,
@@ -394,7 +394,6 @@ macro_rules! impl_for_node_key_values {
             }
         }
 
-        /// SATO
         impl From<(&NodeKey, FilterU8)> for NodeValue<receptor::ReadWriteStatusFilter> {
             fn from(value: (&NodeKey, FilterU8)) -> Self {
                 match value.0 {
@@ -470,7 +469,7 @@ impl_for_node_key_values!(
 macro_rules! impl_for_tree {
     ($(($tree:ident, $key:ty, $entry:ident),)+) => {
         $(
-        /// Node key-value pair with their type consistency guaranteed.
+        /// Node key-value pair with guaranteed type consistency.
         #[derive(Debug, PartialEq, Eq, Clone)]
         pub struct $entry<M: Mode> {
             key: $key,
