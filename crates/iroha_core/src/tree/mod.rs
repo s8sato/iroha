@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use iroha_tree::{
     changeset, event, node, readset, receptor, state, transitional as tr, FuzzyNodeKey,
-    NodeConflict, NodeKey, NodeValue,
+    NodeConflict, NodeEntry,
 };
 use mv::storage::StorageReadOnly;
 
@@ -31,8 +31,7 @@ impl state::WorldState for StateTransaction<'_, '_> {
 
     fn update_by(
         &mut self,
-        _key: NodeKey,
-        _value: NodeValue<changeset::Write>,
+        _entry: NodeEntry<changeset::Write>,
     ) -> Result<(), Self::InvariantViolation> {
         unimplemented!("TODO when instructions as an executable were replaced with a changeset")
     }
@@ -52,7 +51,7 @@ impl state::WorldState for StateTransaction<'_, '_> {
                 FuzzyNodeKey::Trigger(key) => {
                     self.world()
                         .triggers()
-                        // Other types of triggers are irrelevant as long as this function is used solely for event loop detection.
+                        // FIXME: Other types of triggers are irrelevant as long as this function is used solely for event loop detection.
                         .data_triggers()
                         .iter()
                         .filter(|(id, _)| key.as_ref().map_or(true, |key| **key == **id))
@@ -78,7 +77,7 @@ impl state::WorldState for StateTransaction<'_, '_> {
                             let condition_id = tr::ConditionId::from(&condition);
                             let executable_id = tr::ExecutableId::from(&executable);
 
-                            for (k, v) in [
+                            for entry in [
                                 node!(Trigger, trigger_id.clone(), trigger),
                                 node!(
                                     Condition,
@@ -110,7 +109,7 @@ impl state::WorldState for StateTransaction<'_, '_> {
                                     state::tr::UnitV
                                 ),
                             ] {
-                                res.insert(k, v);
+                                res.insert(entry);
                             }
                         })
                 }

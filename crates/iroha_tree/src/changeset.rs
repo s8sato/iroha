@@ -145,7 +145,7 @@ impl NodeReadWrite for ChangeSet {
 
     fn as_status(&self) -> Self::Status {
         self.iter()
-            .map(|(k, write)| (k.clone(), write.into()))
+            .map(|(k, write)| NodeEntry::try_from((k.clone(), write.into())).unwrap())
             .collect()
     }
 }
@@ -162,7 +162,7 @@ impl Add for ChangeSet {
                     Err((v0, v1)) => return Err(NodeConflict::new(k, v0, v1).into()),
                 },
             };
-            rhs.insert(k, v);
+            rhs.insert(NodeEntry::try_from((k, v)).unwrap());
         }
         Ok(rhs)
     }
@@ -271,9 +271,11 @@ mod transitional {
                 RemoveKeyValueBox, RevokeBox, SetKeyValueBox, TransferBox, UnregisterBox,
             };
 
-            let map: BTreeMap<_, _> = match instruction {
+            let changeset: Self = match instruction {
                 InstructionBox::Register(inst) => match inst {
-                    RegisterBox::Peer(inst) => [node!(Peer, inst.object, UnitW::Create(()))].into(),
+                    RegisterBox::Peer(inst) => [node!(Peer, inst.object, UnitW::Create(()))]
+                        .into_iter()
+                        .collect(),
                     RegisterBox::Domain(inst) => [
                         node!(
                             DomainAdmin,
@@ -288,14 +290,16 @@ mod transitional {
                             DomainW::Create(inst.object.logo.into())
                         ),
                     ]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     RegisterBox::Account(inst) => [node!(
                         Account,
                         inst.object.id.signatory,
                         inst.object.id.domain,
                         UnitW::Create(())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     RegisterBox::AssetDefinition(inst) => [
                         node!(
                             AssetAdmin,
@@ -316,7 +320,8 @@ mod transitional {
                             ))
                         ),
                     ]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     RegisterBox::Nft(inst) => [
                         node!(
                             NftAdmin,
@@ -353,7 +358,9 @@ mod transitional {
                     }))
                     .collect(),
                     RegisterBox::Role(inst) => {
-                        [node!(Role, inst.object.inner.id, UnitW::Create(()))].into()
+                        [node!(Role, inst.object.inner.id, UnitW::Create(()))]
+                            .into_iter()
+                            .collect()
                     }
                     RegisterBox::Trigger(inst) => {
                         let trigger = state::tr::TriggerV::from(inst.object.action.repeats);
@@ -394,15 +401,18 @@ mod transitional {
                                 UnitW::Create(())
                             ),
                         ]
-                        .into()
+                        .into_iter()
+                        .collect()
                     }
                 },
                 InstructionBox::Unregister(inst) => match inst {
-                    UnregisterBox::Peer(inst) => {
-                        [node!(Peer, inst.object, UnitW::Delete(()))].into()
-                    }
+                    UnregisterBox::Peer(inst) => [node!(Peer, inst.object, UnitW::Delete(()))]
+                        .into_iter()
+                        .collect(),
                     UnregisterBox::Domain(inst) => {
-                        [node!(Domain, inst.object, DomainW::Delete(()))].into()
+                        [node!(Domain, inst.object, DomainW::Delete(()))]
+                            .into_iter()
+                            .collect()
                     }
                     UnregisterBox::Account(inst) => [node!(
                         Account,
@@ -410,26 +420,31 @@ mod transitional {
                         inst.object.domain,
                         UnitW::Delete(())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     UnregisterBox::AssetDefinition(inst) => [node!(
                         Asset,
                         inst.object.name,
                         inst.object.domain,
                         AssetW::Delete(())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     UnregisterBox::Nft(inst) => [node!(
                         Nft,
                         inst.object.name,
                         inst.object.domain,
                         NftW::Delete(())
                     )]
-                    .into(),
-                    UnregisterBox::Role(inst) => {
-                        [node!(Role, inst.object, UnitW::Delete(()))].into()
-                    }
+                    .into_iter()
+                    .collect(),
+                    UnregisterBox::Role(inst) => [node!(Role, inst.object, UnitW::Delete(()))]
+                        .into_iter()
+                        .collect(),
                     UnregisterBox::Trigger(inst) => {
-                        [node!(Trigger, inst.object, TriggerW::Delete(()))].into()
+                        [node!(Trigger, inst.object, TriggerW::Delete(()))]
+                            .into_iter()
+                            .collect()
                     }
                 },
                 InstructionBox::Mint(inst) => match inst {
@@ -441,13 +456,15 @@ mod transitional {
                         inst.destination.definition.domain,
                         AccountAssetW::Mint(inst.object)
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     MintBox::TriggerRepetitions(inst) => [node!(
                         Trigger,
                         inst.destination,
                         TriggerW::Increase(inst.object)
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                 },
                 InstructionBox::Burn(inst) => match inst {
                     BurnBox::Asset(inst) => [node!(
@@ -458,13 +475,15 @@ mod transitional {
                         inst.destination.definition.domain,
                         AccountAssetW::Burn(inst.object)
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     BurnBox::TriggerRepetitions(inst) => [node!(
                         Trigger,
                         inst.destination,
                         TriggerW::Increase(inst.object)
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                 },
                 InstructionBox::Transfer(inst) => match inst {
                     TransferBox::Domain(inst) => [
@@ -483,7 +502,8 @@ mod transitional {
                             UnitW::Create(())
                         ),
                     ]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     TransferBox::AssetDefinition(inst) => [
                         node!(
                             AssetAdmin,
@@ -502,7 +522,8 @@ mod transitional {
                             UnitW::Create(())
                         ),
                     ]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     TransferBox::Nft(inst) => [
                         node!(
                             NftOwner,
@@ -521,7 +542,8 @@ mod transitional {
                             UnitW::Create(())
                         ),
                     ]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     TransferBox::Asset(inst) => [
                         node!(
                             AccountAsset,
@@ -540,7 +562,8 @@ mod transitional {
                             AccountAssetW::Receive(inst.object)
                         ),
                     ]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                 },
                 InstructionBox::SetKeyValue(inst) => match inst {
                     SetKeyValueBox::Domain(inst) => [node!(
@@ -549,7 +572,8 @@ mod transitional {
                         inst.key,
                         MetadataW::Set(inst.value.into())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     SetKeyValueBox::Account(inst) => [node!(
                         AccountMetadata,
                         inst.object.signatory,
@@ -557,7 +581,8 @@ mod transitional {
                         inst.key,
                         MetadataW::Set(inst.value.into())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     SetKeyValueBox::AssetDefinition(inst) => [node!(
                         AssetMetadata,
                         inst.object.name,
@@ -565,7 +590,8 @@ mod transitional {
                         inst.key,
                         MetadataW::Set(inst.value.into())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     SetKeyValueBox::Nft(inst) => [node!(
                         NftData,
                         inst.object.name,
@@ -573,14 +599,16 @@ mod transitional {
                         inst.key,
                         MetadataW::Set(inst.value.into())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     SetKeyValueBox::Trigger(inst) => [node!(
                         TriggerMetadata,
                         inst.object,
                         inst.key,
                         MetadataW::Set(inst.value.into())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                 },
                 InstructionBox::RemoveKeyValue(inst) => match inst {
                     RemoveKeyValueBox::Domain(inst) => [node!(
@@ -589,7 +617,8 @@ mod transitional {
                         inst.key,
                         MetadataW::Unset(())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     RemoveKeyValueBox::Account(inst) => [node!(
                         AccountMetadata,
                         inst.object.signatory,
@@ -597,7 +626,8 @@ mod transitional {
                         inst.key,
                         MetadataW::Unset(())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     RemoveKeyValueBox::AssetDefinition(inst) => [node!(
                         AssetMetadata,
                         inst.object.name,
@@ -605,7 +635,8 @@ mod transitional {
                         inst.key,
                         MetadataW::Unset(())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     RemoveKeyValueBox::Nft(inst) => [node!(
                         NftData,
                         inst.object.name,
@@ -613,14 +644,16 @@ mod transitional {
                         inst.key,
                         MetadataW::Unset(())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     RemoveKeyValueBox::Trigger(inst) => [node!(
                         TriggerMetadata,
                         inst.object,
                         inst.key,
                         MetadataW::Unset(())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                 },
                 InstructionBox::Grant(inst) => match inst {
                     GrantBox::Permission(inst) => [node!(
@@ -630,7 +663,8 @@ mod transitional {
                         tr::PermissionId::from(&inst.object),
                         UnitW::Create(())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     GrantBox::Role(inst) => [node!(
                         AccountRole,
                         inst.destination.signatory,
@@ -638,14 +672,16 @@ mod transitional {
                         inst.object,
                         UnitW::Create(())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     GrantBox::RolePermission(inst) => [node!(
                         RolePermission,
                         inst.destination,
                         tr::PermissionId::from(&inst.object),
                         UnitW::Create(())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                 },
                 InstructionBox::Revoke(inst) => match inst {
                     RevokeBox::Permission(inst) => [node!(
@@ -655,7 +691,8 @@ mod transitional {
                         tr::PermissionId::from(&inst.object),
                         UnitW::Delete(())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     RevokeBox::Role(inst) => [node!(
                         AccountRole,
                         inst.destination.signatory,
@@ -663,14 +700,16 @@ mod transitional {
                         inst.object,
                         UnitW::Delete(())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                     RevokeBox::RolePermission(inst) => [node!(
                         RolePermission,
                         inst.destination,
                         tr::PermissionId::from(&inst.object),
                         UnitW::Delete(())
                     )]
-                    .into(),
+                    .into_iter()
+                    .collect(),
                 },
                 InstructionBox::ExecuteTrigger(_inst) => unimplemented!(
                     "planned to be replaced with calls to pre-registered executables"
@@ -680,9 +719,12 @@ mod transitional {
                     tr::ParameterId,
                     ParameterW::Set(inst.0.into())
                 )]
-                .into(),
+                .into_iter()
+                .collect(),
                 InstructionBox::Upgrade(_inst) => {
-                    [node!(Authorizer, AuthorizerW::Set(state::tr::AuthorizerV))].into()
+                    [node!(Authorizer, AuthorizerW::Set(state::tr::AuthorizerV))]
+                        .into_iter()
+                        .collect()
                 }
                 InstructionBox::Log(inst) => {
                     const TARGET: &str = "log_isi";
@@ -693,14 +735,14 @@ mod transitional {
                         dm::Level::WARN => iroha_logger::warn!(target: TARGET, "{}", inst.msg),
                         dm::Level::ERROR => iroha_logger::error!(target: TARGET, "{}", inst.msg),
                     }
-                    [].into()
+                    [].into_iter().collect()
                 }
                 InstructionBox::Custom(_inst) => unimplemented!(
                     "planned to be replaced with calls to pre-registered executables"
                 ),
             };
 
-            Ok(map.into_iter().collect())
+            Ok(changeset)
         }
     }
 }

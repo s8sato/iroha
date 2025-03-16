@@ -35,7 +35,7 @@ impl BitOr for Permission {
                 None => v0,
                 Some(v1) => (v0 | v1).expect("value types should be consistent"),
             };
-            rhs.insert(k, v);
+            rhs.insert(FuzzyNodeEntry::try_from((k, v)).unwrap());
         }
         rhs
     }
@@ -54,7 +54,7 @@ mod transitional {
     }
 
     macro_rules! impl_from_data_model_permission {
-        ($(($can:path, $node:ident, |$source:ident| $key:expr, $statuses:expr),)+) => {
+        ($(($can:path, $node_type:ident, |$source:ident| $key:expr, $statuses:expr),)+) => {
             impl From<&dm::Permission> for Permission {
                 fn from(value: &dm::Permission) -> Self {
                     $(
@@ -67,16 +67,16 @@ mod transitional {
             $(
             impl From<$can> for Permission {
                 fn from($source: $can) -> Self {
-                    [(
-                        FuzzyNodeKey::$node($key),
-                        NodeValue::$node(
+                    [FuzzyNodeEntry::try_from((
+                        FuzzyNodeKey::$node_type($key),
+                        NodeValue::$node_type(
                             $statuses
                                 .into_iter()
                                 .map(FilterU8::from)
                                 .reduce(|acc, x| acc | x)
                                 .unwrap(),
                         ),
-                    )]
+                    )).unwrap()]
                     .into_iter()
                     .collect()
                 }

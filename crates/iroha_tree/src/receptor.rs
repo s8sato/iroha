@@ -53,7 +53,9 @@ impl Filtered for event::Event {
                 .filter_map(|(k, v)| receptor_keys.contains(k).then_some(v).map(FilterU8::from))
                 .fold(FilterU8::DENY, |acc, x| acc | x);
             if let Err(obs) = signal.passes(&receptor_union) {
-                obstacle.insert(key.fuzzy(), NodeValue::from((key, obs)));
+                obstacle.insert(
+                    FuzzyNodeEntry::try_from((key.fuzzy(), NodeValue::from((key, obs)))).unwrap(),
+                );
             }
         }
         if obstacle.is_empty() {
@@ -211,7 +213,7 @@ mod transitional {
                 RoleEventSet, TriggerEventSet,
             };
 
-            let map: BTreeMap<_, _> = match value {
+            match value {
                 Any => [
                     fuzzy_node!(Authorizer, FilterU8::ANY),
                     fuzzy_node!(Parameter, None, FilterU8::ANY),
@@ -234,7 +236,8 @@ mod transitional {
                     fuzzy_node!(NftData, None, None, None, FilterU8::ANY),
                     fuzzy_node!(TriggerMetadata, None, None, FilterU8::ANY),
                 ]
-                .into(),
+                .into_iter()
+                .collect(),
                 Peer(ef) => {
                     let id = ef.id_matcher.map(Rc::new);
                     ef.event_set
@@ -591,9 +594,7 @@ mod transitional {
                         _ => unreachable!(),
                     })
                     .collect(),
-            };
-
-            map.into_iter().collect()
+            }
         }
     }
 }

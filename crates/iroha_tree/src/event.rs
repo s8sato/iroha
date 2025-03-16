@@ -267,90 +267,88 @@ mod transitional {
                 DomainEvent, ExecutorEvent, NftEvent, PeerEvent, RoleEvent, TriggerEvent,
             };
 
-            let map: BTreeMap<_, _> = match value {
+            match value {
                 Peer(event) => match event {
-                    PeerEvent::Added(k) => [node!(Peer, k, UnitS::Create)].into(),
-                    PeerEvent::Removed(k) => [node!(Peer, k, UnitS::Delete)].into(),
+                    PeerEvent::Added(k) => [node!(Peer, k, UnitS::Create)].into_iter().collect(),
+                    PeerEvent::Removed(k) => [node!(Peer, k, UnitS::Delete)].into_iter().collect(),
                 },
                 Domain(event) => match event {
-                    DomainEvent::Created(v) => [node!(Domain, v.id, DomainS::Create)].into(),
-                    DomainEvent::Deleted(k) => [node!(Domain, k, DomainS::Delete)].into(),
+                    DomainEvent::Created(v) => [node!(Domain, v.id, DomainS::Create)].into_iter().collect(),
+                    DomainEvent::Deleted(k) => [node!(Domain, k, DomainS::Delete)].into_iter().collect(),
                     DomainEvent::AssetDefinition(event) => match event {
-                        AssetDefinitionEvent::Created(v) => [node!(Asset, v.id.name, v.id.domain, AssetS::Create)].into(),
-                        AssetDefinitionEvent::Deleted(k) => [node!(Asset, k.name, k.domain, AssetS::Delete)].into(),
-                        AssetDefinitionEvent::MetadataInserted(m) => [node!(AssetMetadata, m.target.name, m.target.domain, m.key, MetadataS::Set)].into(),
-                        AssetDefinitionEvent::MetadataRemoved(m) => [node!(AssetMetadata, m.target.name, m.target.domain, m.key, MetadataS::Unset)].into(),
-                        AssetDefinitionEvent::MintabilityChanged(k) => [node!(Asset, k.name, k.domain, AssetS::MintabilityUpdate)].into(),
+                        AssetDefinitionEvent::Created(v) => [node!(Asset, v.id.name, v.id.domain, AssetS::Create)].into_iter().collect(),
+                        AssetDefinitionEvent::Deleted(k) => [node!(Asset, k.name, k.domain, AssetS::Delete)].into_iter().collect(),
+                        AssetDefinitionEvent::MetadataInserted(m) => [node!(AssetMetadata, m.target.name, m.target.domain, m.key, MetadataS::Set)].into_iter().collect(),
+                        AssetDefinitionEvent::MetadataRemoved(m) => [node!(AssetMetadata, m.target.name, m.target.domain, m.key, MetadataS::Unset)].into_iter().collect(),
+                        AssetDefinitionEvent::MintabilityChanged(k) => [node!(Asset, k.name, k.domain, AssetS::MintabilityUpdate)].into_iter().collect(),
                         AssetDefinitionEvent::TotalQuantityChanged(_v) => unimplemented!("total quantities are a secondary state: listen for minting/burning instead"),
                         // Ownership is now implemented as roles.
                         AssetDefinitionEvent::OwnerChanged(v) => [
                             // Not implemented because there is no such field as `AssetDefinitionOwnerChanged::old_owner`.
                             // node_key_value!(AssetAdmin, v.asset_definition.name, v.asset_definition.domain, v.old_owner.signatory, v.old_owner.domain, UnitS::Delete),
                             node!(AssetAdmin, v.asset_definition.name, v.asset_definition.domain, v.new_owner.signatory, v.new_owner.domain, UnitS::Create),
-                        ].into(),
+                        ].into_iter().collect(),
                     },
                     DomainEvent::Nft(event) => match event {
-                        NftEvent::Created(v) => [node!(Nft, v.id.name, v.id.domain, NftS::Create)].into(),
-                        NftEvent::Deleted(k) => [node!(Nft, k.name, k.domain, NftS::Delete)].into(),
-                        NftEvent::MetadataInserted(m) => [node!(NftData, m.target.name, m.target.domain, m.key, MetadataS::Set)].into(),
-                        NftEvent::MetadataRemoved(m) => [node!(NftData, m.target.name, m.target.domain, m.key, MetadataS::Unset)].into(),
+                        NftEvent::Created(v) => [node!(Nft, v.id.name, v.id.domain, NftS::Create)].into_iter().collect(),
+                        NftEvent::Deleted(k) => [node!(Nft, k.name, k.domain, NftS::Delete)].into_iter().collect(),
+                        NftEvent::MetadataInserted(m) => [node!(NftData, m.target.name, m.target.domain, m.key, MetadataS::Set)].into_iter().collect(),
+                        NftEvent::MetadataRemoved(m) => [node!(NftData, m.target.name, m.target.domain, m.key, MetadataS::Unset)].into_iter().collect(),
                         NftEvent::OwnerChanged(v) => [
                             // Not implemented because there is no such field as `NftOwnerChanged::old_owner`.
                             // node_key_value!(NftOwner, v.nft.name, v.nft.domain, v.old_owner.signatory, v.old_owner.domain, UnitS::Delete),
                             node!(NftOwner, v.nft.name, v.nft.domain, v.new_owner.signatory, v.new_owner.domain, UnitS::Create),
-                        ].into(),
+                        ].into_iter().collect(),
                     },
                     DomainEvent::Account(event) => match event {
-                        AccountEvent::Created(v) => [node!(Account, v.id.signatory, v.id.domain, UnitS::Create)].into(),
-                        AccountEvent::Deleted(k) => [node!(Account, k.signatory, k.domain, UnitS::Delete)].into(),
+                        AccountEvent::Created(v) => [node!(Account, v.id.signatory, v.id.domain, UnitS::Create)].into_iter().collect(),
+                        AccountEvent::Deleted(k) => [node!(Account, k.signatory, k.domain, UnitS::Delete)].into_iter().collect(),
                         AccountEvent::Asset(event) => match event {
                             // FIXME Ambiguous sources: Mint<Numeric, Asset>, Transfer<Asset, Numeric, Account>
-                            AssetEvent::Created(v) => [node!(AccountAsset, v.id.account.signatory, v.id.account.domain, v.id.definition.name, v.id.definition.domain, AccountAssetS::Mint)].into(),
-                            AssetEvent::Deleted(k) => [node!(AccountAsset, k.account.signatory, k.account.domain, k.definition.name, k.definition.domain, AccountAssetS::Burn)].into(),
+                            AssetEvent::Created(v) => [node!(AccountAsset, v.id.account.signatory, v.id.account.domain, v.id.definition.name, v.id.definition.domain, AccountAssetS::Mint)].into_iter().collect(),
+                            AssetEvent::Deleted(k) => [node!(AccountAsset, k.account.signatory, k.account.domain, k.definition.name, k.definition.domain, AccountAssetS::Burn)].into_iter().collect(),
                             // FIXME Ambiguous sources: Mint<Numeric, Asset>, Transfer<Asset, Numeric, Account>
-                            AssetEvent::Added(v) => [node!(AccountAsset, v.asset.account.signatory, v.asset.account.domain, v.asset.definition.name, v.asset.definition.domain, AccountAssetS::Receive)].into(),
+                            AssetEvent::Added(v) => [node!(AccountAsset, v.asset.account.signatory, v.asset.account.domain, v.asset.definition.name, v.asset.definition.domain, AccountAssetS::Receive)].into_iter().collect(),
                             // FIXME Ambiguous sources: Burn<Numeric, Asset>, Transfer<Asset, Numeric, Account>
-                            AssetEvent::Removed(v) => [node!(AccountAsset, v.asset.account.signatory, v.asset.account.domain, v.asset.definition.name, v.asset.definition.domain, AccountAssetS::Send)].into(),
+                            AssetEvent::Removed(v) => [node!(AccountAsset, v.asset.account.signatory, v.asset.account.domain, v.asset.definition.name, v.asset.definition.domain, AccountAssetS::Send)].into_iter().collect(),
                         },
-                        AccountEvent::PermissionAdded(v) => [node!(AccountPermission, v.account.signatory, v.account.domain, (&v.permission).into(), UnitS::Create)].into(),
-                        AccountEvent::PermissionRemoved(v) => [node!(AccountPermission, v.account.signatory, v.account.domain, (&v.permission).into(), UnitS::Delete)].into(),
-                        AccountEvent::RoleGranted(v) => [node!(AccountRole, v.account.signatory, v.account.domain, v.role, UnitS::Create)].into(),
-                        AccountEvent::RoleRevoked(v) => [node!(AccountRole, v.account.signatory, v.account.domain, v.role, UnitS::Delete)].into(),
-                        AccountEvent::MetadataInserted(m) => [node!(AccountMetadata, m.target.signatory, m.target.domain, m.key, MetadataS::Set)].into(),
-                        AccountEvent::MetadataRemoved(m) => [node!(AccountMetadata, m.target.signatory, m.target.domain, m.key, MetadataS::Unset)].into(),
+                        AccountEvent::PermissionAdded(v) => [node!(AccountPermission, v.account.signatory, v.account.domain, (&v.permission).into(), UnitS::Create)].into_iter().collect(),
+                        AccountEvent::PermissionRemoved(v) => [node!(AccountPermission, v.account.signatory, v.account.domain, (&v.permission).into(), UnitS::Delete)].into_iter().collect(),
+                        AccountEvent::RoleGranted(v) => [node!(AccountRole, v.account.signatory, v.account.domain, v.role, UnitS::Create)].into_iter().collect(),
+                        AccountEvent::RoleRevoked(v) => [node!(AccountRole, v.account.signatory, v.account.domain, v.role, UnitS::Delete)].into_iter().collect(),
+                        AccountEvent::MetadataInserted(m) => [node!(AccountMetadata, m.target.signatory, m.target.domain, m.key, MetadataS::Set)].into_iter().collect(),
+                        AccountEvent::MetadataRemoved(m) => [node!(AccountMetadata, m.target.signatory, m.target.domain, m.key, MetadataS::Unset)].into_iter().collect(),
                     },
-                    DomainEvent::MetadataInserted(m) => [node!(DomainMetadata, m.target, m.key, MetadataS::Set)].into(),
-                    DomainEvent::MetadataRemoved(m) => [node!(DomainMetadata, m.target, m.key, MetadataS::Unset)].into(),
+                    DomainEvent::MetadataInserted(m) => [node!(DomainMetadata, m.target, m.key, MetadataS::Set)].into_iter().collect(),
+                    DomainEvent::MetadataRemoved(m) => [node!(DomainMetadata, m.target, m.key, MetadataS::Unset)].into_iter().collect(),
                     DomainEvent::OwnerChanged(v) => [
                         // Not implemented because there is no such field as `DomainOwnerChanged::old_owner`.
                         // node_key_value!(DomainAdmin, v.domain, v.old_owner.signatory, v.old_owner.domain, UnitS::Delete),
                         node!(DomainAdmin, v.domain, v.new_owner.signatory, v.new_owner.domain, UnitS::Create),
-                    ].into(),
+                    ].into_iter().collect(),
                 },
                 Trigger(event) => match event {
-                    TriggerEvent::Created(k) => [node!(Trigger, k, TriggerS::Create)].into(),
-                    TriggerEvent::Deleted(k) => [node!(Trigger, k, TriggerS::Delete)].into(),
-                    TriggerEvent::Extended(v) => [node!(Trigger, v.trigger, TriggerS::Increase)].into(),
-                    TriggerEvent::Shortened(v) => [node!(Trigger, v.trigger, TriggerS::Decrease)].into(),
-                    TriggerEvent::MetadataInserted(m) => [node!(TriggerMetadata, m.target, m.key, MetadataS::Set)].into(),
-                    TriggerEvent::MetadataRemoved(m) => [node!(TriggerMetadata, m.target, m.key, MetadataS::Unset)].into(),
+                    TriggerEvent::Created(k) => [node!(Trigger, k, TriggerS::Create)].into_iter().collect(),
+                    TriggerEvent::Deleted(k) => [node!(Trigger, k, TriggerS::Delete)].into_iter().collect(),
+                    TriggerEvent::Extended(v) => [node!(Trigger, v.trigger, TriggerS::Increase)].into_iter().collect(),
+                    TriggerEvent::Shortened(v) => [node!(Trigger, v.trigger, TriggerS::Decrease)].into_iter().collect(),
+                    TriggerEvent::MetadataInserted(m) => [node!(TriggerMetadata, m.target, m.key, MetadataS::Set)].into_iter().collect(),
+                    TriggerEvent::MetadataRemoved(m) => [node!(TriggerMetadata, m.target, m.key, MetadataS::Unset)].into_iter().collect(),
                 },
                 Role(event) => match event {
-                    RoleEvent::Created(v) => [node!(Role, v.id, UnitS::Create)].into(),
-                    RoleEvent::Deleted(k) => [node!(Role, k, UnitS::Delete)].into(),
-                    RoleEvent::PermissionAdded(v) => [node!(RolePermission, v.role, (&v.permission).into(), UnitS::Create)].into(),
-                    RoleEvent::PermissionRemoved(v) => [node!(RolePermission, v.role, (&v.permission).into(), UnitS::Delete)].into(),
+                    RoleEvent::Created(v) => [node!(Role, v.id, UnitS::Create)].into_iter().collect(),
+                    RoleEvent::Deleted(k) => [node!(Role, k, UnitS::Delete)].into_iter().collect(),
+                    RoleEvent::PermissionAdded(v) => [node!(RolePermission, v.role, (&v.permission).into(), UnitS::Create)].into_iter().collect(),
+                    RoleEvent::PermissionRemoved(v) => [node!(RolePermission, v.role, (&v.permission).into(), UnitS::Delete)].into_iter().collect(),
                 },
                 Configuration(event) => match event {
-                    ConfigurationEvent::Changed(_v) => [node!(Parameter, tr::ParameterId, ParameterS::Set)].into(),
+                    ConfigurationEvent::Changed(_v) => [node!(Parameter, tr::ParameterId, ParameterS::Set)].into_iter().collect(),
                 },
                 // The executor is planned to be replaced with the authorizer. See the `iroha_authorizer` crate documentation for details.
                 Executor(event) => match event {
-                    ExecutorEvent::Upgraded(_v) => [node!(Authorizer, AuthorizerS::Set)].into(),
+                    ExecutorEvent::Upgraded(_v) => [node!(Authorizer, AuthorizerS::Set)].into_iter().collect(),
                 },
-            };
-
-            map.into_iter().collect()
+            }
         }
     }
 }

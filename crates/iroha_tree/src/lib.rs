@@ -159,7 +159,7 @@ declare_nodes!(
 #[macro_export]
 macro_rules! node {
     (_ $node_type:ident, $key:expr, $value:expr) => {
-        ($crate::NodeKey::$node_type($key), $crate::NodeValue::$node_type($value.into()))
+        $crate::NodeEntry::try_from(($crate::NodeKey::$node_type($key), $crate::NodeValue::$node_type($value.into()))).unwrap()
     };
     ($node_type:ident, $value:expr) => {
         $crate::node!(_ $node_type, (), $value)
@@ -182,7 +182,7 @@ macro_rules! node {
 #[macro_export]
 macro_rules! fuzzy_node {
     (_ $node_type:ident, $key:expr, $value:expr) => {
-        ($crate::FuzzyNodeKey::$node_type($key), $crate::NodeValue::$node_type($value.into()))
+        $crate::FuzzyNodeEntry::try_from(($crate::FuzzyNodeKey::$node_type($key), $crate::NodeValue::$node_type($value.into()))).unwrap()
     };
     ($node_type:ident, $value:expr) => {
         $crate::fuzzy_node!(_ $node_type, (), $value)
@@ -298,24 +298,26 @@ pub struct NodeConflict<M: Mode> {
     rhs: NodeValue<M>,
 }
 
-impl NodeKey {
-    fn fuzzy(&self) -> FuzzyNodeKey {
-        self.receptor_keys().last().unwrap().clone()
-    }
+/// Indicates type inconsistency between node keys or values.
+#[derive(Debug, PartialEq, Eq, Clone, Constructor)]
+pub struct NodeTypeMismatch {
+    lhs: NodeType,
+    rhs: NodeType,
 }
 
 trait NodeKeyValue {
     fn node_type(&self) -> NodeType;
 }
 
-/// This should be asserted whenever constructing key-value pairs, as type safety was lost during tree size reduction.
-fn consistent_key_value(key: &impl NodeKeyValue, value: &impl NodeKeyValue) -> bool {
-    key.node_type() == value.node_type()
+impl NodeKey {
+    fn fuzzy(&self) -> FuzzyNodeKey {
+        self.receptor_keys().last().unwrap().clone()
+    }
 }
 
 macro_rules! impl_for_node_key_values {
     ($($variant:ident,)+) => {
-        #[derive(Debug, PartialEq, Eq)]
+        #[derive(Debug, PartialEq, Eq, Clone, Copy)]
         enum NodeType {
             $(
             $variant,
@@ -392,6 +394,7 @@ macro_rules! impl_for_node_key_values {
             }
         }
 
+        /// SATO
         impl From<(&NodeKey, FilterU8)> for NodeValue<receptor::ReadWriteStatusFilter> {
             fn from(value: (&NodeKey, FilterU8)) -> Self {
                 match value.0 {
@@ -465,19 +468,40 @@ impl_for_node_key_values!(
 );
 
 macro_rules! impl_for_tree {
-    ($(($tree:ident, $key:ty),)+) => {
+    ($(($tree:ident, $key:ty, $entry:ident),)+) => {
         $(
+        /// Node key-value pair with their type consistency guaranteed.
+        #[derive(Debug, PartialEq, Eq, Clone)]
+        pub struct $entry<M: Mode> {
+            key: $key,
+            value: NodeValue<M>,
+        }
+
+        impl<M: Mode> TryFrom<($key, NodeValue<M>)> for $entry<M> {
+            type Error = NodeTypeMismatch;
+
+            fn try_from((key, value): ($key, NodeValue<M>)) -> Result<Self, Self::Error> {
+                let key_type = key.node_type();
+                let value_type = value.node_type();
+                if key_type == value_type {
+                    Ok(Self { key, value })
+                } else {
+                    Err(Self::Error::new(key_type, value_type))
+                }
+            }
+        }
+
         impl<M: Mode> Default for $tree<M> {
             fn default() -> Self {
                 Self(BTreeMap::default())
             }
         }
 
-        impl<M: Mode> FromIterator<($key, NodeValue<M>)> for $tree<M> {
-            fn from_iter<I: IntoIterator<Item = ($key, NodeValue<M>)>>(iter: I) -> Self {
+        impl<M: Mode> FromIterator<$entry<M>> for $tree<M> {
+            fn from_iter<I: IntoIterator<Item = $entry<M>>>(iter: I) -> Self {
                 $tree(
                     iter.into_iter()
-                        .inspect(|(k, v)| assert!(consistent_key_value(k, v)))
+                        .map(|entry| (entry.key, entry.value))
                         .collect::<BTreeMap<_, _>>(),
                 )
             }
@@ -502,9 +526,8 @@ macro_rules! impl_for_tree {
                 self.0.get(key)
             }
 
-            pub fn insert(&mut self, key: $key, value: NodeValue<M>) -> Option<NodeValue<M>> {
-                assert!(consistent_key_value(&key, &value));
-                self.0.insert(key, value)
+            pub fn insert(&mut self, entry: $entry<M>) -> Option<NodeValue<M>> {
+                self.0.insert(entry.key, entry.value)
             }
 
             pub fn remove(&mut self, key: &$key) -> Option<NodeValue<M>> {
@@ -523,7 +546,10 @@ macro_rules! impl_for_tree {
     };
 }
 
-impl_for_tree!((Tree, NodeKey), (FuzzyTree, FuzzyNodeKey),);
+impl_for_tree!(
+    (Tree, NodeKey, NodeEntry),
+    (FuzzyTree, FuzzyNodeKey, FuzzyNodeEntry),
+);
 
 #[allow(missing_docs)]
 pub mod transitional {
@@ -591,22 +617,18 @@ mod tests {
             "asset##ed0120CE7FA46C9DCE7EA4B125E2E36BDB63EA33073E7590AC92816AE1E861B7048B03@domain",
         )
         .unwrap();
-        let (exact_key, _value): (_, NodeValue<event::ReadWriteStatus>) = node!(
-            AccountAsset,
-            id.account.signatory.clone(),
-            id.account.domain.clone(),
-            id.definition.name.clone(),
-            id.definition.domain.clone(),
-            event::AccountAssetS::Receive
-        );
-        let (fuzzy_key, _value): (_, NodeValue<receptor::ReadWriteStatusFilter>) = fuzzy_node!(
-            AccountAsset,
-            some!(id.account.signatory),
-            some!(id.account.domain),
-            some!(id.definition.name),
-            some!(id.definition.domain),
-            FilterU8::ANY
-        );
+        let exact_key = NodeKey::AccountAsset((
+            Rc::new(id.account.signatory.clone()),
+            Rc::new(id.account.domain.clone()),
+            Rc::new(id.definition.name.clone()),
+            Rc::new(id.definition.domain.clone()),
+        ));
+        let fuzzy_key = FuzzyNodeKey::AccountAsset((
+            Some(Rc::new(id.account.signatory.clone())),
+            Some(Rc::new(id.account.domain.clone())),
+            Some(Rc::new(id.definition.name.clone())),
+            Some(Rc::new(id.definition.domain.clone())),
+        ));
         assert_eq!(exact_key.fuzzy(), fuzzy_key);
     }
 }

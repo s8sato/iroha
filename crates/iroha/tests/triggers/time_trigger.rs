@@ -134,7 +134,10 @@ fn pre_commit_trigger_should_be_executed() -> Result<()> {
 }
 
 #[test]
-#[cfg_attr(feature = "prediction", ignore = "prediction through Wasm executable is not yet implemented")]
+#[cfg_attr(
+    feature = "prediction",
+    ignore = "prediction through Wasm executable is not yet implemented"
+)]
 fn mint_nft_for_every_user_every_1_sec() -> Result<()> {
     const TRIGGER_PERIOD: Duration = Duration::from_millis(1000);
     const EXPECTED_COUNT: u64 = 4;

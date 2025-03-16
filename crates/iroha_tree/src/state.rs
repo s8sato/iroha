@@ -44,7 +44,9 @@ impl NodeReadWrite for PartialState {
     type Status = event::Event;
 
     fn as_status(&self) -> Self::Status {
-        self.iter().map(|(k, v)| (k.clone(), v.into())).collect()
+        self.iter()
+            .map(|(k, v)| NodeEntry::try_from((k.clone(), v.into())).unwrap())
+            .collect()
     }
 }
 
@@ -60,8 +62,7 @@ pub trait WorldState {
     /// Fails if the update violates data integrity constraints.
     fn update_by(
         &mut self,
-        key: NodeKey,
-        value: NodeValue<changeset::Write>,
+        entry: NodeEntry<changeset::Write>,
     ) -> Result<(), Self::InvariantViolation>;
 
     /// Scans for inconsistencies based on event predictions and attempts to resolve them, returning an additional changeset.
@@ -91,7 +92,7 @@ pub trait WorldState {
         let event = changeset.as_status();
 
         for (key, value) in changeset {
-            self.update_by(key, value)?;
+            self.update_by(NodeEntry::try_from((key, value)).unwrap())?;
         }
 
         Ok(event)
