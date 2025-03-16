@@ -1,6 +1,7 @@
-//! User-defined logic that authorizes or rejects executables and queries based on the authority’s permissions and ownerships.
+//! A crate enabling user-defined logic to authorize or reject executables and queries based on the authority’s permissions and ownerships.
 //!
-//! This is a reduced version of the executor, responsible only for permission validation, without handling instruction definitions or executions.
+//! This is a stripped-down version of the executor, focused solely on permission validation.
+//! It does not define or execute instructions.
 
 #![no_std]
 
