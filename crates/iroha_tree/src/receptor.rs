@@ -206,7 +206,7 @@ mod transitional {
         #[expect(clippy::too_many_lines)]
         fn from(value: dm::DataEventFilter) -> Self {
             use dm::{
-                AccountEventSet, AssetDefinitionEventSet, ConfigurationEventSet,
+                AccountEventSet, AssetDefinitionEventSet, AssetEventSet, ConfigurationEventSet,
                 DataEventFilter::*, DomainEventSet, ExecutorEventSet, NftEventSet, PeerEventSet,
                 RoleEventSet, TriggerEventSet,
             };
@@ -263,6 +263,15 @@ mod transitional {
                             DomainEventSet::Deleted => {
                                 fuzzy_node!(Domain, domain.clone(), DomainS::Delete)
                             }
+                            DomainEventSet::AnyAssetDefinition => {
+                                fuzzy_node!(Asset, None, domain.clone(), FilterU8::ANY)
+                            }
+                            DomainEventSet::AnyNft => {
+                                fuzzy_node!(Nft, None, domain.clone(), FilterU8::ANY)
+                            }
+                            DomainEventSet::AnyAccount => {
+                                fuzzy_node!(Account, None, domain.clone(), FilterU8::ANY)
+                            }
                             DomainEventSet::MetadataInserted => {
                                 fuzzy_node!(DomainMetadata, domain.clone(), None, MetadataS::Set)
                             }
@@ -300,6 +309,14 @@ mod transitional {
                                 signatory.clone(),
                                 domain.clone(),
                                 UnitS::Delete
+                            ),
+                            AccountEventSet::AnyAsset => fuzzy_node!(
+                                AccountAsset,
+                                signatory.clone(),
+                                domain.clone(),
+                                None,
+                                None,
+                                FilterU8::ANY
                             ),
                             AccountEventSet::PermissionAdded => fuzzy_node!(
                                 AccountPermission,
@@ -347,14 +364,69 @@ mod transitional {
                         })
                         .collect()
                 }
-                Asset(_ef) => unimplemented!("unless AssetEvent is disambiguated"),
+                Asset(ef) => {
+                    let (account_key, account_domain, asset_name, asset_domain) =
+                        match ef.id_matcher {
+                            None => (None, None, None, None),
+                            Some(id) => (
+                                Some(Rc::new(id.account.signatory)),
+                                Some(Rc::new(id.account.domain)),
+                                Some(Rc::new(id.definition.name)),
+                                Some(Rc::new(id.definition.domain)),
+                            ),
+                        };
+                    ef.event_set
+                        .decompose()
+                        .into_iter()
+                        .map(|es| match es {
+                            AssetEventSet::Created => {
+                                fuzzy_node!(
+                                    AccountAsset,
+                                    account_key.clone(),
+                                    account_domain.clone(),
+                                    asset_name.clone(),
+                                    asset_domain.clone(),
+                                    AccountAssetS::Mint
+                                )
+                            }
+                            AssetEventSet::Deleted => {
+                                fuzzy_node!(
+                                    AccountAsset,
+                                    account_key.clone(),
+                                    account_domain.clone(),
+                                    asset_name.clone(),
+                                    asset_domain.clone(),
+                                    AccountAssetS::Burn
+                                )
+                            }
+                            AssetEventSet::Added => {
+                                fuzzy_node!(
+                                    AccountAsset,
+                                    account_key.clone(),
+                                    account_domain.clone(),
+                                    asset_name.clone(),
+                                    asset_domain.clone(),
+                                    AccountAssetS::Receive
+                                )
+                            }
+                            AssetEventSet::Removed => {
+                                fuzzy_node!(
+                                    AccountAsset,
+                                    account_key.clone(),
+                                    account_domain.clone(),
+                                    asset_name.clone(),
+                                    asset_domain.clone(),
+                                    AccountAssetS::Send
+                                )
+                            }
+                            _ => unreachable!(),
+                        })
+                        .collect()
+                }
                 AssetDefinition(ef) => {
                     let (name, domain) = match ef.id_matcher {
                         None => (None, None),
-                        Some(id) => (
-                            Some(Rc::new(id.name.clone())),
-                            Some(Rc::new(id.domain.clone())),
-                        ),
+                        Some(id) => (Some(Rc::new(id.name)), Some(Rc::new(id.domain))),
                     };
                     ef.event_set
                         .decompose()
@@ -409,10 +481,7 @@ mod transitional {
                 Nft(ef) => {
                     let (name, domain) = match ef.id_matcher {
                         None => (None, None),
-                        Some(id) => (
-                            Some(Rc::new(id.name.clone())),
-                            Some(Rc::new(id.domain.clone())),
-                        ),
+                        Some(id) => (Some(Rc::new(id.name)), Some(Rc::new(id.domain))),
                     };
                     ef.event_set
                         .decompose()
