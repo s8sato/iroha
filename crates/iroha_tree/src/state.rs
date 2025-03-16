@@ -261,13 +261,16 @@ pub mod transitional {
 
     impl TriggerEntry<'_> {
         pub fn leads_to_event_loop(&self, state: &PartialState) -> bool {
+            let empty_receptor = receptor::Receptor::default();
             let mut world_triggers: HashMap<_, _> = state
                 .world_triggers()
                 .map(|entry| (entry.id, (entry.receptor, entry.executable)))
                 .collect();
-            if let Ok(entry) = WorldTriggerEntry::try_from(self.clone()) {
-                world_triggers.insert(entry.id, (entry.receptor, entry.executable));
-            }
+            let receptor = match self.condition {
+                ConditionV::World(receptor) => receptor,
+                _ => &empty_receptor,
+            };
+            world_triggers.insert(self.id, (receptor, self.executable));
             let mut stack = vec![self.id];
             let mut seen = HashSet::new();
             while let Some(trigger_id) = stack.pop() {
