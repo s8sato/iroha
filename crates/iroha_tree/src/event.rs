@@ -304,10 +304,13 @@ mod transitional {
                         AccountEvent::Created(v) => [node!(Account, v.id.signatory, v.id.domain, UnitS::Create)].into(),
                         AccountEvent::Deleted(k) => [node!(Account, k.signatory, k.domain, UnitS::Delete)].into(),
                         AccountEvent::Asset(event) => match event {
-                            AssetEvent::Created(_v) => unimplemented!("ambiguous sources: Mint<Numeric, Asset>, Transfer<Asset, Numeric, Account>"),
-                            AssetEvent::Deleted(_k) => unimplemented!("could be considered burned to zero by Unregister<AssetDefinition>"),
-                            AssetEvent::Added(_v) => unimplemented!("ambiguous sources: Mint<Numeric, Asset>, Transfer<Asset, Numeric, Account>"),
-                            AssetEvent::Removed(_v) => unimplemented!("ambiguous sources: Burn<Numeric, Asset>, Transfer<Asset, Numeric, Account>"),
+                            // FIXME Ambiguous sources: Mint<Numeric, Asset>, Transfer<Asset, Numeric, Account>
+                            AssetEvent::Created(v) => [node!(AccountAsset, v.id.account.signatory, v.id.account.domain, v.id.definition.name, v.id.definition.domain, AccountAssetS::Mint)].into(),
+                            AssetEvent::Deleted(k) => [node!(AccountAsset, k.account.signatory, k.account.domain, k.definition.name, k.definition.domain, AccountAssetS::Burn)].into(),
+                            // FIXME Ambiguous sources: Mint<Numeric, Asset>, Transfer<Asset, Numeric, Account>
+                            AssetEvent::Added(v) => [node!(AccountAsset, v.asset.account.signatory, v.asset.account.domain, v.asset.definition.name, v.asset.definition.domain, AccountAssetS::Receive)].into(),
+                            // FIXME Ambiguous sources: Burn<Numeric, Asset>, Transfer<Asset, Numeric, Account>
+                            AssetEvent::Removed(v) => [node!(AccountAsset, v.asset.account.signatory, v.asset.account.domain, v.asset.definition.name, v.asset.definition.domain, AccountAssetS::Send)].into(),
                         },
                         AccountEvent::PermissionAdded(v) => [node!(AccountPermission, v.account.signatory, v.account.domain, (&v.permission).into(), UnitS::Create)].into(),
                         AccountEvent::PermissionRemoved(v) => [node!(AccountPermission, v.account.signatory, v.account.domain, (&v.permission).into(), UnitS::Delete)].into(),
