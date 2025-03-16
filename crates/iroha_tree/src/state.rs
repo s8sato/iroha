@@ -222,7 +222,7 @@ pub mod transitional {
                         let Some(NodeValue::Condition(condition)) =
                             self.get(&NodeKey::Condition(con.clone()))
                         else {
-                            panic!("should be loaded into the partial state")
+                            panic!("should be loaded into the state view")
                         };
                         Some((&**trg, condition))
                     }
@@ -236,7 +236,7 @@ pub mod transitional {
                         let Some(NodeValue::Executable(executable)) =
                             self.get(&NodeKey::Executable(exe.clone()))
                         else {
-                            panic!("should be loaded into the partial state")
+                            panic!("should be loaded into the state view")
                         };
                         Some((&**trg, executable))
                     }
@@ -247,10 +247,10 @@ pub mod transitional {
             ids.map(move |id| {
                 let condition = *conditions
                     .get(id)
-                    .expect("should be loaded into the partial state");
+                    .expect("should be loaded into the state view");
                 let executable = *executables
                     .get(id)
-                    .expect("should be loaded into the partial state");
+                    .expect("should be loaded into the state view");
                 TriggerEntry::new(id, condition, executable)
             })
         }

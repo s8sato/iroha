@@ -50,12 +50,12 @@ pub mod isi {
                     }
                 };
                 let entry = state::tr::TriggerEntry::new(&id, &condition, &executable);
-                let partial_state = {
+                let state_view = {
                     let readset =
                         readset::ReadSet::from_iter([fuzzy_node!(Trigger, None, readset::UnitR)]);
                     state_transaction.load(&readset)
                 };
-                if entry.leads_to_event_loop(&partial_state) {
+                if entry.leads_to_event_loop(&state_view) {
                     return Err(Error::InvariantViolation(format!(
                         "trigger registration leads to event loop: {entry:?}"
                     )));
