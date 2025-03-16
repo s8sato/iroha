@@ -1,7 +1,11 @@
+//! Module for [`Permission`] and related components.
+
 use super::*;
 
+/// Represents readiness for access of each node.
 pub type Permission = FuzzyTree<ReadWriteStatusFilter>;
 
+/// Each node value indicates readiness for access.
 pub type ReadWriteStatusFilter = receptor::ReadWriteStatusFilter;
 
 impl Filtered for state::PartialState {
@@ -257,10 +261,10 @@ mod transitional {
             |_v| None,
             [UnitS::Create, UnitS::Delete]
         ),
-        // TODO Separate into registration and ownership transfer.
+        // TODO: Separate into registration and ownership transfer.
         // xp::trigger::CanRegisterTrigger
 
-        // TODO No validation should be performed when calling Wasm executables, as they are resolved into event predictions and then validated.
+        // TODO: No validation should be performed when calling Wasm executables, as they are resolved into event predictions and then validated.
         // xp::trigger::CanExecuteTrigger
         (
             xp::trigger::CanUnregisterTrigger,

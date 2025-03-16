@@ -1,7 +1,11 @@
+//! Module for [`Receptor`] and related components.
+
 use super::*;
 
+/// Represents readiness for status of each node.
 pub type Receptor = FuzzyTree<ReadWriteStatusFilter>;
 
+/// Each node value indicates readiness for status.
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub struct ReadWriteStatusFilter;
 

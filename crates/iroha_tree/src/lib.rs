@@ -10,7 +10,6 @@
 //! - (Data) event filters into a single [`Receptor`] per trigger.
 //! - Permissions, roles, and ownerships into a single [`Permission`] per validation.
 
-#![allow(missing_docs)] // SATO disallow
 #![expect(missing_copy_implementations)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -55,6 +54,7 @@ macro_rules! declare_nodes {
         /// Exact path to nodes:
         /// Can be considered as composite primary keys in an RDB.
         #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Decode, Encode)]
+        #[allow(missing_docs)]
         pub enum NodeKey {
             $(
             $variant($key),
@@ -69,6 +69,7 @@ macro_rules! declare_nodes {
         /// A `None` key element represents __any__ node.
         /// For example, `(None, Some(domain)): AccountKey` represents any account within the specified `domain`.
         #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Decode, Encode)]
+        #[allow(missing_docs)]
         pub enum FuzzyNodeKey {
             $(
             $variant($fuzzy_key),
@@ -81,6 +82,7 @@ macro_rules! declare_nodes {
 
         /// Represents various states such as the current state, intention, result, or readiness at the node.
         #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
+        #[allow(missing_docs)]
         pub enum NodeValue<M: Mode> {
             $(
             $variant(M::$variant),
@@ -88,6 +90,7 @@ macro_rules! declare_nodes {
         }
 
         /// This trait implementation serves as a declaration of node values.
+        #[allow(missing_docs)]
         pub trait Mode {
             $(
             type $variant: Debug + PartialEq + Eq + Clone + Decode + Encode;
@@ -145,13 +148,18 @@ declare_nodes!(
     (TriggerAdmin, TriggerAdminK, TriggerAdminKF: dm::TriggerId, dm::PublicKey, dm::DomainId),
 );
 
+/// Intention to read or write access, which should be filtered in some way.
 pub trait NodeReadWrite: Filtered {
+    /// Abstract status of read or write access, which should also be filtered in some way.
     type Status: Filtered;
 
+    /// An abstraction of access.
     fn as_status(&self) -> Self::Status;
 }
 
+/// Determines whether it passes a certain filter.
 pub trait Filtered {
+    /// Tests whether the challenger can pass the filter.
     type Filter;
 
     /// # Errors
@@ -160,6 +168,7 @@ pub trait Filtered {
     fn passes(&self, filter: &Self::Filter) -> Result<(), Self::Filter>;
 }
 
+/// A filter represented as a byte.
 #[derive(
     DebugCustom,
     PartialEq,
@@ -223,9 +232,9 @@ impl FilterU8 {
 #[derive(Debug, PartialEq, Eq, Clone, Constructor)]
 /// Indicates an invariant violation while aggregating node values at the node key.
 pub struct NodeConflict<M: Mode> {
-    pub key: NodeKey,
-    pub lhs: NodeValue<M>,
-    pub rhs: NodeValue<M>,
+    key: NodeKey,
+    lhs: NodeValue<M>,
+    rhs: NodeValue<M>,
 }
 
 impl NodeKey {
@@ -422,6 +431,7 @@ macro_rules! impl_for_tree {
             }
         }
 
+        #[allow(missing_docs)]
         impl<M: Mode> $tree<M> {
             pub fn is_empty(&self) -> bool {
                 self.0.is_empty()
@@ -454,6 +464,7 @@ macro_rules! impl_for_tree {
 
 impl_for_tree!((Tree, NodeKey), (FuzzyTree, FuzzyNodeKey),);
 
+/// Constructor utility for node key-value pairs.
 #[macro_export]
 macro_rules! node {
     (_ $node_type:ident, $key:expr, $value:expr) => {
@@ -476,6 +487,7 @@ macro_rules! node {
     };
 }
 
+/// Constructor utility for fuzzy node key-value pairs.
 #[macro_export]
 macro_rules! fuzzy_node {
     (_ $node_type:ident, $key:expr, $value:expr) => {
@@ -505,6 +517,7 @@ pub mod readset;
 pub mod receptor;
 pub mod state;
 
+#[allow(missing_docs)]
 pub mod transitional {
     use super::*;
 
@@ -535,8 +548,10 @@ pub mod transitional {
 
 use transitional as tr;
 
+/// Re-exports data models for downstream crates.
+/// TODO: Remove this once the transition is complete.
 pub mod dm {
-    pub use iroha_data_model::{ipfs::IpfsPath, parameter::CustomParameterId, prelude::*, Level};
+    pub use iroha_data_model::{ipfs::IpfsPath, prelude::*, Level};
 }
 
 #[cfg(test)]

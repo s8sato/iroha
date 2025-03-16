@@ -41,7 +41,7 @@ impl state::WorldState for StateTransaction<'_, '_> {
         &self,
         _event_prediction: &event::Event,
     ) -> Result<changeset::ChangeSet, Self::InvariantViolation> {
-        // TODO #4672 Cascade or restrict on delete?
+        // TODO: #4672 Cascade or restrict on delete?
         unimplemented!("TODO when instructions as an executable were replaced with a changeset")
     }
 

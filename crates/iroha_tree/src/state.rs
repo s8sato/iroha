@@ -1,7 +1,11 @@
+//! Module for [`PartialState`] and related components.
+
 use super::*;
 
+/// Represents the state view of each node.
 pub type PartialState = Tree<State>;
 
+/// Each node value indicates the state view.
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub struct State;
 
@@ -94,27 +98,33 @@ pub trait WorldState {
     }
 }
 
+#[allow(missing_docs)]
 pub mod transitional {
     use hashbrown::{HashMap, HashSet};
 
     use super::*;
 
+    /// State view at `Unit` type nodes.
     #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
     pub struct UnitV;
 
+    /// State view at `Authorizer` type nodes.
     #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
     pub struct AuthorizerV;
 
+    /// State view at `Parameter` type nodes.
     #[derive(Debug, PartialEq, Eq, From, Clone, Decode, Encode)]
     pub struct ParameterV {
         pub(crate) parameter: dm::Parameter,
     }
 
+    /// State view at `Domain` type nodes.
     #[derive(Debug, PartialEq, Eq, From, Clone, Decode, Encode)]
     pub struct DomainV {
         pub(crate) logo: Option<dm::IpfsPath>,
     }
 
+    /// State view at `Asset` type nodes.
     #[derive(Debug, PartialEq, Eq, Constructor, Clone, Decode, Encode)]
     pub struct AssetV {
         pub(crate) total_quantity: dm::Numeric,
@@ -122,24 +132,29 @@ pub mod transitional {
         pub(crate) logo: Option<dm::IpfsPath>,
     }
 
+    /// State view at `Nft` type nodes.
     #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
     pub struct NftV;
 
+    /// State view at `AccountAsset` type nodes.
     #[derive(Debug, PartialEq, Eq, From, Clone, Decode, Encode)]
     pub struct AccountAssetV {
         pub(crate) balance: dm::Numeric,
     }
 
+    /// State view at `Permission` type nodes.
     #[derive(Debug, PartialEq, Eq, From, Clone, Decode, Encode)]
     pub struct PermissionV {
         pub(crate) permission: permission::Permission,
     }
 
+    /// State view at `Trigger` type nodes.
     #[derive(Debug, PartialEq, Eq, From, Clone, Decode, Encode)]
     pub struct TriggerV {
         pub(crate) repeats: dm::Repeats,
     }
 
+    /// State view at `Condition` type nodes.
     #[derive(Debug, PartialEq, Eq, From, Clone, Decode, Encode)]
     pub enum ConditionV {
         World(receptor::Receptor),
@@ -150,6 +165,7 @@ pub mod transitional {
     #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
     pub struct BlockCommit;
 
+    /// State view at `Executable` type nodes.
     #[derive(Debug, PartialEq, Eq, From, Clone, Decode, Encode)]
     pub enum ExecutableV {
         Static(changeset::ChangeSet),
@@ -159,6 +175,7 @@ pub mod transitional {
     #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
     pub struct WasmExecutable;
 
+    /// State view at `Metadata` type nodes.
     #[derive(Debug, PartialEq, Eq, From, Clone, Decode, Encode)]
     pub struct MetadataV {
         pub(crate) json: dm::Json,

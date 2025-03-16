@@ -1,7 +1,11 @@
+//! Module for [`ReadSet`] and related components.
+
 use super::*;
 
+/// Represents read access for each node.
 pub type ReadSet = FuzzyTree<Read>;
 
+/// Each node value indicates read access.
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub struct Read;
 
@@ -36,5 +40,6 @@ impl Mode for Read {
     type TriggerAdmin = UnitR;
 }
 
+/// Read access.
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub struct UnitR;

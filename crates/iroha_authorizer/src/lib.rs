@@ -40,7 +40,7 @@ pub enum PermissionDenied {
     Forbidden,
 }
 
-// TODO Implement equivalent logic to the following in Wasm.
+// TODO: Implement equivalent logic to the following in Wasm.
 
 /// A sample authorizer with standard behavior.
 #[derive(Debug)]
@@ -58,7 +58,7 @@ impl Authorizer for DefaultAuthorizer {
         );
         let (acc, dom) = (|| key.0.clone(), || key.1.clone());
 
-        // TODO The `state::WorldState::load` should complete relevant primary entities, similar to the data integrity check in `state::WorldState::sanitize`.
+        // TODO: The `state::WorldState::load` should complete relevant primary entities, similar to the data integrity check in `state::WorldState::sanitize`.
         readset::ReadSet::from_iter([
             fuzzy_node!(AccountRole, acc(), dom(), None, UnitR),
             fuzzy_node!(AccountPermission, acc(), dom(), None, UnitR),
@@ -75,7 +75,7 @@ impl Authorizer for DefaultAuthorizer {
         event: &event::Event,
         _context: &state::PartialState,
     ) -> Result<(), PermissionDenied> {
-        // TODO Implement data retrieval from `context`.
+        // TODO: Implement data retrieval from `context`.
         let role_permission = permission::Permission::default();
         let account_permission = permission::Permission::default();
         let domain_admin = permission::Permission::default();

@@ -1,7 +1,11 @@
+//! Module for [`ChangeSet`] and related components.
+
 use super::*;
 
+/// Represents write access for each node.
 pub type ChangeSet = Tree<Write>;
 
+/// Each node value indicates write access.
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub struct Write;
 
@@ -36,29 +40,39 @@ impl Mode for Write {
     type TriggerAdmin = UnitW;
 }
 
+/// Write access at `Authorizer` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum AuthorizerW {
     Set(state::tr::AuthorizerV),
 }
 
+/// Write access at `Unit` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum UnitW {
     Create(()),
     Delete(()),
 }
 
+/// Write access at `Parameter` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum ParameterW {
     Set(state::tr::ParameterV),
     Unset(()),
 }
 
+/// Write access at `Domain` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum DomainW {
     Create(state::tr::DomainV),
     Delete(()),
 }
 
+/// Write access at `Asset` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum AssetW {
     MintabilityUpdate(dm::Mintable),
@@ -66,12 +80,16 @@ pub enum AssetW {
     Delete(()),
 }
 
+/// Write access at `Nft` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum NftW {
     Create(state::tr::NftV),
     Delete(()),
 }
 
+/// Write access at `AccountAsset` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum AccountAssetW {
     Receive(dm::Numeric),
@@ -80,12 +98,16 @@ pub enum AccountAssetW {
     Burn(dm::Numeric),
 }
 
+/// Write access at `Permission` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum PermissionW {
     Set(state::tr::PermissionV),
     Unset(()),
 }
 
+/// Write access at `Trigger` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum TriggerW {
     Increase(u32),
@@ -94,18 +116,24 @@ pub enum TriggerW {
     Delete(()),
 }
 
+/// Write access at `Condition` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum ConditionW {
     Set(state::tr::ConditionV),
     Unset(()),
 }
 
+/// Write access at `Executable` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum ExecutableW {
     Set(state::tr::ExecutableV),
     Unset(()),
 }
 
+/// Write access at `Metadata` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub enum MetadataW {
     Set(state::tr::MetadataV),

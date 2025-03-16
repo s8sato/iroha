@@ -1,9 +1,13 @@
+//! Module for [`Event`] and related components.
+
 #![expect(trivial_numeric_casts)] // Why do Decode and Encode invoke this?
 
 use super::*;
 
+/// Represents the read or write status of each node.
 pub type Event = Tree<ReadWriteStatus>;
 
+/// Each node value indicates the read or write status.
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
 pub struct ReadWriteStatus;
 
@@ -77,6 +81,8 @@ macro_rules! u8_status {
     };
 }
 
+/// Read or write status at `Authorizer` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum AuthorizerS {
@@ -84,6 +90,8 @@ pub enum AuthorizerS {
     Set = u8_status!(c),
 }
 
+/// Read or write status at `Unit` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum UnitS {
@@ -92,6 +100,8 @@ pub enum UnitS {
     Delete = u8_status!(d),
 }
 
+/// Read or write status at `Parameter` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum ParameterS {
@@ -100,6 +110,8 @@ pub enum ParameterS {
     Unset = u8_status!(d),
 }
 
+/// Read or write status at `Domain` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum DomainS {
@@ -108,6 +120,8 @@ pub enum DomainS {
     Delete = u8_status!(d),
 }
 
+/// Read or write status at `Asset` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum AssetS {
@@ -117,6 +131,8 @@ pub enum AssetS {
     Delete = u8_status!(d),
 }
 
+/// Read or write status at `Nft` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum NftS {
@@ -125,6 +141,8 @@ pub enum NftS {
     Delete = u8_status!(d),
 }
 
+/// Read or write status at `AccountAsset` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum AccountAssetS {
@@ -135,6 +153,8 @@ pub enum AccountAssetS {
     Burn = u8_status!(b),
 }
 
+/// Read or write status at `Permission` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum PermissionS {
@@ -143,6 +163,8 @@ pub enum PermissionS {
     Unset = u8_status!(d),
 }
 
+/// Read or write status at `Trigger` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum TriggerS {
@@ -153,6 +175,8 @@ pub enum TriggerS {
     Delete = u8_status!(d),
 }
 
+/// Read or write status at `Condition` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum ConditionS {
@@ -161,6 +185,8 @@ pub enum ConditionS {
     Unset = u8_status!(d),
 }
 
+/// Read or write status at `Executable` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum ExecutableS {
@@ -169,6 +195,8 @@ pub enum ExecutableS {
     Unset = u8_status!(d),
 }
 
+/// Read or write status at `Metadata` type nodes.
+#[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Decode, Encode)]
 #[repr(u8)]
 pub enum MetadataS {
