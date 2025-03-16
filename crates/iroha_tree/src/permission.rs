@@ -85,12 +85,6 @@ mod transitional {
         };
     }
 
-    macro_rules! some {
-        ($key_element:expr) => {
-            Some(Rc::new($key_element))
-        };
-    }
-
     impl_from_data_model_permission!(
         (
             xp::peer::CanManagePeers,
@@ -305,7 +299,7 @@ mod tests {
         let role_f = |i: usize, f: &str| {
             fuzzy_node!(
                 Role,
-                Some(Rc::new(format!("role_{i}").parse().unwrap())),
+                some!(format!("role_{i}").parse().unwrap()),
                 FilterU8::from_str(f).unwrap()
             )
         };

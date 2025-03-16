@@ -381,7 +381,7 @@ mod tests {
         ];
         let receptors = [
             Receptor::default(),
-            Receptor::from_iter([fuzzy_node!(Role, Some(Rc::new(key(0))), UnitS::Create)]),
+            Receptor::from_iter([fuzzy_node!(Role, some!(key(0)), UnitS::Create)]),
             Receptor::from_iter([fuzzy_node!(Role, None, FilterU8::from_str("c").unwrap())]),
             Receptor::from_iter([fuzzy_node!(Role, None, FilterU8::from_str("cd").unwrap())]),
         ];

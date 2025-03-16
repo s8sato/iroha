@@ -764,7 +764,7 @@ mod tests {
         ];
         let permissions = [
             Permission::default(),
-            Permission::from_iter([fuzzy_node!(Role, Some(Rc::new(key(0))), UnitS::Create)]),
+            Permission::from_iter([fuzzy_node!(Role, some!(key(0)), UnitS::Create)]),
             Permission::from_iter([fuzzy_node!(Role, None, FilterU8::from_str("c").unwrap())]),
             Permission::from_iter([fuzzy_node!(Role, None, FilterU8::from_str("cd").unwrap())]),
         ];

@@ -292,7 +292,7 @@ mod transitional {
                 Account(ef) => {
                     let (signatory, domain) = match ef.id_matcher {
                         None => (None, None),
-                        Some(id) => (Some(Rc::new(id.signatory)), Some(Rc::new(id.domain))),
+                        Some(id) => (some!(id.signatory), some!(id.domain)),
                     };
                     ef.event_set
                         .decompose()
@@ -369,10 +369,10 @@ mod transitional {
                         match ef.id_matcher {
                             None => (None, None, None, None),
                             Some(id) => (
-                                Some(Rc::new(id.account.signatory)),
-                                Some(Rc::new(id.account.domain)),
-                                Some(Rc::new(id.definition.name)),
-                                Some(Rc::new(id.definition.domain)),
+                                some!(id.account.signatory),
+                                some!(id.account.domain),
+                                some!(id.definition.name),
+                                some!(id.definition.domain),
                             ),
                         };
                     ef.event_set
@@ -426,7 +426,7 @@ mod transitional {
                 AssetDefinition(ef) => {
                     let (name, domain) = match ef.id_matcher {
                         None => (None, None),
-                        Some(id) => (Some(Rc::new(id.name)), Some(Rc::new(id.domain))),
+                        Some(id) => (some!(id.name), some!(id.domain)),
                     };
                     ef.event_set
                         .decompose()
@@ -481,7 +481,7 @@ mod transitional {
                 Nft(ef) => {
                     let (name, domain) = match ef.id_matcher {
                         None => (None, None),
-                        Some(id) => (Some(Rc::new(id.name)), Some(Rc::new(id.domain))),
+                        Some(id) => (some!(id.name), some!(id.domain)),
                     };
                     ef.event_set
                         .decompose()

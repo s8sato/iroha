@@ -40,6 +40,13 @@ use derive_more::{BitOr, Constructor, DebugCustom, From};
 use parity_scale_codec::{Decode, Encode};
 use serde_with::{DeserializeFromStr, SerializeDisplay};
 
+pub mod changeset;
+pub mod event;
+pub mod permission;
+pub mod readset;
+pub mod receptor;
+pub mod state;
+
 /// A flattened node map with a fixed skeleton equivalent to the world state.
 /// Node values may vary by [`Mode`].
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
@@ -147,6 +154,60 @@ declare_nodes!(
     (NftOwner, NftOwnerK, NftOwnerKF: dm::Name, dm::DomainId, dm::PublicKey, dm::DomainId),
     (TriggerAdmin, TriggerAdminK, TriggerAdminKF: dm::TriggerId, dm::PublicKey, dm::DomainId),
 );
+
+/// Constructor utility for node key-value pairs.
+#[macro_export]
+macro_rules! node {
+    (_ $node_type:ident, $key:expr, $value:expr) => {
+        ($crate::NodeKey::$node_type($key), $crate::NodeValue::$node_type($value.into()))
+    };
+    ($node_type:ident, $value:expr) => {
+        $crate::node!(_ $node_type, (), $value)
+    };
+    ($node_type:ident, $k0:expr, $value:expr) => {
+        $crate::node!(_ $node_type, Rc::new($k0), $value)
+    };
+    ($node_type:ident, $k0:expr, $k1:expr, $value:expr) => {
+        $crate::node!(_ $node_type, (Rc::new($k0), Rc::new($k1)), $value)
+    };
+    ($node_type:ident, $k0:expr, $k1:expr, $k2:expr, $value:expr) => {
+        $crate::node!(_ $node_type, (Rc::new($k0), Rc::new($k1), Rc::new($k2)), $value)
+    };
+    ($node_type:ident, $k0:expr, $k1:expr, $k2:expr, $k3:expr, $value:expr) => {
+        $crate::node!(_ $node_type, (Rc::new($k0), Rc::new($k1), Rc::new($k2), Rc::new($k3)), $value)
+    };
+}
+
+/// Constructor utility for fuzzy node key-value pairs.
+#[macro_export]
+macro_rules! fuzzy_node {
+    (_ $node_type:ident, $key:expr, $value:expr) => {
+        ($crate::FuzzyNodeKey::$node_type($key), $crate::NodeValue::$node_type($value.into()))
+    };
+    ($node_type:ident, $value:expr) => {
+        $crate::fuzzy_node!(_ $node_type, (), $value)
+    };
+    ($node_type:ident, $k0:expr, $value:expr) => {
+        $crate::fuzzy_node!(_ $node_type, $k0, $value)
+    };
+    ($node_type:ident, $k0:expr, $k1:expr, $value:expr) => {
+        $crate::fuzzy_node!(_ $node_type, ($k0, $k1), $value)
+    };
+    ($node_type:ident, $k0:expr, $k1:expr, $k2:expr, $value:expr) => {
+        $crate::fuzzy_node!(_ $node_type, ($k0, $k1, $k2), $value)
+    };
+    ($node_type:ident, $k0:expr, $k1:expr, $k2:expr, $k3:expr, $value:expr) => {
+        $crate::fuzzy_node!(_ $node_type, ($k0, $k1, $k2, $k3), $value)
+    };
+}
+
+/// Constructor utility for fuzzy node key elements.
+#[macro_export]
+macro_rules! some {
+    ($key_element:expr) => {
+        Some(Rc::new($key_element))
+    };
+}
 
 /// Intention to read or write access, which should be filtered in some way.
 pub trait NodeReadWrite: Filtered {
@@ -464,59 +525,6 @@ macro_rules! impl_for_tree {
 
 impl_for_tree!((Tree, NodeKey), (FuzzyTree, FuzzyNodeKey),);
 
-/// Constructor utility for node key-value pairs.
-#[macro_export]
-macro_rules! node {
-    (_ $node_type:ident, $key:expr, $value:expr) => {
-        ($crate::NodeKey::$node_type($key), $crate::NodeValue::$node_type($value.into()))
-    };
-    ($node_type:ident, $value:expr) => {
-        $crate::node!(_ $node_type, (), $value)
-    };
-    ($node_type:ident, $k0:expr, $value:expr) => {
-        $crate::node!(_ $node_type, Rc::new($k0), $value)
-    };
-    ($node_type:ident, $k0:expr, $k1:expr, $value:expr) => {
-        $crate::node!(_ $node_type, (Rc::new($k0), Rc::new($k1)), $value)
-    };
-    ($node_type:ident, $k0:expr, $k1:expr, $k2:expr, $value:expr) => {
-        $crate::node!(_ $node_type, (Rc::new($k0), Rc::new($k1), Rc::new($k2)), $value)
-    };
-    ($node_type:ident, $k0:expr, $k1:expr, $k2:expr, $k3:expr, $value:expr) => {
-        $crate::node!(_ $node_type, (Rc::new($k0), Rc::new($k1), Rc::new($k2), Rc::new($k3)), $value)
-    };
-}
-
-/// Constructor utility for fuzzy node key-value pairs.
-#[macro_export]
-macro_rules! fuzzy_node {
-    (_ $node_type:ident, $key:expr, $value:expr) => {
-        ($crate::FuzzyNodeKey::$node_type($key), $crate::NodeValue::$node_type($value.into()))
-    };
-    ($node_type:ident, $value:expr) => {
-        $crate::fuzzy_node!(_ $node_type, (), $value)
-    };
-    ($node_type:ident, $k0:expr, $value:expr) => {
-        $crate::fuzzy_node!(_ $node_type, $k0, $value)
-    };
-    ($node_type:ident, $k0:expr, $k1:expr, $value:expr) => {
-        $crate::fuzzy_node!(_ $node_type, ($k0, $k1), $value)
-    };
-    ($node_type:ident, $k0:expr, $k1:expr, $k2:expr, $value:expr) => {
-        $crate::fuzzy_node!(_ $node_type, ($k0, $k1, $k2), $value)
-    };
-    ($node_type:ident, $k0:expr, $k1:expr, $k2:expr, $k3:expr, $value:expr) => {
-        $crate::fuzzy_node!(_ $node_type, ($k0, $k1, $k2, $k3), $value)
-    };
-}
-
-pub mod changeset;
-pub mod event;
-pub mod permission;
-pub mod readset;
-pub mod receptor;
-pub mod state;
-
 #[allow(missing_docs)]
 pub mod transitional {
     use super::*;
@@ -593,10 +601,10 @@ mod tests {
         );
         let (fuzzy_key, _value): (_, NodeValue<receptor::ReadWriteStatusFilter>) = fuzzy_node!(
             AccountAsset,
-            Some(Rc::new(id.account.signatory)),
-            Some(Rc::new(id.account.domain)),
-            Some(Rc::new(id.definition.name)),
-            Some(Rc::new(id.definition.domain)),
+            some!(id.account.signatory),
+            some!(id.account.domain),
+            some!(id.definition.name),
+            some!(id.definition.domain),
             FilterU8::ANY
         );
         assert_eq!(exact_key.fuzzy(), fuzzy_key);

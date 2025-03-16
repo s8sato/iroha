@@ -8,7 +8,7 @@ extern crate alloc;
 use alloc::rc::Rc;
 use core::ops::BitOr;
 
-use iroha_tree::{dm, event, fuzzy_node, permission, readset, state, Filtered};
+use iroha_tree::{dm, event, fuzzy_node, permission, readset, some, state, Filtered};
 
 /// User-defined logic responsible for permission validation:
 ///
@@ -53,8 +53,8 @@ impl Authorizer for DefaultAuthorizer {
         use readset::UnitR;
 
         let key = (
-            Some(Rc::new(self.authority.signatory.clone())),
-            Some(Rc::new(self.authority.domain.clone())),
+            some!(self.authority.signatory.clone()),
+            some!(self.authority.domain.clone()),
         );
         let (acc, dom) = (|| key.0.clone(), || key.1.clone());
 

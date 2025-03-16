@@ -344,7 +344,7 @@ mod tests {
         let receptor = |i: usize, s: &str| {
             Receptor::from_iter([fuzzy_node!(
                 Domain,
-                Some(Rc::new(DomainId::from_str(&format!("dom_{i}")).unwrap())),
+                some!(DomainId::from_str(&format!("dom_{i}")).unwrap()),
                 FilterU8::from_str(s).unwrap()
             )])
         };
@@ -471,7 +471,7 @@ mod tests {
         ];
         let permissions = [
             Permission::default(),
-            Permission::from_iter([fuzzy_node!(Role, Some(Rc::new(key(0))), event::UnitS::Read)]),
+            Permission::from_iter([fuzzy_node!(Role, some!(key(0)), event::UnitS::Read)]),
             Permission::from_iter([fuzzy_node!(Role, None, FilterU8::from_str("r").unwrap())]),
         ];
 
