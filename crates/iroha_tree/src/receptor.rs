@@ -235,6 +235,11 @@ mod transitional {
                     fuzzy_node!(AssetMetadata, None, None, None, FilterU8::ANY),
                     fuzzy_node!(NftData, None, None, None, FilterU8::ANY),
                     fuzzy_node!(TriggerMetadata, None, None, FilterU8::ANY),
+                    fuzzy_node!(DomainAdmin, None, None, None, FilterU8::ANY),
+                    fuzzy_node!(AssetAdmin, None, None, None, None, FilterU8::ANY),
+                    fuzzy_node!(NftAdmin, None, None, None, None, FilterU8::ANY),
+                    fuzzy_node!(NftOwner, None, None, None, None, FilterU8::ANY),
+                    fuzzy_node!(TriggerAdmin, None, None, None, FilterU8::ANY),
                 ]
                 .into_iter()
                 .collect(),

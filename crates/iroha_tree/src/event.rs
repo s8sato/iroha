@@ -282,7 +282,6 @@ mod transitional {
                         AssetDefinitionEvent::MetadataRemoved(m) => [node!(AssetMetadata, m.target.name, m.target.domain, m.key, MetadataS::Unset)].into_iter().collect(),
                         AssetDefinitionEvent::MintabilityChanged(k) => [node!(Asset, k.name, k.domain, AssetS::MintabilityUpdate)].into_iter().collect(),
                         AssetDefinitionEvent::TotalQuantityChanged(_v) => unimplemented!("total quantities are a secondary state: listen for minting/burning instead"),
-                        // Ownership is now implemented as roles.
                         AssetDefinitionEvent::OwnerChanged(v) => [
                             // Not implemented because there is no such field as `AssetDefinitionOwnerChanged::old_owner`.
                             // node_key_value!(AssetAdmin, v.asset_definition.name, v.asset_definition.domain, v.old_owner.signatory, v.old_owner.domain, UnitS::Delete),
@@ -344,7 +343,7 @@ mod transitional {
                 Configuration(event) => match event {
                     ConfigurationEvent::Changed(_v) => [node!(Parameter, tr::ParameterId, ParameterS::Set)].into_iter().collect(),
                 },
-                // The executor is planned to be replaced with the authorizer. See the `iroha_authorizer` crate documentation for details.
+                // The executor is planned to be replaced with the authorizer. See the `iroha_authorizer` crate for details.
                 Executor(event) => match event {
                     ExecutorEvent::Upgraded(_v) => [node!(Authorizer, AuthorizerS::Set)].into_iter().collect(),
                 },
