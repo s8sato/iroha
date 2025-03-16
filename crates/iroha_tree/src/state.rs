@@ -1,15 +1,15 @@
-//! Module for [`PartialState`] and related components.
+//! Module for [`StateView`] and related components.
 
 use super::*;
 
 /// Represents the state view of each node.
-pub type PartialState = Tree<State>;
+pub type StateView = Tree<View>;
 
 /// Each node value indicates the state view.
 #[derive(Debug, PartialEq, Eq, Clone, Decode, Encode)]
-pub struct State;
+pub struct View;
 
-impl Mode for State {
+impl Mode for View {
     type Authorizer = tr::AuthorizerV;
     type Parameter = tr::ParameterV;
     type Peer = tr::UnitV;
@@ -40,7 +40,7 @@ impl Mode for State {
     type TriggerAdmin = tr::UnitV;
 }
 
-impl NodeReadWrite for PartialState {
+impl NodeReadWrite for StateView {
     type Status = event::Event;
 
     fn as_status(&self) -> Self::Status {
@@ -76,7 +76,7 @@ pub trait WorldState {
     ) -> Result<changeset::ChangeSet, Self::InvariantViolation>;
 
     /// Retrieve stored values based on the `readset` query.
-    fn load(&self, readset: &readset::ReadSet) -> PartialState;
+    fn load(&self, readset: &readset::ReadSet) -> StateView;
 
     /// Applies an unordered changeset to the state, resulting in events.
     ///
@@ -209,7 +209,7 @@ pub mod transitional {
         }
     }
 
-    impl PartialState {
+    impl StateView {
         pub fn triggers(&self) -> impl Iterator<Item = TriggerEntry> {
             let ids = self.keys().filter_map(|k| match k {
                 NodeKey::Trigger(id) => Some(&**id),
@@ -261,7 +261,7 @@ pub mod transitional {
     }
 
     impl TriggerEntry<'_> {
-        pub fn leads_to_event_loop(&self, state: &PartialState) -> bool {
+        pub fn leads_to_event_loop(&self, state: &StateView) -> bool {
             let empty_receptor = receptor::Receptor::default();
             let mut world_triggers: HashMap<_, _> = state
                 .world_triggers()
@@ -373,7 +373,7 @@ mod tests {
         // A potential connection exists through the deletion of "dom_1".
         let (trg_0d_1d, trg_1d_2d) = (trigger(0, "d", 1), trigger(1, "d", 2));
         // The state after registering the above triggers.
-        let state = PartialState::from_iter([
+        let state = StateView::from_iter([
             node!(Condition, trg_0d_1d.1 .0.clone(), trg_0d_1d.1 .1),
             node!(Condition, trg_1d_2d.1 .0.clone(), trg_1d_2d.1 .1),
             node!(Executable, trg_0d_1d.2 .0.clone(), trg_0d_1d.2 .1),
@@ -462,10 +462,10 @@ mod tests {
         use permission::Permission;
 
         let key = |i: usize| dm::RoleId::from_str(&format!("role_{i}")).unwrap();
-        let states = [
-            PartialState::default(),
-            PartialState::from_iter([node!(Role, key(0), tr::UnitV)]),
-            PartialState::from_iter([
+        let views = [
+            StateView::default(),
+            StateView::from_iter([node!(Role, key(0), tr::UnitV)]),
+            StateView::from_iter([
                 node!(Role, key(0), tr::UnitV),
                 node!(Role, key(1), tr::UnitV),
             ]),
@@ -476,13 +476,13 @@ mod tests {
             Permission::from_iter([fuzzy_node!(Role, None, FilterU8::from_str("r").unwrap())]),
         ];
 
-        let missing_permission = states[2].passes(&permissions[1]).unwrap_err();
+        let missing_permission = views[2].passes(&permissions[1]).unwrap_err();
         let complemented_permission = permissions[1].clone() | missing_permission;
-        assert!(states[2].passes(&complemented_permission).is_ok());
+        assert!(views[2].passes(&complemented_permission).is_ok());
 
-        for (i, state) in states.iter().enumerate() {
+        for (i, view) in views.iter().enumerate() {
             for (j, permission) in permissions.iter().enumerate() {
-                assert_eq!(i <= j, state.passes(permission).is_ok());
+                assert_eq!(i <= j, view.passes(permission).is_ok());
             }
         }
     }

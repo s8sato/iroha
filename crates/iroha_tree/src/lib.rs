@@ -354,11 +354,11 @@ macro_rules! impl_for_node_key_values {
             }
         }
 
-        impl From<&NodeValue<state::State>> for NodeValue<event::ReadWriteStatus> {
-            fn from(value: &NodeValue<state::State>) -> Self {
+        impl From<&NodeValue<state::View>> for NodeValue<event::ReadWriteStatus> {
+            fn from(value: &NodeValue<state::View>) -> Self {
                 match value {
                     $(
-                    NodeValue::$variant(state) => Self::$variant(state.into()),
+                    NodeValue::$variant(view) => Self::$variant(view.into()),
                     )+
                 }
             }

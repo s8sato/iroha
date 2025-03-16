@@ -8,7 +8,7 @@ pub type Permission = FuzzyTree<ReadWriteStatusFilter>;
 /// Each node value indicates readiness for access.
 pub type ReadWriteStatusFilter = receptor::ReadWriteStatusFilter;
 
-impl Filtered for state::PartialState {
+impl Filtered for state::StateView {
     type Filter = Permission;
 
     /// Post-execution validation of read access.

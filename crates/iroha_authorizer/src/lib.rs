@@ -27,7 +27,7 @@ pub trait Authorizer {
     fn authorize(
         &self,
         event: &event::Event,
-        context: &state::PartialState,
+        context: &state::StateView,
     ) -> Result<(), PermissionDenied>;
 }
 
@@ -73,7 +73,7 @@ impl Authorizer for DefaultAuthorizer {
     fn authorize(
         &self,
         event: &event::Event,
-        _context: &state::PartialState,
+        _context: &state::StateView,
     ) -> Result<(), PermissionDenied> {
         // TODO: Implement data retrieval from `context`.
         let role_permission = permission::Permission::default();

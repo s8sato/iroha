@@ -44,8 +44,8 @@ impl state::WorldState for StateTransaction<'_, '_> {
         unimplemented!("TODO when instructions as an executable were replaced with a changeset")
     }
 
-    fn load(&self, readset: &readset::ReadSet) -> state::PartialState {
-        let mut res = state::PartialState::default();
+    fn load(&self, readset: &readset::ReadSet) -> state::StateView {
+        let mut res = state::StateView::default();
         for (k, _v) in readset.iter() {
             match k {
                 FuzzyNodeKey::Trigger(key) => {
