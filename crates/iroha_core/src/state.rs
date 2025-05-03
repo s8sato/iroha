@@ -1691,8 +1691,15 @@ impl StateTransaction<'_, '_> {
     const MAX_EXECUTION_DEPTH: usize = 5;
 
     /// Perform a depth-first traversal of the trigger execution path.
-    fn hoge(&mut self) -> Result<()> {
-        let mut stack: Vec<(DataEvent, TriggerId, usize)> = Vec::new();
+    fn process_data_triggers_dfs(&mut self) -> Result<()> {
+        let mut stack: Vec<(DataEvent, TriggerId, usize)> = self
+            .capture_data_events()
+            .into_iter()
+            // Preserve the order of the matched triggers
+            .rev()
+            .map(|(e, t)| (e, t, 1))
+            .collect();
+
         while let Some((event, trg_id, depth)) = stack.pop() {
             if Self::MAX_EXECUTION_DEPTH < depth {
                 warn!(trigger=%trg_id, %depth, "Triggers exceeding the maximum execution depth are ignored");
@@ -1708,22 +1715,14 @@ impl StateTransaction<'_, '_> {
                 (action.authority().clone(), action.executable().clone())
             };
 
-            // SATO instructions should produce events in self.events_buffer
-            {
-                let event = event.clone().into();
-                self.process_trigger(&trg_id, &authority, &executable, event)?;
-            }
+            self.process_trigger(&trg_id, &authority, &executable, event.clone().into())?;
 
-            // Preserve the order of the matched triggers
-            {
-                let next_items: Vec<_> = self
-                    .capture_data_events()
-                    .into_iter()
-                    .rev()
-                    .map(|(e, t)| (e.clone(), t.clone(), depth + 1))
-                    .collect();
-                stack.extend(next_items);
-            }
+            let next_items = self
+                .capture_data_events()
+                .into_iter()
+                .rev()
+                .map(|(e, t)| (e, t, depth + 1));
+            stack.extend(next_items);
         }
 
         Ok(())
@@ -1732,27 +1731,33 @@ impl StateTransaction<'_, '_> {
     /// Flushes the event buffer and returns pairs of __representative__ matched events and trigger IDs.
     // FIXME: Only data events should be in the buffer. Remove `ExecuteTriggerEvent` (#5147) and `TimeEvent`
     // FIXME: Return the triggering event unions instead of the representatives (#5355 as a prerequisite)
-    fn capture_data_events(&self) -> Vec<(&DataEvent, &TriggerId)> {
-        // ) -> impl DoubleEndedIterator<Item = (EventBox, TriggerId)> + '_ {
-        let mut res = Vec::new();
-        for (trg_id, action) in self.world.triggers.data_triggers().iter() {
-            // match any events?
-            if let Some(item) = self
-                .world
-                .events_buffer
-                .events_buffer
-                .iter()
-                .find_map(|event| match event {
-                    EventBox::Data(event) => {
-                        action.filter.matches(event).then_some((event, trg_id))
-                    }
-                    _ => None,
+    fn capture_data_events(&mut self) -> Vec<(DataEvent, TriggerId)> {
+        let drained: Vec<DataEvent> = self
+            .world
+            .events_buffer
+            .events_buffer
+            .drain(..)
+            .filter_map(|event| match event {
+                EventBox::Data(event) => Some(event),
+                _ => {
+                    error!(?event, "Unexpected event type found in the buffer");
+                    None
+                }
+            })
+            .collect();
+        self.world
+            .triggers
+            .data_triggers()
+            .iter()
+            .filter_map(|(trg_id, action)| {
+                drained.iter().find_map(|event| {
+                    action
+                        .filter
+                        .matches(&event)
+                        .then(|| (event.clone(), trg_id.clone()))
                 })
-            {
-                res.push(item);
-            }
-        }
-        res
+            })
+            .collect()
     }
 }
 
