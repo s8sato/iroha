@@ -22,7 +22,7 @@ use iroha_data_model::{
     query::error::{FindError, QueryExecutionFail},
     role::RoleId,
 };
-use iroha_logger::prelude::*;
+use iroha_logger::prelude::{tracing::Event, *};
 use iroha_primitives::{must_use::MustUse, numeric::Numeric, small::SmallVec};
 use mv::{
     cell::{Block as CellBlock, Cell, Transaction as CellTransaction, View as CellView},
@@ -1731,27 +1731,24 @@ impl StateTransaction<'_, '_> {
 
     /// Flushes the event buffer and returns pairs of __representative__ matched events and trigger IDs.
     // FIXME: Only data events should be in the buffer. Remove `ExecuteTriggerEvent` (#5147) and `TimeEvent`
-    // FIXME: Return the triggering event unions instead of the representatives (#5355 as a prerequisite)
-    fn capture_data_events(&self) -> Vec<(&DataEvent, &TriggerId)> {
-        // ) -> impl DoubleEndedIterator<Item = (EventBox, TriggerId)> + '_ {
+    // FIXME: Return the matched event unions instead of the representative events (#5355 as a prerequisite)
+    fn capture_data_events(&mut self) -> Vec<(DataEvent, TriggerId)> {
+        // ) -> impl DoubleEndedIterator<Item = (DataEvent, TriggerId)> + '_ {
         let mut res = Vec::new();
-        for (trg_id, action) in self.world.triggers.data_triggers().iter() {
-            // match any events?
-            if let Some(item) = self
+        for event in self.world.events_buffer.events_buffer.drain(..) {
+            let EventBox::Data(event) = event else {
+                continue;
+            };
+            let matches = self
                 .world
-                .events_buffer
-                .events_buffer
+                .triggers
+                .data_triggers()
                 .iter()
-                .find_map(|event| match event {
-                    EventBox::Data(event) => {
-                        action.filter.matches(event).then_some((event, trg_id))
-                    }
-                    _ => None,
-                })
-            {
-                res.push(item);
-            }
+                .filter(|(id, action)| action.filter.matches(&event))
+                .map(|(id, _)| (event.clone(), id.clone()));
+            res.extend(matches);
         }
+        res.dedup_by(|a, b| a.1 == b.1);
         res
     }
 }
