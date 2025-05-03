@@ -1419,9 +1419,7 @@ impl<'state> StateBlock<'state> {
     pub fn apply(&mut self, block: &CommittedBlock, topology: Vec<PeerId>) -> Result<()> {
         self.execute_transactions(block);
         debug!(height = %self.height(), "Transactions successfully executed");
-        self.execute_time_triggers(block)?;
-        debug!(height = %self.height(), "Time triggers successfully executed");
-        let _events = self.apply_without_execution(block, topology);
+        self.apply_after_transactions(block, topology)?;
 
         Ok(())
     }
@@ -1469,21 +1467,34 @@ impl<'state> StateBlock<'state> {
         }
     }
 
-    /// Apply transactions without actually executing them.
-    /// It's assumed that block's transaction was already executed (as part of validation for example).
+    /// Executes time triggers for the given block
+    /// and applies remaining block effects outside the world state.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if executing time triggers fails.
     #[iroha_logger::log(skip_all, fields(block_height = block.as_ref().header().height))]
+    pub fn apply_after_transactions(
+        &mut self,
+        block: &CommittedBlock,
+        topology: Vec<PeerId>,
+    ) -> Result<()> {
+        self.execute_time_triggers(block)?;
+        debug!(height = %self.height(), "Time triggers successfully executed");
+        let _events = self.apply_outside_world(block, topology);
+
+        Ok(())
+    }
+
+    /// Applies remaining block effects outside the world state.
     #[must_use]
-    pub fn apply_without_execution(
+    fn apply_outside_world(
         &mut self,
         block: &CommittedBlock,
         topology: Vec<PeerId>,
     ) -> Vec<EventBox> {
         let block_hash = block.as_ref().hash();
         trace!(%block_hash, "Applying block");
-
-        // SATO directly execute time triggers
-        // let time_event = self.create_time_event(block);
-        // self.world.events_buffer.push(time_event.into());
 
         let block_height = block
             .as_ref()
@@ -1497,9 +1508,6 @@ impl<'state> StateBlock<'state> {
             .map(SignedTransaction::hash)
             .collect();
         self.transactions.insert_block(transactions, block_height);
-
-        // SATO directly execute time triggers
-        // self.world.triggers.handle_time_event(time_event);
 
         self.block_hashes.push(block_hash);
 

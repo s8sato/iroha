@@ -81,7 +81,8 @@ impl StateValidateBlocks {
                 &topology,
                 &peer_private_key,
             );
-            let _events = state_block.apply_without_execution(&block, topology.as_ref().to_owned());
+            let _events =
+                state_block.apply_after_transactions(&block, topology.as_ref().to_owned());
             assert_eq!(state_block.height(), i);
             state_block.commit();
         }

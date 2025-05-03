@@ -1133,7 +1133,7 @@ mod tests {
             .unpack(|_| {})
             .unwrap();
             let _events =
-                state_block.apply_without_execution(&block_genesis, topology.as_ref().to_owned());
+                state_block.apply_after_transactions(&block_genesis, topology.as_ref().to_owned());
             state_block.commit();
             blocks.push(block_genesis.clone());
             kura.store_block(block_genesis.clone());
@@ -1168,7 +1168,8 @@ mod tests {
                 .commit(&topology)
                 .unpack(|_| {})
                 .unwrap();
-            let _events = state_block.apply_without_execution(&block, topology.as_ref().to_owned());
+            let _events =
+                state_block.apply_after_transactions(&block, topology.as_ref().to_owned());
             state_block.commit();
             blocks.push(block.clone());
             kura.store_block(block);
@@ -1188,8 +1189,8 @@ mod tests {
                 .commit(&topology)
                 .unpack(|_| {})
                 .unwrap();
-            let _events =
-                state_block.apply_without_execution(&block_soft_fork, topology.as_ref().to_owned());
+            let _events = state_block
+                .apply_after_transactions(&block_soft_fork, topology.as_ref().to_owned());
             state_block.commit();
             blocks.push(block_soft_fork.clone());
             kura.replace_top_block(block_soft_fork);
@@ -1210,7 +1211,7 @@ mod tests {
                 .unpack(|_| {})
                 .unwrap();
             let _events =
-                state_block.apply_without_execution(&block_next, topology.as_ref().to_owned());
+                state_block.apply_after_transactions(&block_next, topology.as_ref().to_owned());
             state_block.commit();
             blocks.push(block_next.clone());
             kura.store_block(block_next);

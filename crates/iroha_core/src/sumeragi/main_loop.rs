@@ -360,7 +360,7 @@ impl Sumeragi {
             .block_committed(state_block.world.peers().clone());
 
         let state_events =
-            state_block.apply_without_execution(&block, self.topology.as_ref().to_owned());
+            state_block.apply_after_transactions(&block, self.topology.as_ref().to_owned());
 
         self.cache_transaction(&state_block);
         self.connect_peers(&self.topology);
@@ -1533,7 +1533,7 @@ mod tests {
             .unpack(|_| {})
             .expect("Block is valid");
 
-        let _events = state_block.apply_without_execution(&genesis, topology.as_ref().to_owned());
+        let _events = state_block.apply_after_transactions(&genesis, topology.as_ref().to_owned());
         state_block.commit();
         kura.store_block(genesis);
 

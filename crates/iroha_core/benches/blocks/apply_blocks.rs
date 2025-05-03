@@ -56,7 +56,7 @@ impl StateApplyBlocks {
                         &peer_private_key,
                     );
                     let _events =
-                        state_block.apply_without_execution(&block, topology.as_ref().to_owned());
+                        state_block.apply_after_transactions(&block, topology.as_ref().to_owned());
                     state_block.commit();
                     block
                 })
