@@ -48,10 +48,10 @@ use crate::{
     role::RoleIdWithOwner,
     smartcontracts::{
         triggers::{
-            self,
             set::{
-                Set as TriggerSet, SetBlock as TriggerSetBlock, SetReadOnly as TriggerSetReadOnly,
-                SetTransaction as TriggerSetTransaction, SetView as TriggerSetView,
+                ExecutableRef, Set as TriggerSet, SetBlock as TriggerSetBlock,
+                SetReadOnly as TriggerSetReadOnly, SetTransaction as TriggerSetTransaction,
+                SetView as TriggerSetView,
             },
             specialized::LoadedActionTrait,
         },
@@ -1576,7 +1576,12 @@ impl<'state> StateBlock<'state> {
                 // Execute every trigger in it's own transaction
                 let event = {
                     let mut transaction = self.transaction();
-                    match transaction.process_trigger(&id, &action, event) {
+                    match transaction.process_trigger(
+                        &id,
+                        action.authority(),
+                        action.executable(),
+                        event,
+                    ) {
                         Ok(()) => {
                             transaction.apply();
                             succeed.push(id.clone());
@@ -1652,24 +1657,27 @@ impl StateTransaction<'_, '_> {
     fn process_trigger(
         &mut self,
         id: &TriggerId,
-        action: &dyn LoadedActionTrait,
+        authority: &AccountId,
+        executable: &ExecutableRef,
         event: EventBox,
     ) -> Result<()> {
-        use triggers::set::ExecutableRef::*;
-        let authority = action.authority();
-
-        match action.executable() {
-            Instructions(instructions) => {
+        match executable {
+            ExecutableRef::Instructions(instructions) => {
                 self.process_instructions(instructions.iter().cloned(), authority)
             }
-            Wasm(blob_hash) => {
+            ExecutableRef::Wasm(blob_hash) => {
                 let module = self
                     .world
                     .triggers
                     .get_compiled_contract(blob_hash)
                     .expect("INTERNAL BUG: contract is not present")
                     .clone();
-                let mut wasm_runtime = wasm::RuntimeBuilder::<wasm::state::Trigger>::new()
+                let mut wasm_runtime: wasm::Runtime<
+                    wasm::state::CommonState<
+                        wasm::state::chain_state::WithMut<'_, '_, '_>,
+                        wasm::state::specific::Trigger,
+                    >,
+                > = wasm::RuntimeBuilder::<wasm::state::Trigger>::new()
                     .with_config(self.world().parameters().smart_contract)
                     .with_engine(self.engine.clone()) // Cloning engine is cheap
                     .build()?;
@@ -1678,6 +1686,73 @@ impl StateTransaction<'_, '_> {
                     .map_err(Into::into)
             }
         }
+    }
+
+    const MAX_EXECUTION_DEPTH: usize = 5;
+
+    /// Perform a depth-first traversal of the trigger execution path.
+    fn hoge(&mut self) -> Result<()> {
+        let mut stack: Vec<(DataEvent, TriggerId, usize)> = Vec::new();
+        while let Some((event, trg_id, depth)) = stack.pop() {
+            if Self::MAX_EXECUTION_DEPTH < depth {
+                warn!(trigger=%trg_id, %depth, "Triggers exceeding the maximum execution depth are ignored");
+                continue;
+            }
+            let (authority, executable) = {
+                let action = self
+                    .world
+                    .triggers
+                    .data_triggers()
+                    .get(&trg_id)
+                    .expect("only data trigger IDs should be on the stack");
+                (action.authority().clone(), action.executable().clone())
+            };
+
+            // SATO instructions should produce events in self.events_buffer
+            {
+                let event = event.clone().into();
+                self.process_trigger(&trg_id, &authority, &executable, event)?;
+            }
+
+            // Preserve the order of the matched triggers
+            {
+                let next_items: Vec<_> = self
+                    .capture_data_events()
+                    .into_iter()
+                    .rev()
+                    .map(|(e, t)| (e.clone(), t.clone(), depth + 1))
+                    .collect();
+                stack.extend(next_items);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Flushes the event buffer and returns pairs of __representative__ matched events and trigger IDs.
+    // FIXME: Only data events should be in the buffer. Remove `ExecuteTriggerEvent` (#5147) and `TimeEvent`
+    // FIXME: Return the triggering event unions instead of the representatives (#5355 as a prerequisite)
+    fn capture_data_events(&self) -> Vec<(&DataEvent, &TriggerId)> {
+        // ) -> impl DoubleEndedIterator<Item = (EventBox, TriggerId)> + '_ {
+        let mut res = Vec::new();
+        for (trg_id, action) in self.world.triggers.data_triggers().iter() {
+            // match any events?
+            if let Some(item) = self
+                .world
+                .events_buffer
+                .events_buffer
+                .iter()
+                .find_map(|event| match event {
+                    EventBox::Data(event) => {
+                        action.filter.matches(event).then_some((event, trg_id))
+                    }
+                    _ => None,
+                })
+            {
+                res.push(item);
+            }
+        }
+        res
     }
 }
 
