@@ -125,8 +125,6 @@ pub struct WorldBlock<'world> {
     pub(crate) executor: CellBlock<'world, Executor>,
     /// Executor-defined data model
     pub(crate) executor_data_model: CellBlock<'world, ExecutorDataModel>,
-    /// Events produced during execution of block
-    events_buffer: Vec<EventBox>,
 }
 
 /// Struct for single transaction's aggregated changes
@@ -158,16 +156,9 @@ pub struct WorldTransaction<'block, 'world> {
     pub(crate) executor: CellTransaction<'block, 'world, Executor>,
     /// Executor-defined data model
     pub(crate) executor_data_model: CellTransaction<'block, 'world, ExecutorDataModel>,
-    /// Events produced during execution of a transaction
-    events_buffer: TransactionEventBuffer<'block>,
-}
-
-/// Wrapper for event's buffer to apply transaction rollback
-struct TransactionEventBuffer<'block> {
-    /// Events produced during execution of block
-    events_buffer: &'block mut Vec<EventBox>,
-    /// Number of events produced during execution current transaction
-    events_created_in_transaction: usize,
+    /// Data events buffered during a single execution step
+    /// -- either the initial step (transaction or time trigger) or a subsequent step (data trigger).
+    events_buffer: Vec<DataEvent>,
 }
 
 /// Consistent point in time view of the [`World`]
@@ -377,7 +368,6 @@ impl World {
             triggers: self.triggers.block(),
             executor: self.executor.block(),
             executor_data_model: self.executor_data_model.block(),
-            events_buffer: Vec::new(),
         }
     }
 
@@ -397,7 +387,6 @@ impl World {
             triggers: self.triggers.block_and_revert(),
             executor: self.executor.block_and_revert(),
             executor_data_model: self.executor_data_model.block_and_revert(),
-            events_buffer: Vec::new(),
         }
     }
 
@@ -764,10 +753,7 @@ impl<'world> WorldBlock<'world> {
             triggers: self.triggers.transaction(),
             executor: self.executor.transaction(),
             executor_data_model: self.executor_data_model.transaction(),
-            events_buffer: TransactionEventBuffer {
-                events_buffer: &mut self.events_buffer,
-                events_created_in_transaction: 0,
-            },
+            events_buffer: Vec::new(),
         }
     }
 
@@ -788,7 +774,6 @@ impl<'world> WorldBlock<'world> {
             triggers,
             executor,
             executor_data_model,
-            events_buffer: _,
         } = self;
         // IMPORTANT!!! Commit fields in reverse order, this way consistent results are insured
         executor_data_model.commit();
@@ -825,7 +810,7 @@ impl WorldTransaction<'_, '_> {
             triggers,
             executor,
             executor_data_model,
-            mut events_buffer,
+            events_buffer: _,
         } = self;
         executor_data_model.apply();
         executor.apply();
@@ -840,7 +825,6 @@ impl WorldTransaction<'_, '_> {
         domains.apply();
         peers.apply();
         parameters.apply();
-        events_buffer.events_created_in_transaction = 0;
     }
 
     /// Get `Domain` with an ability to modify it.
@@ -1074,7 +1058,8 @@ impl WorldTransaction<'_, '_> {
     ///   then *trigger* will be executed on the **next** block
     pub fn execute_trigger(&mut self, event: ExecuteTriggerEvent) {
         self.triggers.handle_execute_trigger_event(event.clone());
-        self.events_buffer.push(event.into());
+        // SATO directly execute by-call trigger and announce the event
+        // self.event_buf.push(event.into());
     }
 
     /// The function puts events produced by iterator into `events_buffer`.
@@ -1089,43 +1074,16 @@ impl WorldTransaction<'_, '_> {
     /// Usable when you can't call [`Self::emit_events()`] due to mutable reference to self.
     fn emit_events_impl<I: IntoIterator<Item = T>, T: Into<DataEvent>>(
         triggers: &mut TriggerSetTransaction,
-        events_buffer: &mut TransactionEventBuffer<'_>,
+        events_buffer: &mut Vec<DataEvent>,
         world_events: I,
     ) {
-        let data_events: SmallVec<[DataEvent; 3]> = world_events
-            .into_iter()
-            .map(Into::into)
-            .map(Into::into)
-            .collect();
+        let data_events: SmallVec<[DataEvent; 3]> =
+            world_events.into_iter().map(Into::into).collect();
 
         for event in data_events.iter() {
             triggers.handle_data_event(event.clone());
         }
-        events_buffer.extend(data_events.into_iter().map(Into::into));
-    }
-}
-
-impl TransactionEventBuffer<'_> {
-    fn push(&mut self, event: EventBox) {
-        self.events_created_in_transaction += 1;
-        self.events_buffer.push(event);
-    }
-}
-
-impl Extend<EventBox> for TransactionEventBuffer<'_> {
-    fn extend<T: IntoIterator<Item = EventBox>>(&mut self, iter: T) {
-        let len_before = self.events_buffer.len();
-        self.events_buffer.extend(iter);
-        let len_after = self.events_buffer.len();
-        self.events_created_in_transaction += len_after - len_before;
-    }
-}
-
-impl Drop for TransactionEventBuffer<'_> {
-    fn drop(&mut self) {
-        // remove events produced by current transaction
-        self.events_buffer
-            .truncate(self.events_buffer.len() - self.events_created_in_transaction);
+        events_buffer.extend(data_events);
     }
 }
 
@@ -1497,8 +1455,9 @@ impl<'state> StateBlock<'state> {
         let block_hash = block.as_ref().hash();
         trace!(%block_hash, "Applying block");
 
-        let time_event = self.create_time_event(block);
-        self.world.events_buffer.push(time_event.into());
+        // SATO directly execute time triggers
+        // let time_event = self.create_time_event(block);
+        // self.world.events_buffer.push(time_event.into());
 
         let block_height = block
             .as_ref()
@@ -1513,30 +1472,25 @@ impl<'state> StateBlock<'state> {
             .collect();
         self.transactions.insert_block(transactions, block_height);
 
-        self.world.triggers.handle_time_event(time_event);
-
-        let res = self.process_triggers();
-
-        if let Err(errors) = res {
-            warn!(
-                ?errors,
-                "The following errors have occurred during trigger execution"
-            );
-        }
+        // SATO directly execute time triggers
+        // self.world.triggers.handle_time_event(time_event);
 
         self.block_hashes.push(block_hash);
 
         *self.prev_commit_topology = core::mem::take(&mut self.commit_topology);
         *self.commit_topology = topology;
 
-        self.world.events_buffer.push(
-            BlockEvent {
-                header: block.as_ref().header(),
-                status: BlockStatus::Applied,
-            }
-            .into(),
-        );
-        core::mem::take(&mut self.world.events_buffer)
+        // SATO directly announce the event
+        // self.world.events_buffer.push(
+        //     BlockEvent {
+        //         header: block.as_ref().header(),
+        //         status: BlockStatus::Applied,
+        //     }
+        //     .into(),
+        // );
+        // SATO don't return Vec<EventBox>
+        Vec::new()
+        // core::mem::take(&mut self.world.events_buffer)
     }
 
     /// Create time event using previous and current blocks
@@ -1597,7 +1551,8 @@ impl<'state> StateBlock<'state> {
                         }
                     }
                 };
-                self.world.events_buffer.push(event.into());
+                // SATO directly announce the event
+                // self.world.events_buffer.push(event.into());
             }
         }
 
@@ -1732,19 +1687,7 @@ impl StateTransaction<'_, '_> {
     // FIXME: Only data events should be in the buffer. Remove `ExecuteTriggerEvent` (#5147) and `TimeEvent`
     // FIXME: Return the triggering event unions instead of the representatives (#5355 as a prerequisite)
     fn capture_data_events(&mut self) -> Vec<(DataEvent, TriggerId)> {
-        let drained: Vec<DataEvent> = self
-            .world
-            .events_buffer
-            .events_buffer
-            .drain(..)
-            .filter_map(|event| match event {
-                EventBox::Data(event) => Some(event),
-                _ => {
-                    error!(?event, "Unexpected event type found in the buffer");
-                    None
-                }
-            })
-            .collect();
+        let drained: Vec<DataEvent> = self.world.events_buffer.drain(..).collect();
         self.world
             .triggers
             .data_triggers()
