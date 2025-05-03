@@ -422,7 +422,7 @@ mod tests {
                 .unpack(|_| {})
                 .unwrap();
 
-            let _events = state_block.apply(&first_block, topology.as_ref().to_owned())?;
+            state_block.apply(&first_block, topology.as_ref().to_owned())?;
             kura.store_block(first_block);
             state_block.commit();
 
@@ -440,7 +440,7 @@ mod tests {
                     .unpack(|_| {})
                     .expect("Block is valid");
 
-                let _events = state_block.apply(&block, topology.as_ref().to_owned())?;
+                state_block.apply(&block, topology.as_ref().to_owned())?;
                 kura.store_block(block);
                 state_block.commit();
             }

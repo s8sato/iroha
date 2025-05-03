@@ -583,16 +583,16 @@ impl<'set> SetBlock<'set> {
         self.data_triggers.commit();
     }
 
-    /// Returns an iterator over `(EventBox, TriggerId)` pairs for a given time event.
+    /// Returns an iterator over `(TriggerId, LoadedAction)` pairs for a given time event.
     pub fn match_time_event(
         &self,
         event: TimeEvent,
-    ) -> impl Iterator<Item = (EventBox, TriggerId)> + '_ {
+    ) -> impl Iterator<Item = (TriggerId, LoadedAction<TimeEventFilter>)> + '_ {
         self.time_triggers
             .iter()
             .map(move |(id, action)| {
                 let count = action.filter.count_matches(&event);
-                (0..count).map(move |_| (event.into(), id.clone()))
+                (0..count).map(move |_| (id.clone(), action.clone()))
             })
             .flatten()
     }

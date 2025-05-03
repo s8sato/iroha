@@ -87,7 +87,7 @@ impl StateApplyBlocks {
     ) -> Result<()> {
         for (block, i) in blocks.iter().zip(1..) {
             let mut state_block = state.block(block.as_ref().header());
-            let _events = state_block.apply(block, topology.as_ref().to_owned())?;
+            state_block.apply(block, topology.as_ref().to_owned())?;
             state_block.commit();
             assert_eq!(state.view().height(), i);
         }

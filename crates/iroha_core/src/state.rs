@@ -19,7 +19,10 @@ use iroha_data_model::{
     parameter::Parameters,
     permission::Permissions,
     prelude::*,
-    query::error::{FindError, QueryExecutionFail},
+    query::{
+        error::{FindError, QueryExecutionFail},
+        transaction,
+    },
     role::RoleId,
 };
 use iroha_logger::prelude::*;
@@ -1395,61 +1398,75 @@ impl<'state> StateBlock<'state> {
         world.commit();
     }
 
-    /// Commit `CommittedBlock` with changes in form of **Iroha Special
-    /// Instructions** to `self`.
+    /// Applies a committed block to the world state.
     ///
-    /// Order of execution:
-    /// 1) Time triggers (entails data triggers)
-    /// 2) Transactions (entails data triggers)
+    /// Execution order:
+    /// 1. Transactions (including invoked data triggers)
+    /// 2. Time triggers (including invoked data triggers)
+    ///
+    /// # Panics
+    ///
+    /// Panics if processing approved transactions fails.
     ///
     /// # Errors
     ///
-    /// - (RARE) if applying transaction after validation fails.
-    /// - If trigger execution fails
-    /// - If timestamp conversion to `u64` fails
+    /// Returns an error if any post-transaction processing fails.
     #[cfg_attr(
         not(debug_assertions),
         deprecated(note = "This function is to be used in testing only. ")
     )]
     #[iroha_logger::log(skip_all, fields(block_height))]
-    pub fn apply(
-        &mut self,
-        block: &CommittedBlock,
-        topology: Vec<PeerId>,
-    ) -> Result<MustUse<Vec<EventBox>>> {
+    pub fn apply(&mut self, block: &CommittedBlock, topology: Vec<PeerId>) -> Result<()> {
+        self.execute_transactions(block);
+        debug!(height = %self.height(), "Transactions successfully executed");
         self.execute_time_triggers(block)?;
-        self.execute_transactions(block)?;
-        debug!("All block transactions successfully executed");
-        Ok(self.apply_without_execution(block, topology).into())
-    }
-
-    fn execute_time_triggers(&mut self, block: &CommittedBlock) -> Result<()> {
-        let time_event = self.create_time_event(block);
-        self.world.triggers.match_time_event(time_event.clone());
+        debug!(height = %self.height(), "Time triggers successfully executed");
+        let _events = self.apply_without_execution(block, topology);
 
         Ok(())
     }
 
-    /// Execute `block` transactions and store their hashes as well as
-    /// `rejected_transactions` hashes
-    ///
-    /// # Errors
-    /// Fails if transaction instruction execution fails
-    fn execute_transactions(&mut self, block: &CommittedBlock) -> Result<()> {
-        let block = block.as_ref();
+    /// Executes all time triggers matching the given block.
+    fn execute_time_triggers(&mut self, block: &CommittedBlock) -> Result<()> {
+        let time_event = self.create_time_event(block);
+        let matched: Vec<_> = self
+            .world
+            .triggers
+            .match_time_event(time_event.clone())
+            .collect();
 
-        // TODO: Should this block panic instead?
-        for (idx, tx) in block.transactions().enumerate() {
-            if block.error(idx).is_none() {
-                // Execute every tx in it's own transaction
-                let mut transaction = self.transaction();
-                transaction.process_executable(tx.instructions(), tx.authority().clone())?;
-                transaction.process_data_triggers_dfs()?;
-                transaction.apply();
-            }
+        for item in matched {
+            let mut transaction = self.transaction();
+            transaction.process_trigger(
+                &item.0,
+                item.1.authority(),
+                item.1.executable(),
+                time_event.clone().into(),
+            )?;
+            transaction.process_data_triggers_dfs()?;
+            transaction.apply();
         }
 
         Ok(())
+    }
+
+    /// Executes all non-erroneous transactions in the given committed block.
+    fn execute_transactions(&mut self, block: &CommittedBlock) {
+        let block = block.as_ref();
+
+        for (idx, tx) in block.transactions().enumerate() {
+            if block.error(idx).is_none() {
+                // Execute each transaction in its own transactional state
+                let mut transaction = self.transaction();
+                transaction
+                    .process_executable(tx.instructions(), tx.authority().clone())
+                    .expect("should be no errors");
+                transaction
+                    .process_data_triggers_dfs()
+                    .expect("should be no errors");
+                transaction.apply();
+            }
+        }
     }
 
     /// Apply transactions without actually executing them.
@@ -2342,7 +2359,7 @@ mod tests {
 
             let mut state_block = state.block(block.as_ref().header());
             block_hashes.push(block.as_ref().hash());
-            let _events = state_block.apply(&block, Vec::new()).unwrap();
+            state_block.apply(&block, Vec::new()).unwrap();
             state_block.commit();
         }
 
@@ -2372,7 +2389,7 @@ mod tests {
             });
 
             let mut state_block = state.block(block.as_ref().header());
-            let _events = state_block.apply(&block, Vec::new()).unwrap();
+            state_block.apply(&block, Vec::new()).unwrap();
             state_block.commit();
             kura.store_block(block);
         }
