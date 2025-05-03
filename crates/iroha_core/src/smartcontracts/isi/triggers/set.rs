@@ -583,27 +583,18 @@ impl<'set> SetBlock<'set> {
         self.data_triggers.commit();
     }
 
-    /// Handle [`TimeEvent`].
-    ///
-    /// Find all actions that are triggered by `event` and store them.
-    /// These actions are inspected in the next [`Set::inspect_matched()`] call.
-    pub fn handle_time_event(&mut self, event: TimeEvent) {
-        for (id, action) in self.time_triggers.iter() {
-            let mut count = action.filter.count_matches(&event);
-            if let Repeats::Exactly(repeats) = action.repeats {
-                count = min(repeats, count);
-            }
-            if count == 0 {
-                continue;
-            }
-
-            let ids = core::iter::repeat_with(|| (EventBox::Time(event), id.clone())).take(
-                count
-                    .try_into()
-                    .expect("`u32` should always fit in `usize`"),
-            );
-            self.matched_ids.extend(ids);
-        }
+    /// Returns an iterator over `(EventBox, TriggerId)` pairs for a given time event.
+    pub fn match_time_event(
+        &self,
+        event: TimeEvent,
+    ) -> impl Iterator<Item = (EventBox, TriggerId)> + '_ {
+        self.time_triggers
+            .iter()
+            .map(move |(id, action)| {
+                let count = action.filter.count_matches(&event);
+                (0..count).map(move |_| (event.into(), id.clone()))
+            })
+            .flatten()
     }
 
     /// Extract `matched_id`

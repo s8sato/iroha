@@ -1399,8 +1399,8 @@ impl<'state> StateBlock<'state> {
     /// Instructions** to `self`.
     ///
     /// Order of execution:
-    /// 1) Transactions
-    /// 2) Triggers
+    /// 1) Time triggers (entails data triggers)
+    /// 2) Transactions (entails data triggers)
     ///
     /// # Errors
     ///
@@ -1417,9 +1417,17 @@ impl<'state> StateBlock<'state> {
         block: &CommittedBlock,
         topology: Vec<PeerId>,
     ) -> Result<MustUse<Vec<EventBox>>> {
+        self.execute_time_triggers(block)?;
         self.execute_transactions(block)?;
         debug!("All block transactions successfully executed");
         Ok(self.apply_without_execution(block, topology).into())
+    }
+
+    fn execute_time_triggers(&mut self, block: &CommittedBlock) -> Result<()> {
+        let time_event = self.create_time_event(block);
+        self.world.triggers.match_time_event(time_event.clone());
+
+        Ok(())
     }
 
     /// Execute `block` transactions and store their hashes as well as
@@ -1436,6 +1444,7 @@ impl<'state> StateBlock<'state> {
                 // Execute every tx in it's own transaction
                 let mut transaction = self.transaction();
                 transaction.process_executable(tx.instructions(), tx.authority().clone())?;
+                transaction.process_data_triggers_dfs()?;
                 transaction.apply();
             }
         }
@@ -1641,6 +1650,7 @@ impl StateTransaction<'_, '_> {
                     .map_err(Into::into)
             }
         }
+        // SATO emit trigger events
     }
 
     const MAX_EXECUTION_DEPTH: usize = 5;
