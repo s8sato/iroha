@@ -1050,21 +1050,6 @@ impl WorldTransaction<'_, '_> {
         }
     }
 
-    /// Execute trigger with `trigger_id` as id and `authority` as owner
-    ///
-    /// Produces [`ExecuteTriggerEvent`].
-    ///
-    /// Trigger execution time:
-    /// - If this method is called by ISI inside *transaction*,
-    ///   then *trigger* will be executed on the **current** block
-    /// - If this method is called by ISI inside *trigger*,
-    ///   then *trigger* will be executed on the **next** block
-    pub fn execute_trigger(&mut self, event: ExecuteTriggerEvent) {
-        self.triggers.handle_execute_trigger_event(event.clone());
-        // SATO directly execute by-call trigger and announce the event
-        // self.event_buf.push(event.into());
-    }
-
     /// The function puts events produced by iterator into `events_buffer`.
     /// Events should be produced in the order of expanding scope: from specific to general.
     /// Example: account events before domain events.
@@ -1424,53 +1409,6 @@ impl<'state> StateBlock<'state> {
         Ok(())
     }
 
-    /// Process all time triggers matching the given block.
-    fn process_time_triggers(&mut self, block: &CommittedBlock) -> Result<()> {
-        let time_event = self.create_time_event(block);
-        let matched: Vec<_> = self
-            .world
-            .triggers
-            .match_time_event(time_event.clone())
-            .collect();
-
-        for (trg_id, action) in &matched {
-            let mut transaction = self.transaction();
-            transaction
-                .world
-                .triggers
-                .decrease_repeats([trg_id].into_iter());
-            transaction.execute_trigger(
-                trg_id,
-                action.authority(),
-                action.executable(),
-                time_event.clone().into(),
-            )?;
-            transaction.process_data_triggers_dfs()?;
-            transaction.apply();
-        }
-
-        Ok(())
-    }
-
-    /// Process all non-erroneous transactions in the given committed block.
-    fn process_transactions(&mut self, block: &CommittedBlock) {
-        let block = block.as_ref();
-
-        for (idx, tx) in block.transactions().enumerate() {
-            if block.error(idx).is_none() {
-                // Execute each transaction in its own transactional state
-                let mut transaction = self.transaction();
-                transaction
-                    .process_executable(tx.instructions(), tx.authority().clone())
-                    .expect("should be no errors");
-                transaction
-                    .process_data_triggers_dfs()
-                    .expect("should be no errors");
-                transaction.apply();
-            }
-        }
-    }
-
     /// Process time triggers for the given block
     /// and applies remaining block effects outside the world state.
     ///
@@ -1529,6 +1467,53 @@ impl<'state> StateBlock<'state> {
         // SATO don't return Vec<EventBox>
         Vec::new()
         // core::mem::take(&mut self.world.events_buffer)
+    }
+
+    /// Process all non-erroneous transactions in the given committed block.
+    fn process_transactions(&mut self, block: &CommittedBlock) {
+        let block = block.as_ref();
+
+        for (idx, tx) in block.transactions().enumerate() {
+            if block.error(idx).is_none() {
+                // Execute each transaction in its own transactional state
+                let mut transaction = self.transaction();
+                transaction
+                    .process_executable(tx.instructions(), tx.authority().clone())
+                    .expect("should be no errors");
+                transaction
+                    .process_data_triggers_dfs()
+                    .expect("should be no errors");
+                transaction.apply();
+            }
+        }
+    }
+
+    /// Process all time triggers matching the given block.
+    fn process_time_triggers(&mut self, block: &CommittedBlock) -> Result<()> {
+        let time_event = self.create_time_event(block);
+        let matched: Vec<_> = self
+            .world
+            .triggers
+            .match_time_event(time_event.clone())
+            .collect();
+
+        for (trg_id, action) in &matched {
+            let mut transaction = self.transaction();
+            transaction
+                .world
+                .triggers
+                .decrease_repeats([trg_id].into_iter());
+            transaction.execute_trigger(
+                trg_id,
+                action.authority(),
+                action.executable(),
+                time_event.clone().into(),
+            )?;
+            transaction.process_data_triggers_dfs()?;
+            transaction.apply();
+        }
+
+        Ok(())
     }
 
     /// Create time event using previous and current blocks
@@ -1617,6 +1602,17 @@ impl StateTransaction<'_, '_> {
         committed_topology.apply();
         block_hashes.apply();
         world.apply();
+    }
+
+    pub(crate) fn process_trigger_call(
+        &mut self,
+        id: &TriggerId,
+        authority: &AccountId,
+        executable: &ExecutableRef,
+        event: ExecuteTriggerEvent,
+    ) -> Result<()> {
+        self.execute_trigger(id, authority, executable, event.into())?;
+        Ok(())
     }
 
     fn process_executable(&mut self, executable: &Executable, authority: AccountId) -> Result<()> {

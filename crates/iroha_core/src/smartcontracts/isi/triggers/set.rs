@@ -959,17 +959,6 @@ impl<'block, 'set> SetTransaction<'block, 'set> {
         });
     }
 
-    /// Handle [`ExecuteTriggerEvent`].
-    ///
-    /// Find all actions that are triggered by `event` and store them.
-    /// These actions are inspected in the next [`Set::inspect_matched()`] call.
-    pub fn handle_execute_trigger_event(&mut self, event: ExecuteTriggerEvent) {
-        if let Some(action) = self.by_call_triggers.get(&event.trigger_id) {
-            let id = event.trigger_id.clone();
-            Self::match_and_insert_trigger(&mut self.matched_ids, event, (&id, action));
-        };
-    }
-
     /// Match and insert a [`TriggerId`] into the set of matched ids.
     ///
     /// Skips insertion:

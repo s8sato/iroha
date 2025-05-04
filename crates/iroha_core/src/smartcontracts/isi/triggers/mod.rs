@@ -20,6 +20,7 @@ pub mod isi {
     };
 
     use super::{super::prelude::*, *};
+    use crate::smartcontracts::isi::triggers::specialized::LoadedActionTrait;
 
     impl Execute for Register<Trigger> {
         #[metrics(+"register_trigger")]
@@ -300,7 +301,29 @@ pub mod isi {
                 .ok_or_else(|| Error::Find(FindError::Trigger(id.clone())))
                 .and_then(core::convert::identity)?;
 
-            state_transaction.world.execute_trigger(event);
+            let (authority, executable) = {
+                let action = state_transaction
+                    .world
+                    .triggers
+                    .by_call_triggers()
+                    .get(event.trigger_id())
+                    .ok_or_else(|| FindError::Trigger(id.clone()))?;
+                if action.repeats.is_depleted() {
+                    return Err(RepetitionError {
+                        instruction: InstructionType::ExecuteTrigger,
+                        id: id.clone().into(),
+                    }
+                    .into());
+                }
+                (action.authority().clone(), action.executable().clone())
+            };
+            state_transaction
+                .world
+                .triggers
+                .decrease_repeats([id].into_iter());
+            state_transaction
+                .process_trigger_call(id, &authority, &executable, event)
+                .map_err(|err| Error::InvariantViolation(err.to_string()))?;
 
             Ok(())
         }
