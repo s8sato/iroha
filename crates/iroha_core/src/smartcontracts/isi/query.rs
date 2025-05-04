@@ -416,7 +416,7 @@ mod tests {
                 .unpack(|_| {});
             let mut state_block = state.block(unverified_first_block.header());
             let first_block = unverified_first_block
-                .categorize(&mut state_block)
+                .process_and_record_transactions(&mut state_block)
                 .unpack(|_| {})
                 .commit(&topology)
                 .unpack(|_| {})
@@ -434,7 +434,7 @@ mod tests {
                 let mut state_block = state.block(unverified_block.header());
 
                 let block = unverified_block
-                    .categorize(&mut state_block)
+                    .process_and_record_transactions(&mut state_block)
                     .unpack(|_| {})
                     .commit(&topology)
                     .unpack(|_| {})
@@ -568,7 +568,7 @@ mod tests {
             .unpack(|_| {});
         let mut state_block = state.block(unverified_block.header());
         let vcb = unverified_block
-            .categorize(&mut state_block)
+            .process_and_record_transactions(&mut state_block)
             .unpack(|_| {})
             .commit(&topology)
             .unpack(|_| {})

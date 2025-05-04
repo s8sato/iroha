@@ -1132,8 +1132,9 @@ mod tests {
             .commit(&topology)
             .unpack(|_| {})
             .unwrap();
-            let _events =
-                state_block.apply_after_transactions(&block_genesis, topology.as_ref().to_owned());
+            state_block
+                .apply_after_transactions(&block_genesis, topology.as_ref().to_owned())
+                .expect("no post-transaction processes that can fail");
             state_block.commit();
             blocks.push(block_genesis.clone());
             kura.store_block(block_genesis.clone());
@@ -1163,13 +1164,14 @@ mod tests {
 
             let mut state_block = state.block(unverified_block.header());
             let block = unverified_block
-                .categorize(&mut state_block)
+                .process_and_record_transactions(&mut state_block)
                 .unpack(|_| {})
                 .commit(&topology)
                 .unpack(|_| {})
                 .unwrap();
-            let _events =
-                state_block.apply_after_transactions(&block, topology.as_ref().to_owned());
+            state_block
+                .apply_after_transactions(&block, topology.as_ref().to_owned())
+                .expect("no post-transaction processes that can fail");
             state_block.commit();
             blocks.push(block.clone());
             kura.store_block(block);
@@ -1184,13 +1186,14 @@ mod tests {
 
             let mut state_block = state.block_and_revert(unverified_block_soft_fork.header());
             let block_soft_fork = unverified_block_soft_fork
-                .categorize(&mut state_block)
+                .process_and_record_transactions(&mut state_block)
                 .unpack(|_| {})
                 .commit(&topology)
                 .unpack(|_| {})
                 .unwrap();
-            let _events = state_block
-                .apply_after_transactions(&block_soft_fork, topology.as_ref().to_owned());
+            state_block
+                .apply_after_transactions(&block_soft_fork, topology.as_ref().to_owned())
+                .expect("no post-transaction processes that can fail");
             state_block.commit();
             blocks.push(block_soft_fork.clone());
             kura.replace_top_block(block_soft_fork);
@@ -1205,13 +1208,14 @@ mod tests {
 
             let mut state_block = state.block(unverified_block_next.header());
             let block_next = unverified_block_next
-                .categorize(&mut state_block)
+                .process_and_record_transactions(&mut state_block)
                 .unpack(|_| {})
                 .commit(&topology)
                 .unpack(|_| {})
                 .unwrap();
-            let _events =
-                state_block.apply_after_transactions(&block_next, topology.as_ref().to_owned());
+            state_block
+                .apply_after_transactions(&block_next, topology.as_ref().to_owned())
+                .expect("no post-transaction processes that can fail");
             state_block.commit();
             blocks.push(block_next.clone());
             kura.store_block(block_next);

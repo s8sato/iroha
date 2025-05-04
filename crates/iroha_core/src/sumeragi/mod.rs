@@ -125,10 +125,12 @@ impl SumeragiHandle {
 
         state_block
             .apply_after_transactions(&block, topology.as_ref().to_owned())
-            .into_iter()
-            .for_each(|e| {
-                let _ = events_sender.send(e);
-            });
+            .expect("no post-transaction processes that can fail");
+        // SATO send events elsewhere
+        // .into_iter()
+        // .for_each(|e| {
+        //     let _ = events_sender.send(e);
+        // });
     }
 }
 

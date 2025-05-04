@@ -201,14 +201,14 @@ impl StateBlock<'_> {
     ///
     /// # Errors
     /// Fails if validation of instruction fails (e.g. permissions mismatch).
-    pub fn validate(
+    pub fn validate_transaction(
         &mut self,
         tx: AcceptedTransaction,
         wasm_cache: &mut WasmCache<'_, '_, '_>,
     ) -> Result<SignedTransaction, (SignedTransaction, TransactionRejectionReason)> {
         let mut state_transaction = self.transaction();
         if let Err(rejection_reason) =
-            Self::validate_internal(tx.clone(), &mut state_transaction, wasm_cache)
+            Self::_validate_transaction(tx.clone(), &mut state_transaction, wasm_cache)
         {
             return Err((tx.0, rejection_reason));
         }
@@ -217,7 +217,7 @@ impl StateBlock<'_> {
         Ok(tx.0)
     }
 
-    fn validate_internal(
+    fn _validate_transaction(
         tx: AcceptedTransaction,
         state_transaction: &mut StateTransaction<'_, '_>,
         wasm_cache: &mut WasmCache<'_, '_, '_>,
@@ -231,7 +231,11 @@ impl StateBlock<'_> {
         }
 
         debug!(tx=%tx.as_ref().hash(), "Validating transaction");
-        Self::validate_with_runtime_executor(tx.clone(), state_transaction, wasm_cache)?;
+        Self::validate_transaction_with_runtime_executor(
+            tx.clone(),
+            state_transaction,
+            wasm_cache,
+        )?;
 
         if let (authority, Executable::Wasm(bytes)) = tx.into() {
             Self::validate_wasm(authority, state_transaction, bytes)?
@@ -271,7 +275,7 @@ impl StateBlock<'_> {
     /// Validate transaction with runtime executors.
     ///
     /// Note: transaction instructions will be executed on the given `state_transaction`.
-    fn validate_with_runtime_executor(
+    fn validate_transaction_with_runtime_executor(
         tx: AcceptedTransaction,
         state_transaction: &mut StateTransaction<'_, '_>,
         wasm_cache: &mut WasmCache<'_, '_, '_>,

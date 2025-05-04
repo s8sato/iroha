@@ -2,7 +2,11 @@
 use std::{collections::BTreeSet, ops::Deref, sync::mpsc};
 
 use iroha_crypto::{HashOf, KeyPair};
-use iroha_data_model::{block::*, events::pipeline::PipelineEventBox, peer::PeerId};
+use iroha_data_model::{
+    block::{self, *},
+    events::pipeline::PipelineEventBox,
+    peer::PeerId,
+};
 use iroha_futures::supervisor::ShutdownSignal;
 use iroha_p2p::UpdateTopology;
 use tracing::{span, Level};
@@ -342,11 +346,11 @@ impl Sumeragi {
     }
 
     fn commit_block(&mut self, block: CommittedBlock, state_block: StateBlock<'_>) {
-        self.update_state::<NewBlockStrategy>(block, state_block);
+        self.update_state::<NewBlockStrategy>(block, state_block)
     }
 
     fn replace_top_block(&mut self, block: CommittedBlock, state_block: StateBlock<'_>) {
-        self.update_state::<ReplaceTopBlockStrategy>(block, state_block);
+        self.update_state::<ReplaceTopBlockStrategy>(block, state_block)
     }
 
     fn update_state<Strategy: ApplyBlockStrategy>(
@@ -359,8 +363,17 @@ impl Sumeragi {
         self.topology
             .block_committed(state_block.world.peers().clone());
 
-        let state_events =
-            state_block.apply_after_transactions(&block, self.topology.as_ref().to_owned());
+        if let Err(error) =
+            state_block.apply_after_transactions(&block, self.topology.as_ref().to_owned())
+        {
+            error!(
+                peer_id=%self.peer,
+                role=%self.role(),
+                block=%block.as_ref().hash(),
+                ?error,
+                "Failed during on-commit processing, including time triggers"
+            );
+        }
 
         self.cache_transaction(&state_block);
         self.connect_peers(&self.topology);
@@ -392,7 +405,8 @@ impl Sumeragi {
 
         // NOTE: This sends `BlockStatus::Applied` event,
         // so it should be done AFTER public facing state update
-        state_events.into_iter().for_each(|e| self.send_event(e));
+        // SATO directly create and sent the event here
+        // state_events.into_iter().for_each(|e| self.send_event(e));
 
         self.round_start_time = Instant::now();
         self.was_commit = true;
@@ -758,7 +772,7 @@ impl Sumeragi {
                                     .unpack(|e| self.send_event(e))
                                 {
                                     Ok(committed_block) => {
-                                        self.commit_block(committed_block, voted_block.state_block)
+                                        self.commit_block(committed_block, voted_block.state_block);
                                     }
                                     Err((mut block, error)) => {
                                         error!(
@@ -924,7 +938,7 @@ impl Sumeragi {
 
             let mut state_block = state.block(unverified_block.header());
             let block = unverified_block
-                .categorize(&mut state_block)
+                .process_and_record_transactions(&mut state_block)
                 .unpack(|e| self.send_event(e));
 
             *voting_block = if self.topology.is_consensus_required().is_some() {
@@ -1527,13 +1541,15 @@ mod tests {
 
         let mut state_block = state.block(unverified_genesis.header());
         let genesis = unverified_genesis
-            .categorize(&mut state_block)
+            .process_and_record_transactions(&mut state_block)
             .unpack(|_| {})
             .commit(topology)
             .unpack(|_| {})
             .expect("Block is valid");
 
-        let _events = state_block.apply_after_transactions(&genesis, topology.as_ref().to_owned());
+        state_block
+            .apply_after_transactions(&genesis, topology.as_ref().to_owned())
+            .expect("no post-transaction processes that can fail");
         state_block.commit();
         kura.store_block(genesis);
 
@@ -1602,7 +1618,7 @@ mod tests {
         let mut state_block = state.block(unverified_block.header());
         let committed_block = unverified_block
             .clone()
-            .categorize(&mut state_block)
+            .process_and_record_transactions(&mut state_block)
             .unpack(|_| {})
             .commit(&topology)
             .unpack(|_| {})
@@ -1693,7 +1709,7 @@ mod tests {
         let mut state_block = state.block(unverified_block.header());
         let committed_block = unverified_block
             .clone()
-            .categorize(&mut state_block)
+            .process_and_record_transactions(&mut state_block)
             .unpack(|_| {})
             .commit(&topology)
             .unpack(|_| {})
@@ -1735,7 +1751,7 @@ mod tests {
         let mut state_block = state.block(unverified_block.header());
         let committed_block = unverified_block
             .clone()
-            .categorize(&mut state_block)
+            .process_and_record_transactions(&mut state_block)
             .unpack(|_| {})
             .commit(&topology)
             .unpack(|_| {})
@@ -1817,7 +1833,9 @@ mod tests {
         let (state, _, unverified_block, genesis_public_key) =
             create_data_for_test(&chain_id, &topology, &leader_private_key);
         let mut state_block = state.block(unverified_block.header());
-        let valid_block = unverified_block.categorize(&mut state_block).unpack(|_| {});
+        let valid_block = unverified_block
+            .process_and_record_transactions(&mut state_block)
+            .unpack(|_| {});
         state_block.commit();
 
         // Malform block signatures so that block going to be rejected
