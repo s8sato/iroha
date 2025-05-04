@@ -591,7 +591,10 @@ impl<'set> SetBlock<'set> {
         self.time_triggers
             .iter()
             .map(move |(id, action)| {
-                let count = action.filter.count_matches(&event);
+                let mut count = action.filter.count_matches(&event);
+                if let Repeats::Exactly(repeats) = action.repeats {
+                    count = min(repeats, count);
+                }
                 (0..count).map(move |_| (id.clone(), action.clone()))
             })
             .flatten()
@@ -905,7 +908,7 @@ impl<'block, 'set> SetTransaction<'block, 'set> {
     }
 
     /// Decrease `action`s for provided triggers and remove those whose counter reached zero.
-    pub fn decrease_repeats(&mut self, triggers: &[TriggerId]) {
+    pub fn decrease_repeats<'a>(&'a mut self, triggers: impl Iterator<Item = &'a TriggerId>) {
         for id in triggers {
             // Ignoring error if trigger has not `Repeats::Exact(_)` but something else
             let _mod_repeats_res = self.mod_repeats(id, |n| Ok(n.saturating_sub(1)));

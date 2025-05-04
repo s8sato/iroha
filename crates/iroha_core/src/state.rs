@@ -1417,15 +1417,15 @@ impl<'state> StateBlock<'state> {
     )]
     #[iroha_logger::log(skip_all, fields(block_height))]
     pub fn apply(&mut self, block: &CommittedBlock, topology: Vec<PeerId>) -> Result<()> {
-        self.execute_transactions(block);
-        debug!(height = %self.height(), "Transactions successfully executed");
+        self.process_transactions(block);
+        debug!(height = %self.height(), "Transactions successfully processed");
         self.apply_after_transactions(block, topology)?;
 
         Ok(())
     }
 
-    /// Executes all time triggers matching the given block.
-    fn execute_time_triggers(&mut self, block: &CommittedBlock) -> Result<()> {
+    /// Process all time triggers matching the given block.
+    fn process_time_triggers(&mut self, block: &CommittedBlock) -> Result<()> {
         let time_event = self.create_time_event(block);
         let matched: Vec<_> = self
             .world
@@ -1433,12 +1433,16 @@ impl<'state> StateBlock<'state> {
             .match_time_event(time_event.clone())
             .collect();
 
-        for item in matched {
+        for (trg_id, action) in &matched {
             let mut transaction = self.transaction();
-            transaction.process_trigger(
-                &item.0,
-                item.1.authority(),
-                item.1.executable(),
+            transaction
+                .world
+                .triggers
+                .decrease_repeats([trg_id].into_iter());
+            transaction.execute_trigger(
+                trg_id,
+                action.authority(),
+                action.executable(),
                 time_event.clone().into(),
             )?;
             transaction.process_data_triggers_dfs()?;
@@ -1448,8 +1452,8 @@ impl<'state> StateBlock<'state> {
         Ok(())
     }
 
-    /// Executes all non-erroneous transactions in the given committed block.
-    fn execute_transactions(&mut self, block: &CommittedBlock) {
+    /// Process all non-erroneous transactions in the given committed block.
+    fn process_transactions(&mut self, block: &CommittedBlock) {
         let block = block.as_ref();
 
         for (idx, tx) in block.transactions().enumerate() {
@@ -1467,7 +1471,7 @@ impl<'state> StateBlock<'state> {
         }
     }
 
-    /// Executes time triggers for the given block
+    /// Process time triggers for the given block
     /// and applies remaining block effects outside the world state.
     ///
     /// # Errors
@@ -1479,8 +1483,8 @@ impl<'state> StateBlock<'state> {
         block: &CommittedBlock,
         topology: Vec<PeerId>,
     ) -> Result<()> {
-        self.execute_time_triggers(block)?;
-        debug!(height = %self.height(), "Time triggers successfully executed");
+        self.process_time_triggers(block)?;
+        debug!(height = %self.height(), "Time triggers successfully processed");
         let _events = self.apply_outside_world(block, topology);
 
         Ok(())
@@ -1564,7 +1568,7 @@ impl<'state> StateBlock<'state> {
                 // Execute every trigger in it's own transaction
                 let event = {
                     let mut transaction = self.transaction();
-                    match transaction.process_trigger(
+                    match transaction.execute_trigger(
                         &id,
                         action.authority(),
                         action.executable(),
@@ -1591,7 +1595,7 @@ impl<'state> StateBlock<'state> {
         }
 
         let mut transaction = self.transaction();
-        transaction.world.triggers.decrease_repeats(&succeed);
+        transaction.world.triggers.decrease_repeats(succeed.iter());
         transaction.apply();
 
         errors.is_empty().then_some(()).ok_or(errors)
@@ -1643,7 +1647,7 @@ impl StateTransaction<'_, '_> {
         })
     }
 
-    fn process_trigger(
+    fn execute_trigger(
         &mut self,
         id: &TriggerId,
         authority: &AccountId,
@@ -1702,10 +1706,14 @@ impl StateTransaction<'_, '_> {
                     .data_triggers()
                     .get(&trg_id)
                     .expect("only data trigger IDs should be on the stack");
+                if action.repeats.is_depleted() {
+                    continue;
+                }
                 (action.authority().clone(), action.executable().clone())
             };
 
-            self.process_trigger(&trg_id, &authority, &executable, event.clone().into())?;
+            self.world.triggers.decrease_repeats([&trg_id].into_iter());
+            self.execute_trigger(&trg_id, &authority, &executable, event.clone().into())?;
 
             let next_items = self
                 .capture_data_events()
