@@ -934,12 +934,7 @@ impl<'block, 'set> SetTransaction<'block, 'set> {
     ) {
         let to_remove: Vec<TriggerId> = triggers
             .iter()
-            .filter_map(|(id, action)| {
-                if let Repeats::Exactly(0) = action.repeats {
-                    return Some(id.clone());
-                }
-                None
-            })
+            .filter_map(|(id, action)| action.repeats.is_depleted().then(|| id.clone()))
             .collect();
 
         for id in to_remove {
@@ -986,10 +981,8 @@ impl<'block, 'set> SetTransaction<'block, 'set> {
             return;
         }
 
-        if let Repeats::Exactly(repeats) = action.repeats {
-            if repeats == 0 {
-                return;
-            }
+        if action.repeats.is_depleted() {
+            return;
         }
 
         matched_ids.push((event.into(), id.clone()));

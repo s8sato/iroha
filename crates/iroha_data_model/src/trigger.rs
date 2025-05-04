@@ -236,6 +236,13 @@ pub mod action {
         }
     }
 
+    impl Repeats {
+        /// Returns `true` if this repeat policy has no remaining executions.
+        pub fn is_depleted(&self) -> bool {
+            matches!(self, Repeats::Exactly(0))
+        }
+    }
+
     mod candidate {
         use parity_scale_codec::Input;
 
