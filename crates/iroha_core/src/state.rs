@@ -25,7 +25,7 @@ use iroha_data_model::{
     },
     role::RoleId,
 };
-use iroha_logger::prelude::*;
+use iroha_logger::prelude::{tracing::event, *};
 use iroha_primitives::{must_use::MustUse, numeric::Numeric, small::SmallVec};
 use mv::{
     cell::{Block as CellBlock, Cell, Transaction as CellTransaction, View as CellView},
@@ -98,6 +98,8 @@ pub struct World {
     pub(crate) executor: Cell<Executor>,
     /// Executor-defined data model
     pub(crate) executor_data_model: Cell<ExecutorDataModel>,
+    /// Required here for formal correctness, even though it is only used below block level.
+    _external_event_buf: Cell<Vec<EventBox>>,
 }
 
 /// Struct for block's aggregated changes
@@ -128,6 +130,8 @@ pub struct WorldBlock<'world> {
     pub(crate) executor: CellBlock<'world, Executor>,
     /// Executor-defined data model
     pub(crate) executor_data_model: CellBlock<'world, ExecutorDataModel>,
+    /// Buffer of events pending publication to external subscribers.
+    external_event_buf: CellBlock<'world, Vec<EventBox>>,
 }
 
 /// Struct for single transaction's aggregated changes
@@ -159,9 +163,11 @@ pub struct WorldTransaction<'block, 'world> {
     pub(crate) executor: CellTransaction<'block, 'world, Executor>,
     /// Executor-defined data model
     pub(crate) executor_data_model: CellTransaction<'block, 'world, ExecutorDataModel>,
+    /// Buffer of events pending publication to external subscribers.
+    external_event_buf: CellTransaction<'block, 'world, Vec<EventBox>>,
     /// Data events buffered during a single execution step
     /// -- either the initial step (transaction or time trigger) or a subsequent step (data trigger).
-    events_buffer: Vec<DataEvent>,
+    internal_event_buf: Vec<DataEvent>,
 }
 
 /// Consistent point in time view of the [`World`]
@@ -371,6 +377,7 @@ impl World {
             triggers: self.triggers.block(),
             executor: self.executor.block(),
             executor_data_model: self.executor_data_model.block(),
+            external_event_buf: self._external_event_buf.block(),
         }
     }
 
@@ -390,6 +397,7 @@ impl World {
             triggers: self.triggers.block_and_revert(),
             executor: self.executor.block_and_revert(),
             executor_data_model: self.executor_data_model.block_and_revert(),
+            external_event_buf: self._external_event_buf.block_and_revert(),
         }
     }
 
@@ -756,7 +764,8 @@ impl<'world> WorldBlock<'world> {
             triggers: self.triggers.transaction(),
             executor: self.executor.transaction(),
             executor_data_model: self.executor_data_model.transaction(),
-            events_buffer: Vec::new(),
+            external_event_buf: self.external_event_buf.transaction(),
+            internal_event_buf: Vec::new(),
         }
     }
 
@@ -777,6 +786,8 @@ impl<'world> WorldBlock<'world> {
             triggers,
             executor,
             executor_data_model,
+            // Always drop at the block level.
+            external_event_buf: _,
         } = self;
         // IMPORTANT!!! Commit fields in reverse order, this way consistent results are insured
         executor_data_model.commit();
@@ -813,8 +824,10 @@ impl WorldTransaction<'_, '_> {
             triggers,
             executor,
             executor_data_model,
-            events_buffer: _,
+            external_event_buf,
+            internal_event_buf: _,
         } = self;
+        external_event_buf.apply();
         executor_data_model.apply();
         executor.apply();
         triggers.apply();
@@ -923,7 +936,8 @@ impl WorldTransaction<'_, '_> {
             let asset = Asset::new(asset_id.clone(), default_asset_value.into());
 
             Self::_emit_events(
-                &mut self.events_buffer,
+                &mut self.external_event_buf,
+                &mut self.internal_event_buf,
                 Some(AssetEvent::Created(asset.clone())),
             );
             self.assets.insert(asset_id.clone(), asset);
@@ -1049,22 +1063,28 @@ impl WorldTransaction<'_, '_> {
         }
     }
 
-    /// The function puts events produced by iterator into `events_buffer`.
+    /// The function puts events produced by iterator into event buffers.
     /// Events should be produced in the order of expanding scope: from specific to general.
     /// Example: account events before domain events.
     pub fn emit_events<I: IntoIterator<Item = T>, T: Into<DataEvent>>(&mut self, world_events: I) {
-        Self::_emit_events(&mut self.events_buffer, world_events)
+        Self::_emit_events(
+            &mut self.external_event_buf,
+            &mut self.internal_event_buf,
+            world_events,
+        )
     }
 
     /// Implementation of [`Self::emit_events()`].
     ///
     /// Usable when you can't call [`Self::emit_events()`] due to mutable reference to self.
     fn _emit_events<I: IntoIterator<Item = T>, T: Into<DataEvent>>(
-        events_buffer: &mut Vec<DataEvent>,
+        external_event_buf: &mut CellTransaction<Vec<EventBox>>,
+        internal_event_buf: &mut Vec<DataEvent>,
         world_events: I,
     ) {
-        let data_events = world_events.into_iter().map(Into::into);
-        events_buffer.extend(data_events);
+        let data_events: Vec<DataEvent> = world_events.into_iter().map(Into::into).collect();
+        external_event_buf.extend(data_events.iter().cloned().map(EventBox::from));
+        internal_event_buf.extend(data_events);
     }
 }
 
@@ -1376,7 +1396,7 @@ impl<'state> StateBlock<'state> {
         world.commit();
     }
 
-    /// Applies a committed block to the world state.
+    /// Apply a committed block to the world state.
     ///
     /// Execution order:
     /// 1. Transactions (including invoked data triggers)
@@ -1413,15 +1433,15 @@ impl<'state> StateBlock<'state> {
         &mut self,
         block: &CommittedBlock,
         topology: Vec<PeerId>,
-    ) -> Result<()> {
+    ) -> Result<Vec<EventBox>> {
         self.process_time_triggers(block)?;
         debug!(height = %self.height(), "Time triggers successfully processed");
-        let _events = self.apply_outside_world(block, topology);
+        let state_events = self.apply_outside_world(block, topology);
 
-        Ok(())
+        Ok(state_events)
     }
 
-    /// Applies remaining block effects outside the world state.
+    /// Apply remaining block effects outside the world state.
     #[must_use]
     fn apply_outside_world(
         &mut self,
@@ -1449,17 +1469,14 @@ impl<'state> StateBlock<'state> {
         *self.prev_commit_topology = core::mem::take(&mut self.commit_topology);
         *self.commit_topology = topology;
 
-        // SATO directly announce the event
-        // self.world.events_buffer.push(
-        //     BlockEvent {
-        //         header: block.as_ref().header(),
-        //         status: BlockStatus::Applied,
-        //     }
-        //     .into(),
-        // );
-        // SATO don't return Vec<EventBox>
-        Vec::new()
-        // core::mem::take(&mut self.world.events_buffer)
+        self.world.external_event_buf.push(
+            BlockEvent {
+                header: block.as_ref().header(),
+                status: BlockStatus::Applied,
+            }
+            .into(),
+        );
+        core::mem::take(&mut self.world.external_event_buf)
     }
 
     /// Process all non-erroneous transactions in the given committed block.
@@ -1484,6 +1501,9 @@ impl<'state> StateBlock<'state> {
     /// Process all time triggers matching the given block.
     fn process_time_triggers(&mut self, block: &CommittedBlock) -> Result<()> {
         let time_event = self.create_time_event(block);
+        self.world
+            .external_event_buf
+            .push(time_event.clone().into());
         let matched: Vec<_> = self
             .world
             .triggers
@@ -1523,63 +1543,6 @@ impl<'state> StateBlock<'state> {
 
         TimeEvent { interval }
     }
-
-    /// Process every trigger in `matched_ids`
-    // SATO remove after replacing event emission
-    fn process_triggers(&mut self) -> Result<(), Vec<eyre::Report>> {
-        // Cloning and clearing `self.matched_ids` so that `handle_` call won't deadlock
-        let matched_ids = Vec::new();
-        // let matched_ids = self.world.triggers.extract_matched_ids();
-        let mut succeed = Vec::<TriggerId>::with_capacity(matched_ids.len());
-        let mut errors = Vec::new();
-        for (event, id) in matched_ids {
-            // Eliding the closure triggers a lifetime mismatch
-            #[allow(clippy::redundant_closure_for_method_calls)]
-            let action = self
-                .world
-                .triggers
-                .inspect_by_id(&id, |action| action.clone_and_box());
-            if let Some(action) = action {
-                if let Repeats::Exactly(repeats) = action.repeats() {
-                    if *repeats == 0 {
-                        continue;
-                    }
-                }
-                // Execute every trigger in it's own transaction
-                let event = {
-                    let mut transaction = self.transaction();
-                    match transaction.execute_trigger(
-                        &id,
-                        action.authority(),
-                        action.executable(),
-                        event,
-                    ) {
-                        Ok(()) => {
-                            transaction.apply();
-                            succeed.push(id.clone());
-                            TriggerCompletedEvent::new(id, TriggerCompletedOutcome::Success)
-                        }
-                        Err(error) => {
-                            let event = TriggerCompletedEvent::new(
-                                id,
-                                TriggerCompletedOutcome::Failure(error.to_string()),
-                            );
-                            errors.push(error);
-                            event
-                        }
-                    }
-                };
-                // SATO directly announce the event
-                // self.world.events_buffer.push(event.into());
-            }
-        }
-
-        let mut transaction = self.transaction();
-        transaction.world.triggers.decrease_repeats(succeed.iter());
-        transaction.apply();
-
-        errors.is_empty().then_some(()).ok_or(errors)
-    }
 }
 
 impl StateTransaction<'_, '_> {
@@ -1606,6 +1569,7 @@ impl StateTransaction<'_, '_> {
         executable: &ExecutableRef,
         event: ExecuteTriggerEvent,
     ) -> Result<()> {
+        self.world.external_event_buf.push(event.clone().into());
         self.execute_trigger(id, authority, executable, event.into())?;
         Ok(())
     }
@@ -1645,7 +1609,7 @@ impl StateTransaction<'_, '_> {
         executable: &ExecutableRef,
         event: EventBox,
     ) -> Result<()> {
-        match executable {
+        let res = match executable {
             ExecutableRef::Instructions(instructions) => {
                 self.process_instructions(instructions.iter().cloned(), authority)
             }
@@ -1656,21 +1620,30 @@ impl StateTransaction<'_, '_> {
                     .get_compiled_contract(blob_hash)
                     .expect("INTERNAL BUG: contract is not present")
                     .clone();
-                let mut wasm_runtime: wasm::Runtime<
-                    wasm::state::CommonState<
-                        wasm::state::chain_state::WithMut<'_, '_, '_>,
-                        wasm::state::specific::Trigger,
-                    >,
-                > = wasm::RuntimeBuilder::<wasm::state::Trigger>::new()
+                wasm::RuntimeBuilder::<wasm::state::Trigger>::new()
                     .with_config(self.world().parameters().smart_contract)
                     .with_engine(self.engine.clone()) // Cloning engine is cheap
-                    .build()?;
-                wasm_runtime
-                    .execute_trigger_module(self, id, authority.clone(), &module, event)
+                    .build()
+                    .and_then(|mut wasm_runtime| {
+                        wasm_runtime.execute_trigger_module(
+                            self,
+                            id,
+                            authority.clone(),
+                            &module,
+                            event,
+                        )
+                    })
                     .map_err(Into::into)
             }
-        }
-        // SATO emit trigger events
+        };
+        let outcome = match &res {
+            Ok(()) => TriggerCompletedOutcome::Success,
+            Err(error) => TriggerCompletedOutcome::Failure(error.to_string()),
+        };
+        let event = TriggerCompletedEvent::new(id.clone(), outcome);
+        self.world.external_event_buf.push(event.into());
+
+        res
     }
 
     const MAX_EXECUTION_DEPTH: usize = 5;
@@ -1717,11 +1690,10 @@ impl StateTransaction<'_, '_> {
         Ok(())
     }
 
-    /// Flushes the event buffer and returns pairs of __representative__ matched events and trigger IDs.
-    // FIXME: Only data events should be in the buffer. Remove `ExecuteTriggerEvent` (#5147) and `TimeEvent`
+    /// Flush the internal event buffer and return pairs of __representative__ matched events and trigger IDs.
     // FIXME: Return the triggering event unions instead of the representatives (#5355 as a prerequisite)
     fn capture_data_events(&mut self) -> Vec<(DataEvent, TriggerId)> {
-        let drained: Vec<DataEvent> = self.world.events_buffer.drain(..).collect();
+        let drained: Vec<DataEvent> = self.world.internal_event_buf.drain(..).collect();
         self.world
             .triggers
             .data_triggers()
@@ -2125,6 +2097,7 @@ pub(crate) mod deserialize {
                     let mut triggers = None;
                     let mut executor = None;
                     let mut executor_data_model = None;
+                    let mut _external_event_buf = None;
 
                     while let Some(key) = map.next_key::<String>()? {
                         match key.as_str() {
@@ -2170,6 +2143,9 @@ pub(crate) mod deserialize {
                             "executor_data_model" => {
                                 executor_data_model = Some(map.next_value()?);
                             }
+                            "_external_event_buf" => {
+                                _external_event_buf = Some(map.next_value()?);
+                            }
 
                             _ => { /* Skip unknown fields */ }
                         }
@@ -2199,6 +2175,9 @@ pub(crate) mod deserialize {
                             .ok_or_else(|| serde::de::Error::missing_field("executor"))?,
                         executor_data_model: executor_data_model.ok_or_else(|| {
                             serde::de::Error::missing_field("executor_data_model")
+                        })?,
+                        _external_event_buf: _external_event_buf.ok_or_else(|| {
+                            serde::de::Error::missing_field("_external_event_buf")
                         })?,
                     })
                 }

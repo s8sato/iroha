@@ -363,6 +363,7 @@ impl Sumeragi {
         self.topology
             .block_committed(state_block.world.peers().clone());
 
+        // SATO publish Ok(state_events)
         if let Err(error) =
             state_block.apply_after_transactions(&block, self.topology.as_ref().to_owned())
         {
@@ -374,6 +375,7 @@ impl Sumeragi {
                 "Failed during on-commit processing, including time triggers"
             );
         }
+        // SATO shouldn't proceed
 
         self.cache_transaction(&state_block);
         self.connect_peers(&self.topology);
