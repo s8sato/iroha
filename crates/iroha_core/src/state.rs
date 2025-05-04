@@ -922,8 +922,7 @@ impl WorldTransaction<'_, '_> {
         if self.assets.get(asset_id).is_none() {
             let asset = Asset::new(asset_id.clone(), default_asset_value.into());
 
-            Self::emit_events_impl(
-                &mut self.triggers,
+            Self::_emit_events(
                 &mut self.events_buffer,
                 Some(AssetEvent::Created(asset.clone())),
             );
@@ -1054,23 +1053,17 @@ impl WorldTransaction<'_, '_> {
     /// Events should be produced in the order of expanding scope: from specific to general.
     /// Example: account events before domain events.
     pub fn emit_events<I: IntoIterator<Item = T>, T: Into<DataEvent>>(&mut self, world_events: I) {
-        Self::emit_events_impl(&mut self.triggers, &mut self.events_buffer, world_events)
+        Self::_emit_events(&mut self.events_buffer, world_events)
     }
 
     /// Implementation of [`Self::emit_events()`].
     ///
     /// Usable when you can't call [`Self::emit_events()`] due to mutable reference to self.
-    fn emit_events_impl<I: IntoIterator<Item = T>, T: Into<DataEvent>>(
-        triggers: &mut TriggerSetTransaction,
+    fn _emit_events<I: IntoIterator<Item = T>, T: Into<DataEvent>>(
         events_buffer: &mut Vec<DataEvent>,
         world_events: I,
     ) {
-        let data_events: SmallVec<[DataEvent; 3]> =
-            world_events.into_iter().map(Into::into).collect();
-
-        for event in data_events.iter() {
-            triggers.handle_data_event(event.clone());
-        }
+        let data_events = world_events.into_iter().map(Into::into);
         events_buffer.extend(data_events);
     }
 }
@@ -1532,9 +1525,11 @@ impl<'state> StateBlock<'state> {
     }
 
     /// Process every trigger in `matched_ids`
+    // SATO remove after replacing event emission
     fn process_triggers(&mut self) -> Result<(), Vec<eyre::Report>> {
         // Cloning and clearing `self.matched_ids` so that `handle_` call won't deadlock
-        let matched_ids = self.world.triggers.extract_matched_ids();
+        let matched_ids = Vec::new();
+        // let matched_ids = self.world.triggers.extract_matched_ids();
         let mut succeed = Vec::<TriggerId>::with_capacity(matched_ids.len());
         let mut errors = Vec::new();
         for (event, id) in matched_ids {

@@ -84,10 +84,6 @@ pub struct Set {
     /// 2. Getting compiled by wasmtime module for execution
     /// 3. Deduplicating triggers with the same wasm blob
     contracts: WasmSmartContractMap,
-    /// List of actions that should be triggered by events provided by `handle_*` methods.
-    /// Vector is used to save the exact triggers order.
-    // NOTE: Cell is used because matched_ids changed as whole (not granularly)
-    matched_ids: Cell<Vec<(EventBox, TriggerId)>>,
 }
 
 /// Trigger set for block's aggregated changes
@@ -104,9 +100,6 @@ pub struct SetBlock<'set> {
     ids: StorageBlock<'set, TriggerId, TriggeringEventType>,
     /// Original [`WasmSmartContract`]s by [`TriggerId`] for querying purposes.
     contracts: WasmSmartContractMapBlock<'set>,
-    /// List of actions that should be triggered by events provided by `handle_*` methods.
-    /// Vector is used to save the exact triggers order.
-    matched_ids: CellBlock<'set, Vec<(EventBox, TriggerId)>>,
 }
 
 /// Trigger set for transaction's aggregated changes
@@ -125,9 +118,6 @@ pub struct SetTransaction<'block, 'set> {
     ids: StorageTransaction<'block, 'set, TriggerId, TriggeringEventType>,
     /// Original [`WasmSmartContract`]s by [`TriggerId`] for querying purposes.
     contracts: WasmSmartContractMapTransaction<'block, 'set>,
-    /// List of actions that should be triggered by events provided by `handle_*` methods.
-    /// Vector is used to save the exact triggers order.
-    matched_ids: CellTransaction<'block, 'set, Vec<(EventBox, TriggerId)>>,
 }
 
 /// Consistent point in time view of the [`Set`]
@@ -144,9 +134,6 @@ pub struct SetView<'set> {
     ids: StorageView<'set, TriggerId, TriggeringEventType>,
     /// Original [`WasmSmartContract`]s by [`TriggerId`] for querying purposes.
     contracts: WasmSmartContractMapView<'set>,
-    /// List of actions that should be triggered by events provided by `handle_*` methods.
-    /// Vector is used to save the exact triggers order.
-    matched_ids: CellView<'set, Vec<(EventBox, TriggerId)>>,
 }
 
 /// Entry in wasm smart-contracts map
@@ -189,7 +176,6 @@ impl<'de> DeserializeSeed<'de> for WasmSeed<'_, Set> {
                 let mut by_call_triggers = None;
                 let mut ids = None;
                 let mut contracts = None;
-                let mut matched_ids = None;
                 while let Some(key) = map.next_key::<String>()? {
                     match key.as_str() {
                         "data_triggers" => {
@@ -213,9 +199,6 @@ impl<'de> DeserializeSeed<'de> for WasmSeed<'_, Set> {
                                 vseed: self.loader.cast::<WasmSmartContractEntry>(),
                             })?);
                         }
-                        "matched_ids" => {
-                            matched_ids = Some(map.next_value()?);
-                        }
                         _ => { /* Ignore unknown fields */ }
                     }
                 }
@@ -232,8 +215,6 @@ impl<'de> DeserializeSeed<'de> for WasmSeed<'_, Set> {
                     ids: ids.ok_or_else(|| serde::de::Error::missing_field("ids"))?,
                     contracts: contracts
                         .ok_or_else(|| serde::de::Error::missing_field("contracts"))?,
-                    matched_ids: matched_ids
-                        .ok_or_else(|| serde::de::Error::missing_field("matched_ids"))?,
                 })
             }
         }
@@ -310,7 +291,6 @@ pub trait SetReadOnly {
     fn ids(&self) -> &impl StorageReadOnly<TriggerId, TriggeringEventType>;
     fn contracts(&self)
         -> &impl StorageReadOnly<HashOf<WasmSmartContract>, WasmSmartContractEntry>;
-    fn matched_ids(&self) -> &[(EventBox, TriggerId)];
 
     /// Get original [`WasmSmartContract`] for [`TriggerId`].
     /// Returns `None` if there's no [`Trigger`]
@@ -505,9 +485,6 @@ macro_rules! impl_set_ro {
             fn contracts(&self) -> &impl StorageReadOnly<HashOf<WasmSmartContract>, WasmSmartContractEntry> {
                 &self.contracts
             }
-            fn matched_ids(&self) -> &[(EventBox, TriggerId)] {
-                &self.matched_ids
-            }
         }
     )*};
 }
@@ -526,7 +503,6 @@ impl Set {
             by_call_triggers: self.by_call_triggers.block(),
             ids: self.ids.block(),
             contracts: self.contracts.block(),
-            matched_ids: self.matched_ids.block(),
         }
     }
 
@@ -539,7 +515,6 @@ impl Set {
             by_call_triggers: self.by_call_triggers.block_and_revert(),
             ids: self.ids.block_and_revert(),
             contracts: self.contracts.block_and_revert(),
-            matched_ids: self.matched_ids.block_and_revert(),
         }
     }
 
@@ -552,7 +527,6 @@ impl Set {
             by_call_triggers: self.by_call_triggers.view(),
             ids: self.ids.view(),
             contracts: self.contracts.view(),
-            matched_ids: self.matched_ids.view(),
         }
     }
 }
@@ -567,14 +541,12 @@ impl<'set> SetBlock<'set> {
             by_call_triggers: self.by_call_triggers.transaction(),
             ids: self.ids.transaction(),
             contracts: self.contracts.transaction(),
-            matched_ids: self.matched_ids.transaction(),
         }
     }
 
     /// Commit block's changes
     pub fn commit(self) {
         // NOTE: commit in reverse order
-        self.matched_ids.commit();
         self.contracts.commit();
         self.ids.commit();
         self.by_call_triggers.commit();
@@ -599,11 +571,6 @@ impl<'set> SetBlock<'set> {
             })
             .flatten()
     }
-
-    /// Extract `matched_id`
-    pub fn extract_matched_ids(&mut self) -> Vec<(EventBox, TriggerId)> {
-        core::mem::take(&mut self.matched_ids)
-    }
 }
 
 trait TriggeringEventFilter: EventFilter {}
@@ -616,7 +583,6 @@ impl<'block, 'set> SetTransaction<'block, 'set> {
     /// Apply transaction's changes
     pub fn apply(self) {
         // NOTE: apply in reverse order
-        self.matched_ids.apply();
         self.contracts.apply();
         self.ids.apply();
         self.by_call_triggers.apply();
@@ -945,39 +911,6 @@ impl<'block, 'set> SetTransaction<'block, 'set> {
                 .and_then(|_| Self::remove_from(contracts, triggers, id).then_some(()))
                 .expect("`Set`'s `ids`, `contracts` and typed trigger collections are inconsistent. This is a bug")
         }
-    }
-
-    /// Handle [`DataEvent`].
-    ///
-    /// Finds all actions, that are triggered by `event` and stores them.
-    /// This actions will be inspected in the next [`Set::handle_data_event()`] call
-    // Passing by value to follow other `handle_` methods interface
-    #[allow(clippy::needless_pass_by_value)]
-    pub fn handle_data_event(&mut self, event: DataEvent) {
-        self.data_triggers.iter().for_each(|entry| {
-            Self::match_and_insert_trigger(&mut self.matched_ids, event.clone(), entry)
-        });
-    }
-
-    /// Match and insert a [`TriggerId`] into the set of matched ids.
-    ///
-    /// Skips insertion:
-    /// - If the action's filter doesn't match an event
-    /// - If the action's repeats count equals to 0
-    fn match_and_insert_trigger<E: Into<EventBox>, F: EventFilter<Event = E>>(
-        matched_ids: &mut Vec<(EventBox, TriggerId)>,
-        event: E,
-        (id, action): (&TriggerId, &LoadedAction<F>),
-    ) {
-        if !action.filter.matches(&event) {
-            return;
-        }
-
-        if action.repeats.is_depleted() {
-            return;
-        }
-
-        matched_ids.push((event.into(), id.clone()));
     }
 }
 
