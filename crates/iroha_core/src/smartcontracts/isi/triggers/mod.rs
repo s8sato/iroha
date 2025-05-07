@@ -322,7 +322,7 @@ pub mod isi {
                 .triggers
                 .decrease_repeats([id].into_iter());
             state_transaction
-                .process_trigger_call(id, &authority, &executable, event)
+                .execute_called_trigger(id, &authority, &executable, event)
                 .map_err(|err| Error::InvariantViolation(err.to_string()))?;
 
             Ok(())

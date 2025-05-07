@@ -55,9 +55,8 @@ impl StateApplyBlocks {
                         &topology,
                         &peer_private_key,
                     );
-                    state_block
-                        .apply_after_transactions(&block, topology.as_ref().to_owned())
-                        .expect("no post-transaction processes that can fail");
+                    let _events =
+                        state_block.apply_without_execution(&block, topology.as_ref().to_owned());
                     state_block.commit();
                     block
                 })
@@ -88,7 +87,7 @@ impl StateApplyBlocks {
     ) -> Result<()> {
         for (block, i) in blocks.iter().zip(1..) {
             let mut state_block = state.block(block.as_ref().header());
-            state_block.apply(block, topology.as_ref().to_owned())?;
+            let _events = state_block.apply(block, topology.as_ref().to_owned());
             state_block.commit();
             assert_eq!(state.view().height(), i);
         }

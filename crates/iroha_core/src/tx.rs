@@ -208,7 +208,7 @@ impl StateBlock<'_> {
     ) -> Result<SignedTransaction, (SignedTransaction, TransactionRejectionReason)> {
         let mut state_transaction = self.transaction();
         if let Err(rejection_reason) =
-            Self::_validate_transaction(tx.clone(), &mut state_transaction, wasm_cache)
+            Self::validate_transaction_internal(tx.clone(), &mut state_transaction, wasm_cache)
         {
             return Err((tx.0, rejection_reason));
         }
@@ -217,7 +217,7 @@ impl StateBlock<'_> {
         Ok(tx.0)
     }
 
-    fn _validate_transaction(
+    fn validate_transaction_internal(
         tx: AcceptedTransaction,
         state_transaction: &mut StateTransaction<'_, '_>,
         wasm_cache: &mut WasmCache<'_, '_, '_>,

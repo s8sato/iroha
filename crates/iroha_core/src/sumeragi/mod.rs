@@ -124,13 +124,11 @@ impl SumeragiHandle {
         topology.block_committed(state_block.world.peers().clone());
 
         state_block
-            .apply_after_transactions(&block, topology.as_ref().to_owned())
-            .expect("no post-transaction processes that can fail");
-        // SATO send events elsewhere
-        // .into_iter()
-        // .for_each(|e| {
-        //     let _ = events_sender.send(e);
-        // });
+            .apply_without_execution(&block, topology.as_ref().to_owned())
+            .into_iter()
+            .for_each(|e| {
+                let _ = events_sender.send(e);
+            });
     }
 }
 

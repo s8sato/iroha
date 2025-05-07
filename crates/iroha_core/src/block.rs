@@ -272,7 +272,7 @@ mod new {
     impl NewBlock {
         /// Validate each transaction in the block, apply resulting state changes,
         /// and record any errors back into the block.
-        pub fn process_and_record_transactions(
+        pub fn validate_and_record_transactions(
             self,
             state_block: &mut StateBlock<'_>,
         ) -> WithEvents<ValidBlock> {
@@ -450,6 +450,7 @@ mod valid {
             Ok(())
         }
 
+        // SATO execute time triggers
         /// Validate the given block, apply resulting state changes,
         /// and record any transaction errors back into the block.
         ///
@@ -477,7 +478,7 @@ mod valid {
                 return WithEvents::new(Err((block, error)));
             }
 
-            if let Err(error) = Self::process_and_record_transactions(
+            if let Err(error) = Self::validate_and_record_transactions(
                 &mut block,
                 expected_chain_id,
                 genesis_account,
@@ -517,7 +518,7 @@ mod valid {
                 state.block(block.header())
             };
 
-            if let Err(error) = Self::process_and_record_transactions(
+            if let Err(error) = Self::validate_and_record_transactions(
                 &mut block,
                 expected_chain_id,
                 genesis_account,
@@ -616,7 +617,7 @@ mod valid {
 
         /// Validate each transaction in the block, apply resulting state changes,
         /// and record any errors back into the block.
-        fn process_and_record_transactions(
+        fn validate_and_record_transactions(
             block: &mut SignedBlock,
             expected_chain_id: &ChainId,
             genesis_account: &AccountId,
@@ -1229,7 +1230,7 @@ mod tests {
 
         let mut state_block = state.block(unverified_block.header);
         let valid_block = unverified_block
-            .process_and_record_transactions(&mut state_block)
+            .validate_and_record_transactions(&mut state_block)
             .unpack(|_| {});
         state_block.commit();
 
@@ -1297,7 +1298,7 @@ mod tests {
             .unpack(|_| {});
         let mut state_block = state.block(unverified_block.header);
         let valid_block = unverified_block
-            .process_and_record_transactions(&mut state_block)
+            .validate_and_record_transactions(&mut state_block)
             .unpack(|_| {});
         state_block.commit();
 
@@ -1352,7 +1353,7 @@ mod tests {
 
         let mut state_block = state.block(unverified_block.header);
         let valid_block = unverified_block
-            .process_and_record_transactions(&mut state_block)
+            .validate_and_record_transactions(&mut state_block)
             .unpack(|_| {});
         state_block.commit();
 
@@ -1419,7 +1420,7 @@ mod tests {
 
         let mut state_block = state.block(unverified_block.header);
         let valid_block = unverified_block
-            .process_and_record_transactions(&mut state_block)
+            .validate_and_record_transactions(&mut state_block)
             .unpack(|_| {});
         state_block.commit();
 

@@ -363,19 +363,8 @@ impl Sumeragi {
         self.topology
             .block_committed(state_block.world.peers().clone());
 
-        // SATO publish Ok(state_events)
-        if let Err(error) =
-            state_block.apply_after_transactions(&block, self.topology.as_ref().to_owned())
-        {
-            error!(
-                peer_id=%self.peer,
-                role=%self.role(),
-                block=%block.as_ref().hash(),
-                ?error,
-                "Failed during on-commit processing, including time triggers"
-            );
-        }
-        // SATO shouldn't proceed
+        let state_events =
+            state_block.apply_without_execution(&block, self.topology.as_ref().to_owned());
 
         self.cache_transaction(&state_block);
         self.connect_peers(&self.topology);
@@ -407,8 +396,7 @@ impl Sumeragi {
 
         // NOTE: This sends `BlockStatus::Applied` event,
         // so it should be done AFTER public facing state update
-        // SATO directly create and sent the event here
-        // state_events.into_iter().for_each(|e| self.send_event(e));
+        state_events.into_iter().for_each(|e| self.send_event(e));
 
         self.round_start_time = Instant::now();
         self.was_commit = true;
@@ -940,7 +928,7 @@ impl Sumeragi {
 
             let mut state_block = state.block(unverified_block.header());
             let block = unverified_block
-                .process_and_record_transactions(&mut state_block)
+                .validate_and_record_transactions(&mut state_block)
                 .unpack(|e| self.send_event(e));
 
             *voting_block = if self.topology.is_consensus_required().is_some() {
@@ -1543,15 +1531,13 @@ mod tests {
 
         let mut state_block = state.block(unverified_genesis.header());
         let genesis = unverified_genesis
-            .process_and_record_transactions(&mut state_block)
+            .validate_and_record_transactions(&mut state_block)
             .unpack(|_| {})
             .commit(topology)
             .unpack(|_| {})
             .expect("Block is valid");
 
-        state_block
-            .apply_after_transactions(&genesis, topology.as_ref().to_owned())
-            .expect("no post-transaction processes that can fail");
+        let _events = state_block.apply_without_execution(&genesis, topology.as_ref().to_owned());
         state_block.commit();
         kura.store_block(genesis);
 
@@ -1620,7 +1606,7 @@ mod tests {
         let mut state_block = state.block(unverified_block.header());
         let committed_block = unverified_block
             .clone()
-            .process_and_record_transactions(&mut state_block)
+            .validate_and_record_transactions(&mut state_block)
             .unpack(|_| {})
             .commit(&topology)
             .unpack(|_| {})
@@ -1711,7 +1697,7 @@ mod tests {
         let mut state_block = state.block(unverified_block.header());
         let committed_block = unverified_block
             .clone()
-            .process_and_record_transactions(&mut state_block)
+            .validate_and_record_transactions(&mut state_block)
             .unpack(|_| {})
             .commit(&topology)
             .unpack(|_| {})
@@ -1753,7 +1739,7 @@ mod tests {
         let mut state_block = state.block(unverified_block.header());
         let committed_block = unverified_block
             .clone()
-            .process_and_record_transactions(&mut state_block)
+            .validate_and_record_transactions(&mut state_block)
             .unpack(|_| {})
             .commit(&topology)
             .unpack(|_| {})
@@ -1836,7 +1822,7 @@ mod tests {
             create_data_for_test(&chain_id, &topology, &leader_private_key);
         let mut state_block = state.block(unverified_block.header());
         let valid_block = unverified_block
-            .process_and_record_transactions(&mut state_block)
+            .validate_and_record_transactions(&mut state_block)
             .unpack(|_| {});
         state_block.commit();
 
