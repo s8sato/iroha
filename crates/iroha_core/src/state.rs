@@ -19,14 +19,11 @@ use iroha_data_model::{
     parameter::Parameters,
     permission::Permissions,
     prelude::*,
-    query::{
-        error::{FindError, QueryExecutionFail},
-        transaction,
-    },
+    query::error::{FindError, QueryExecutionFail},
     role::RoleId,
 };
-use iroha_logger::prelude::{tracing::event, *};
-use iroha_primitives::{must_use::MustUse, numeric::Numeric, small::SmallVec};
+use iroha_logger::prelude::*;
+use iroha_primitives::numeric::Numeric;
 use mv::{
     cell::{Block as CellBlock, Cell, Transaction as CellTransaction, View as CellView},
     storage::{
@@ -1437,7 +1434,10 @@ impl<'state> StateBlock<'state> {
     }
 
     /// Execute all time triggers matching the given block.
-    fn execute_time_triggers(&mut self, block: &CommittedBlock) -> Result<()> {
+    pub(crate) fn execute_time_triggers(
+        &mut self,
+        block: &SignedBlock,
+    ) -> Result<(), TransactionRejectionReason> {
         let time_event = self.create_time_event(block);
         self.world
             .external_event_buf
@@ -1468,8 +1468,8 @@ impl<'state> StateBlock<'state> {
     }
 
     /// Create time event using previous and current blocks.
-    fn create_time_event(&self, block: &CommittedBlock) -> TimeEvent {
-        let to = block.as_ref().header().creation_time();
+    fn create_time_event(&self, block: &SignedBlock) -> TimeEvent {
+        let to = block.header().creation_time();
 
         let since = self.latest_block().map_or(to, |latest_block| {
             let header = latest_block.header();
@@ -1496,7 +1496,7 @@ impl<'state> StateBlock<'state> {
     pub fn apply(&mut self, block: &CommittedBlock, topology: Vec<PeerId>) -> Vec<EventBox> {
         self.apply_transactions(block);
         debug!(height = %self.height(), "Transactions successfully applied");
-        self.execute_time_triggers(block)
+        self.execute_time_triggers(block.as_ref())
             .expect("should be no errors");
         debug!(height = %self.height(), "Time triggers successfully applied");
         self.apply_without_execution(block, topology)
@@ -1542,64 +1542,33 @@ impl StateTransaction<'_, '_> {
     pub(crate) fn execute_called_trigger(
         &mut self,
         id: &TriggerId,
-        authority: &AccountId,
-        executable: &ExecutableRef,
         event: ExecuteTriggerEvent,
-    ) -> Result<()> {
+    ) -> Result<(), TransactionRejectionReason> {
+        let (authority, executable) = {
+            let action = self
+                .world
+                .triggers
+                .by_call_triggers()
+                .get(event.trigger_id())
+                .ok_or_else(|| FindError::Trigger(id.clone()))
+                .map_err(Error::from)
+                .map_err(ValidationFail::from)?;
+            if action.repeats.is_depleted() {
+                return Err(TriggerExecutionFail::Depleted.into());
+            }
+            (action.authority().clone(), action.executable().clone())
+        };
+        self.world.triggers.decrease_repeats([id].into_iter());
         self.world.external_event_buf.push(event.clone().into());
-        self.execute_trigger(id, authority, executable, event.into())?;
-        Ok(())
+        self.execute_trigger(id, &authority, &executable, event.into())
     }
 
-    fn execute_trigger(
-        &mut self,
-        id: &TriggerId,
-        authority: &AccountId,
-        executable: &ExecutableRef,
-        event: EventBox,
-    ) -> Result<()> {
-        let res = match executable {
-            ExecutableRef::Instructions(instructions) => {
-                self.execute_instructions(instructions.iter().cloned(), authority)
-            }
-            ExecutableRef::Wasm(blob_hash) => {
-                let module = self
-                    .world
-                    .triggers
-                    .get_compiled_contract(blob_hash)
-                    .expect("INTERNAL BUG: contract is not present")
-                    .clone();
-                wasm::RuntimeBuilder::<wasm::state::Trigger>::new()
-                    .with_config(self.world().parameters().smart_contract)
-                    .with_engine(self.engine.clone()) // Cloning engine is cheap
-                    .build()
-                    .and_then(|mut wasm_runtime| {
-                        wasm_runtime.execute_trigger_module(
-                            self,
-                            id,
-                            authority.clone(),
-                            &module,
-                            event,
-                        )
-                    })
-                    .map_err(Into::into)
-            }
-        };
-        let outcome = match &res {
-            Ok(()) => TriggerCompletedOutcome::Success,
-            Err(error) => TriggerCompletedOutcome::Failure(error.to_string()),
-        };
-        let event = TriggerCompletedEvent::new(id.clone(), outcome);
-        self.world.external_event_buf.push(event.into());
-
-        res
-    }
-
-    const MAX_EXECUTION_DEPTH: usize = 5;
+    // SATO make it a parameter
+    const MAX_EXECUTION_DEPTH: u8 = 5;
 
     /// Perform a depth-first traversal of the trigger execution path.
-    fn execute_data_triggers_dfs(&mut self) -> Result<()> {
-        let mut stack: Vec<(DataEvent, TriggerId, usize)> = self
+    pub(crate) fn execute_data_triggers_dfs(&mut self) -> Result<(), TransactionRejectionReason> {
+        let mut stack: Vec<(DataEvent, TriggerId, u8)> = self
             .capture_data_events()
             .into_iter()
             // Preserve the order of the matched triggers
@@ -1609,8 +1578,7 @@ impl StateTransaction<'_, '_> {
 
         while let Some((event, trg_id, depth)) = stack.pop() {
             if Self::MAX_EXECUTION_DEPTH < depth {
-                warn!(trigger=%trg_id, %depth, "Triggers exceeding the maximum execution depth are ignored");
-                continue;
+                return Err(TriggerExecutionFail::MaxDepthExceeded.into());
             }
             let (authority, executable) = {
                 let action = self
@@ -1658,14 +1626,59 @@ impl StateTransaction<'_, '_> {
             .collect()
     }
 
+    fn execute_trigger(
+        &mut self,
+        id: &TriggerId,
+        authority: &AccountId,
+        executable: &ExecutableRef,
+        event: EventBox,
+    ) -> Result<(), TransactionRejectionReason> {
+        let res = match executable {
+            ExecutableRef::Instructions(instructions) => self
+                .execute_instructions(instructions.iter().cloned(), authority)
+                .map_err(ValidationFail::from),
+            ExecutableRef::Wasm(blob_hash) => {
+                let module = self
+                    .world
+                    .triggers
+                    .get_compiled_contract(blob_hash)
+                    .expect("INTERNAL BUG: contract is not present")
+                    .clone();
+                wasm::RuntimeBuilder::<wasm::state::Trigger>::new()
+                    .with_config(self.world().parameters().smart_contract)
+                    .with_engine(self.engine.clone()) // Cloning engine is cheap
+                    .build()
+                    .and_then(|mut wasm_runtime| {
+                        wasm_runtime.execute_trigger_module(
+                            self,
+                            id,
+                            authority.clone(),
+                            &module,
+                            event,
+                        )
+                    })
+                    .map_err(ValidationFail::from)
+            }
+        };
+
+        let outcome = match &res {
+            Ok(()) => TriggerCompletedOutcome::Success,
+            Err(error) => TriggerCompletedOutcome::Failure(error.to_string()),
+        };
+        let event = TriggerCompletedEvent::new(id.clone(), outcome);
+        self.world.external_event_buf.push(event.into());
+
+        res.map_err(Into::into)
+    }
+
     fn execute_instructions(
         &mut self,
         instructions: impl IntoIterator<Item = InstructionBox>,
         authority: &AccountId,
-    ) -> Result<()> {
+    ) -> Result<(), Error> {
         instructions.into_iter().try_for_each(|instruction| {
             instruction.execute(authority, self)?;
-            Ok::<_, eyre::Report>(())
+            Ok(())
         })
     }
 

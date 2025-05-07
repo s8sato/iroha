@@ -487,6 +487,13 @@ mod valid {
                 return WithEvents::new(Err((block, error.into())));
             }
 
+            if let Err(error) = state_block.execute_time_triggers(&block) {
+                return WithEvents::new(Err((
+                    block,
+                    TransactionValidationError::from(error).into(),
+                )));
+            }
+
             WithEvents::new(Ok(ValidBlock(block)))
         }
 
@@ -525,6 +532,13 @@ mod valid {
                 &mut state_block,
             ) {
                 return WithEvents::new(Err((block, error.into())));
+            }
+
+            if let Err(error) = state_block.execute_time_triggers(&block) {
+                return WithEvents::new(Err((
+                    block,
+                    TransactionValidationError::from(error).into(),
+                )));
             }
 
             WithEvents::new(Ok((ValidBlock(block), state_block)))

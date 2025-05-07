@@ -20,7 +20,6 @@ pub mod isi {
     };
 
     use super::{super::prelude::*, *};
-    use crate::smartcontracts::isi::triggers::specialized::LoadedActionTrait;
 
     impl Execute for Register<Trigger> {
         #[metrics(+"register_trigger")]
@@ -301,28 +300,9 @@ pub mod isi {
                 .ok_or_else(|| Error::Find(FindError::Trigger(id.clone())))
                 .and_then(core::convert::identity)?;
 
-            let (authority, executable) = {
-                let action = state_transaction
-                    .world
-                    .triggers
-                    .by_call_triggers()
-                    .get(event.trigger_id())
-                    .ok_or_else(|| FindError::Trigger(id.clone()))?;
-                if action.repeats.is_depleted() {
-                    return Err(RepetitionError {
-                        instruction: InstructionType::ExecuteTrigger,
-                        id: id.clone().into(),
-                    }
-                    .into());
-                }
-                (action.authority().clone(), action.executable().clone())
-            };
             state_transaction
-                .world
-                .triggers
-                .decrease_repeats([id].into_iter());
-            state_transaction
-                .execute_called_trigger(id, &authority, &executable, event)
+                .execute_called_trigger(id, event)
+                // Workaround until #5147: conversion to string to avoid mutually recursive errors
                 .map_err(|err| Error::InvariantViolation(err.to_string()))?;
 
             Ok(())

@@ -241,7 +241,10 @@ impl StateBlock<'_> {
             Self::validate_wasm(authority, state_transaction, bytes)?
         }
 
-        debug!("Validation successful");
+        debug!("Transaction validated successfully; processing data triggers");
+        state_transaction.execute_data_triggers_dfs()?;
+        debug!("Data triggers executed successfully");
+
         Ok(())
     }
 

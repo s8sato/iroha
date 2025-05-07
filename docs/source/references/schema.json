@@ -5563,6 +5563,11 @@
         "tag": "WasmExecution",
         "discriminant": 4,
         "type": "WasmExecutionFail"
+      },
+      {
+        "tag": "TriggerExecution",
+        "discriminant": 5,
+        "type": "TriggerExecutionFail"
       }
     ]
   },
@@ -5813,6 +5818,18 @@
         }
       ]
     }
+  },
+  "TriggerExecutionFail": {
+    "Enum": [
+      {
+        "tag": "Depleted",
+        "discriminant": 0
+      },
+      {
+        "tag": "MaxDepthExceeded",
+        "discriminant": 1
+      }
+    ]
   },
   "TriggerId": {
     "Struct": [

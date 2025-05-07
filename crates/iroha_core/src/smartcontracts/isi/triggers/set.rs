@@ -20,12 +20,9 @@ use iroha_data_model::{
     transaction::WasmSmartContract,
 };
 use iroha_primitives::const_vec::ConstVec;
-use mv::{
-    cell::{Block as CellBlock, Cell, Transaction as CellTransaction, View as CellView},
-    storage::{
-        Block as StorageBlock, Storage, StorageReadOnly, Transaction as StorageTransaction,
-        View as StorageView,
-    },
+use mv::storage::{
+    Block as StorageBlock, Storage, StorageReadOnly, Transaction as StorageTransaction,
+    View as StorageView,
 };
 use serde::{
     de::{DeserializeSeed, MapAccess, Visitor},

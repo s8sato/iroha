@@ -604,6 +604,29 @@ pub mod error {
             pub reason: String,
         }
 
+        /// Possible reasons for trigger-specific execution failure.
+        #[derive(
+            Debug,
+            Display,
+            Clone,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Decode,
+            Encode,
+            Deserialize,
+            Serialize,
+            IntoSchema,
+        )]
+        #[ffi_type]
+        pub enum TriggerExecutionFail {
+            /// No remaining repeats.
+            Depleted,
+            /// Exceeded maximum depth for chained data triggers.
+            MaxDepthExceeded,
+        }
+
         /// The reason for rejecting transaction which happened because of transaction.
         #[derive(
             Debug,
@@ -645,6 +668,8 @@ pub mod error {
             InstructionExecution(#[cfg_attr(feature = "std", source)] InstructionExecutionFail),
             /// Failure in WebAssembly execution
             WasmExecution(#[cfg_attr(feature = "std", source)] WasmExecutionFail),
+            /// Execution of a time trigger or an invoked data trigger failed.
+            TriggerExecution(#[cfg_attr(feature = "std", source)] TriggerExecutionFail),
         }
     }
 
@@ -684,10 +709,16 @@ pub mod error {
     #[cfg(feature = "std")]
     impl std::error::Error for WasmExecutionFail {}
 
+    #[cfg(feature = "std")]
+    impl std::error::Error for TriggerExecutionFail {}
+
     pub mod prelude {
         //! The prelude re-exports most commonly used traits, structs and macros from this module.
 
-        pub use super::{InstructionExecutionFail, TransactionRejectionReason, WasmExecutionFail};
+        pub use super::{
+            InstructionExecutionFail, TransactionRejectionReason, TriggerExecutionFail,
+            WasmExecutionFail,
+        };
     }
 }
 

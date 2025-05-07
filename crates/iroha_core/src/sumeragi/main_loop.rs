@@ -2,11 +2,7 @@
 use std::{collections::BTreeSet, ops::Deref, sync::mpsc};
 
 use iroha_crypto::{HashOf, KeyPair};
-use iroha_data_model::{
-    block::{self, *},
-    events::pipeline::PipelineEventBox,
-    peer::PeerId,
-};
+use iroha_data_model::{block::*, events::pipeline::PipelineEventBox, peer::PeerId};
 use iroha_futures::supervisor::ShutdownSignal;
 use iroha_p2p::UpdateTopology;
 use tracing::{span, Level};

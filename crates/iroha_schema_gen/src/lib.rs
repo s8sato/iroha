@@ -544,6 +544,7 @@ types!(
     TriggerEvent,
     TriggerEventFilter,
     TriggerEventSet,
+    TriggerExecutionFail,
     TriggerId,
     TriggerIdPredicateAtom,
     TriggerIdProjection<PredicateMarker>,
