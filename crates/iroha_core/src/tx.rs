@@ -306,18 +306,17 @@ impl StateBlock<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use futures::io::Repeat;
-    use iroha_data_model::asset;
-    use iroha_data_model::prelude::EventBox;
-    use iroha_test_samples::{ALICE_ID, PEER_KEYPAIR};
-
-    use crate::block::{NewBlock, ValidBlock};
-    use crate::state::{State, StateBlock, World};
-    use crate::smartcontracts::isi::Registrable;
-
     use std::sync::LazyLock;
+
+    use iroha_data_model::prelude::EventBox;
+    use iroha_test_samples::PEER_KEYPAIR;
+
+    use super::*;
+    use crate::{
+        block::ValidBlock,
+        smartcontracts::isi::Registrable,
+        state::{State, StateBlock, World},
+    };
 
     /// The origin that initiates a chain of data triggers.
     enum TriggerOrigin {
@@ -334,8 +333,8 @@ mod tests {
         ///
         /// 1. Transaction transfers an asset from Alice to Bob.
         /// 2. Data trigger fires and transfers the asset from Bob to Carol.
-        /// 3. Time trigger should fire and transfer the asset from Carol to Dave.
-        /// 4. Data trigger should fire and transfer the asset from Dave to Eve.
+        /// 3. Time trigger fires and __should succeed__ to transfer the asset from Carol to Dave.
+        /// 4. Data trigger fires and transfers the asset from Dave to Eve.
         #[test]
         fn fires_after_external_transactions() {
             let sandbox = Sandbox::new()
@@ -343,7 +342,7 @@ mod tests {
                 .with_time_trigger("carol", "dave")
                 .with_data_trigger("dave", "eve");
             let mut block = sandbox.block();
-            block.batched_transfer(1, "alice", "bob");
+            block.transfer_ones(1, "alice", "bob");
             let events = block.apply();
             dbg!(&events);
             block.assert_balances([
@@ -362,14 +361,14 @@ mod tests {
         /// # Scenario
         ///
         /// 1. Transaction transfers an asset from Alice to Bob.
-        /// 2. Trigger should fire and transfer the asset from Bob to Carol.
-        /// 3. Transaction should transfer the asset from Carol to Dave.
+        /// 2. Trigger fires and transfers the asset from Bob to Carol.
+        /// 3. Transaction __should succeed__ to transfer the asset from Carol to Dave.
         #[test]
         fn fires_for_each_transaction() {
             let sandbox = Sandbox::new().with_data_trigger("bob", "carol");
             let mut block = sandbox.block();
-            block.batched_transfer(1, "alice", "bob");
-            block.batched_transfer(1, "carol", "dave");
+            block.transfer_ones(1, "alice", "bob");
+            block.transfer_ones(1, "carol", "dave");
             let events = block.apply();
             dbg!(&events);
             block.assert_balances([("alice", 9), ("bob", 0), ("carol", 0), ("dave", 1)]);
@@ -378,12 +377,12 @@ mod tests {
         /// # Scenario
         ///
         /// 1. Transaction transfers an asset from Alice to Bob twice.
-        /// 2. Trigger should fire once and transfer one from Bob to Carol.
+        /// 2. Trigger __should fire once__ and transfer one from Bob to Carol.
         #[test]
         fn fires_at_most_once_per_transaction() {
             let sandbox = Sandbox::new().with_data_trigger("bob", "carol");
             let mut block = sandbox.block();
-            block.batched_transfer(2, "alice", "bob");
+            block.transfer_ones(2, "alice", "bob");
             let events = block.apply();
             dbg!(&events);
             block.assert_balances([("alice", 8), ("bob", 1), ("carol", 1)]);
@@ -418,7 +417,7 @@ mod tests {
             }
             let mut block = sandbox.block();
             if let TriggerOrigin::ExternalTransaction = origin {
-                block.batched_transfer(1, "alice", "bob");
+                block.transfer_ones(1, "alice", "bob");
             }
             let events = block.apply();
             dbg!(&events);
@@ -437,7 +436,7 @@ mod tests {
             }
             let mut block = sandbox.block();
             if let TriggerOrigin::ExternalTransaction = origin {
-                block.batched_transfer(1, "alice", "bob");
+                block.transfer_ones(1, "alice", "bob");
             }
             let events = block.apply();
             dbg!(&events);
@@ -457,7 +456,7 @@ mod tests {
             }
             let mut block = sandbox.block();
             if let TriggerOrigin::ExternalTransaction = origin {
-                block.batched_transfer(1, "alice", "bob");
+                block.transfer_ones(1, "alice", "bob");
             }
             let events = block.apply();
             dbg!(&events);
@@ -475,7 +474,7 @@ mod tests {
             }
             let mut block = sandbox.block();
             if let TriggerOrigin::ExternalTransaction = origin {
-                block.batched_transfer(1, "alice", "bob");
+                block.transfer_ones(1, "alice", "bob");
             }
             let events = block.apply();
             dbg!(&events);
@@ -501,34 +500,36 @@ mod tests {
     const ACCOUNTS_STR: [&'static str; 5] = ["alice", "bob", "carol", "dave", "eve"];
 
     static DOMAIN: LazyLock<DomainId> = LazyLock::new(|| DOMAIN_STR.parse().unwrap());
-    static ASSET: LazyLock<AssetDefinitionId> = LazyLock::new(|| format!("{ASSET_STR}#{DOMAIN_STR}").parse().unwrap());
-    static ACCOUNTS: LazyLock<AccountMap> = LazyLock::new(|| {
+    static ASSET: LazyLock<AssetDefinitionId> =
+        LazyLock::new(|| format!("{ASSET_STR}#{DOMAIN_STR}").parse().unwrap());
+    static ACCOUNT: LazyLock<AccountMap> = LazyLock::new(|| {
         ACCOUNTS_STR
             .iter()
             .map(|name| {
-                let pub_key = iroha_crypto::KeyPair::from_seed(name.as_bytes().into(), iroha_crypto::Algorithm::Ed25519).into_parts().0;
+                let pub_key = iroha_crypto::KeyPair::from_seed(
+                    name.as_bytes().into(),
+                    iroha_crypto::Algorithm::Ed25519,
+                )
+                .into_parts()
+                .0;
                 (*name, format!("{pub_key}@{DOMAIN_STR}").parse().unwrap())
             })
             .collect()
     });
 
     fn asset(account_name: &str) -> AssetId {
-        AssetId::new(
-            ASSET.clone(),
-            ACCOUNTS[account_name].clone(),
-        )
+        AssetId::new(ASSET.clone(), ACCOUNT[account_name].clone())
     }
 
     impl Sandbox {
         fn new() -> Self {
-            let world= {
-                let domain = Domain::new(DOMAIN.clone()).build(&ALICE_ID);
-                let asset = AssetDefinition::new(ASSET.clone(), NumericSpec::default()).build(&ALICE_ID);
-                let accounts = ACCOUNTS
+            let world = {
+                let domain = Domain::new(DOMAIN.clone()).build(&ACCOUNT["alice"]);
+                let asset = AssetDefinition::new(ASSET.clone(), NumericSpec::default())
+                    .build(&ACCOUNT["alice"]);
+                let accounts = ACCOUNT
                     .iter()
-                    .map(|(_name, id)| {
-                        Account::new(id.clone()).build(&ALICE_ID)
-                    });
+                    .map(|(_name, id)| Account::new(id.clone()).build(&ACCOUNT["alice"]));
                 World::with([domain], accounts, [asset])
             };
             let kura = crate::kura::Kura::blank_kura_for_testing();
@@ -549,14 +550,37 @@ mod tests {
         }
 
         fn with_data_trigger(self, src: &str, dest: &str) -> Self {
-            self._with_trigger("data", src, dest, None, AssetEventFilter::new().for_events(AssetEventSet::Added).for_asset(asset(src)))
+            self._with_trigger(
+                "data",
+                src,
+                dest,
+                None,
+                AssetEventFilter::new()
+                    .for_events(AssetEventSet::Added)
+                    .for_asset(asset(src)),
+            )
         }
 
         fn with_data_trigger_finite(self, src: &str, dest: &str, lives: u32) -> Self {
-            self._with_trigger("data", src, dest, Some(lives), AssetEventFilter::new().for_events(AssetEventSet::Added).for_asset(asset(src)))
+            self._with_trigger(
+                "data",
+                src,
+                dest,
+                Some(lives),
+                AssetEventFilter::new()
+                    .for_events(AssetEventSet::Added)
+                    .for_asset(asset(src)),
+            )
         }
 
-        fn _with_trigger(self, condition: &str, src: &str, dest: &str, lives: Option<u32>, filter: impl Into<EventFilterBox>) -> Self {
+        fn _with_trigger(
+            self,
+            condition: &str,
+            src: &str,
+            dest: &str,
+            lives: Option<u32>,
+            filter: impl Into<EventFilterBox>,
+        ) -> Self {
             let mut block = self.0.world.triggers.block();
             let mut transaction = block.transaction();
             let trigger = Trigger::new(
@@ -565,14 +589,18 @@ mod tests {
                     [Transfer::asset_numeric(
                         asset(src),
                         1u32,
-                        ACCOUNTS[dest].clone(),
+                        ACCOUNT[dest].clone(),
                     )],
                     lives.map_or(Repeats::Indefinitely, Repeats::Exactly),
-                    ALICE_ID.clone(),
+                    ACCOUNT["alice"].clone(),
                     filter,
                 ),
-            ).try_into().unwrap();
-            transaction.add_time_trigger(&self.0.engine, trigger).unwrap();
+            )
+            .try_into()
+            .unwrap();
+            transaction
+                .add_time_trigger(&self.0.engine, trigger)
+                .unwrap();
             transaction.apply();
             block.commit();
             self
@@ -590,7 +618,7 @@ mod tests {
     }
 
     impl SandboxBlock<'_> {
-        fn batched_transfer(&mut self, repeats: u32, src: &str, dest: &str) {
+        fn transfer_ones(&mut self, n_instructions: u32, src: &str, dest: &str) {
             todo!()
         }
 
