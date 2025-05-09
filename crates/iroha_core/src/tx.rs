@@ -306,9 +306,21 @@ impl StateBlock<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::state::State;
+    use iroha_data_model::prelude::EventBox;
+
+    use crate::state::{State, StateBlock};
+
+    /// The origin that initiates a chain of data triggers.
+    enum TriggerOrigin {
+        /// A user-submitted transaction.
+        ExternalTransaction,
+        /// A scheduled time-based trigger.
+        TimeTrigger,
+    }
 
     mod time_trigger {
+        use super::*;
+
         /// # Scenario
         ///
         /// 1. Transaction transfers an asset from Alice to Bob.
@@ -336,8 +348,7 @@ mod tests {
     }
 
     mod data_trigger {
-        use super::Sandbox;
-        use crate::state::{StateBlock, StateTransaction};
+        use super::*;
 
         /// # Scenario
         ///
@@ -369,34 +380,97 @@ mod tests {
             block.assert_balances([("alice", 8), ("bob", 1), ("carol", 1)]);
         }
 
-        /// # Scenario
-        ///
-        /// 1. Transaction transfers an asset from Alice to Bob.
-        /// 2. Trigger fires and transfers the asset from Bob to Carol.
-        /// 3. Trigger fires and transfers the asset from Carol to Dave.
-        /// 4. Trigger fires but fails to transfer the asset from Dave to John Doe (not found).
-        /// 5. Everything should be rolled back.
+        /// All or none of the initial transaction and subsequent data triggers should take effect.
         #[test]
-        fn chains_atomically() {
-            let sandbox = Sandbox::new()
+        fn atomically_chains_from_transaction() {
+            aborts_on_execution_error(TriggerOrigin::ExternalTransaction);
+            aborts_on_depleting_lives(TriggerOrigin::ExternalTransaction);
+            aborts_on_exceeding_depth(TriggerOrigin::ExternalTransaction);
+            commits_on_success(TriggerOrigin::ExternalTransaction);
+        }
+
+        /// All or none of the initial time trigger and subsequent data triggers should take effect.
+        #[test]
+        fn atomically_chains_from_time_trigger() {
+            aborts_on_execution_error(TriggerOrigin::TimeTrigger);
+            aborts_on_depleting_lives(TriggerOrigin::TimeTrigger);
+            aborts_on_exceeding_depth(TriggerOrigin::TimeTrigger);
+            commits_on_success(TriggerOrigin::TimeTrigger);
+        }
+
+        fn aborts_on_execution_error(origin: TriggerOrigin) {
+            let mut sandbox = Sandbox::new()
                 .with_data_trigger("bob", "carol")
                 .with_data_trigger("carol", "dave")
-                // This trigger should fail
+                // This trigger execution fails.
                 .with_data_trigger("dave", "john_doe");
+            if let TriggerOrigin::TimeTrigger = origin {
+                sandbox = sandbox.with_time_trigger("alice", "bob");
+            }
             let mut block = sandbox.block();
-            block.batched_transfer(1, "alice", "bob");
+            if let TriggerOrigin::ExternalTransaction = origin {
+                block.batched_transfer(1, "alice", "bob");
+            }
             let events = block.apply();
             dbg!(&events);
+            // Everything should be rolled back.
             block.assert_balances([("alice", 10), ("bob", 0), ("carol", 0), ("dave", 0)]);
+        }
 
-            let sandbox = Sandbox::new()
+        fn aborts_on_depleting_lives(origin: TriggerOrigin) {
+            let mut sandbox = Sandbox::new()
+                .with_data_trigger("bob", "carol")
+                .with_data_trigger("carol", "dave")
+                // This trigger depletes after a loop.
+                .with_data_trigger_limited("dave", "bob", 2);
+            if let TriggerOrigin::TimeTrigger = origin {
+                sandbox = sandbox.with_time_trigger("alice", "bob");
+            }
+            let mut block = sandbox.block();
+            if let TriggerOrigin::ExternalTransaction = origin {
+                block.batched_transfer(1, "alice", "bob");
+            }
+            let events = block.apply();
+            dbg!(&events);
+            // Everything should be rolled back.
+            block.assert_balances([("alice", 10), ("bob", 0), ("carol", 0), ("dave", 0)]);
+        }
+
+        fn aborts_on_exceeding_depth(origin: TriggerOrigin) {
+            let mut sandbox = Sandbox::new()
+                .with_max_execution_depth(2)
+                .with_data_trigger("bob", "carol")
+                .with_data_trigger("carol", "dave")
+                // The execution sequence exceeds the depth limit.
+                .with_data_trigger("dave", "eve");
+            if let TriggerOrigin::TimeTrigger = origin {
+                sandbox = sandbox.with_time_trigger("alice", "bob");
+            }
+            let mut block = sandbox.block();
+            if let TriggerOrigin::ExternalTransaction = origin {
+                block.batched_transfer(1, "alice", "bob");
+            }
+            let events = block.apply();
+            dbg!(&events);
+            // Everything should be rolled back.
+            block.assert_balances([("alice", 10), ("bob", 0), ("carol", 0), ("dave", 0)]);
+        }
+
+        fn commits_on_success(origin: TriggerOrigin) {
+            let mut sandbox = Sandbox::new()
                 .with_data_trigger("bob", "carol")
                 .with_data_trigger("carol", "dave")
                 .with_data_trigger("dave", "eve");
+            if let TriggerOrigin::TimeTrigger = origin {
+                sandbox = sandbox.with_time_trigger("alice", "bob");
+            }
             let mut block = sandbox.block();
-            block.batched_transfer(1, "alice", "bob");
+            if let TriggerOrigin::ExternalTransaction = origin {
+                block.batched_transfer(1, "alice", "bob");
+            }
             let events = block.apply();
             dbg!(&events);
+            // The execution sequence should take effect.
             block.assert_balances([
                 ("alice", 9),
                 ("bob", 0),
@@ -407,7 +481,7 @@ mod tests {
         }
     }
 
-    type AccountBalances = std::collections::HashMapHashMap<&str, u32>;
+    type AccountBalances = std::collections::HashMap<&'static str, u32>;
 
     struct Sandbox(State);
 
@@ -427,6 +501,14 @@ mod tests {
         }
 
         fn with_data_trigger(self, src: &str, dest: &str) -> Self {
+            todo!()
+        }
+
+        fn with_data_trigger_limited(self, src: &str, dest: &str, repeats: u32) -> Self {
+            todo!()
+        }
+
+        fn with_max_execution_depth(self, depth: u8) -> Self {
             todo!()
         }
 
