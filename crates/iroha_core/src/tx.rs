@@ -306,21 +306,68 @@ impl StateBlock<'_> {
 
 #[cfg(test)]
 mod tests {
+    use crate::state::State;
+
+    mod time_trigger {
+        /// # Scenario
+        ///
+        /// 1. Transaction transfers an asset from Alice to Bob.
+        /// 2. Data trigger fires and transfers the asset from Bob to Carol.
+        /// 3. Time trigger should fire and transfer the asset from Carol to Dave.
+        /// 4. Data trigger should fire and transfer the asset from Dave to Eve.
+        #[test]
+        fn fires_after_external_transactions() {
+            let sandbox = Sandbox::new()
+                .with_data_trigger("bob", "carol")
+                .with_time_trigger("carol", "dave")
+                .with_data_trigger("dave", "eve");
+            let mut block = sandbox.block();
+            block.batched_transfer(1, "alice", "bob");
+            let events = block.apply();
+            dbg!(&events);
+            block.assert_balances([
+                ("alice", 9),
+                ("bob", 0),
+                ("carol", 0),
+                ("dave", 0),
+                ("eve", 1),
+            ]);
+        }
+    }
+
     mod data_trigger {
+        use super::Sandbox;
+        use crate::state::{StateBlock, StateTransaction};
+
         /// # Scenario
         ///
         /// 1. Transaction transfers an asset from Alice to Bob.
         /// 2. Trigger should fire and transfer the asset from Bob to Carol.
         /// 3. Transaction should transfer the asset from Carol to Dave.
         #[test]
-        fn fires_for_each_transaction() {}
+        fn fires_for_each_transaction() {
+            let sandbox = Sandbox::new().with_data_trigger("bob", "carol");
+            let mut block = sandbox.block();
+            block.batched_transfer(1, "alice", "bob");
+            block.batched_transfer(1, "carol", "dave");
+            let events = block.apply();
+            dbg!(&events);
+            block.assert_balances([("alice", 9), ("bob", 0), ("carol", 0), ("dave", 1)]);
+        }
 
         /// # Scenario
         ///
         /// 1. Transaction transfers an asset from Alice to Bob twice.
         /// 2. Trigger should fire once and transfer one from Bob to Carol.
         #[test]
-        fn fires_at_most_once_per_transaction() {}
+        fn fires_at_most_once_per_transaction() {
+            let sandbox = Sandbox::new().with_data_trigger("bob", "carol");
+            let mut block = sandbox.block();
+            block.batched_transfer(2, "alice", "bob");
+            let events = block.apply();
+            dbg!(&events);
+            block.assert_balances([("alice", 8), ("bob", 1), ("carol", 1)]);
+        }
 
         /// # Scenario
         ///
@@ -330,6 +377,75 @@ mod tests {
         /// 4. Trigger fires but fails to transfer the asset from Dave to John Doe (not found).
         /// 5. Everything should be rolled back.
         #[test]
-        fn chains_atomically() {}
+        fn chains_atomically() {
+            let sandbox = Sandbox::new()
+                .with_data_trigger("bob", "carol")
+                .with_data_trigger("carol", "dave")
+                // This trigger should fail
+                .with_data_trigger("dave", "john_doe");
+            let mut block = sandbox.block();
+            block.batched_transfer(1, "alice", "bob");
+            let events = block.apply();
+            dbg!(&events);
+            block.assert_balances([("alice", 10), ("bob", 0), ("carol", 0), ("dave", 0)]);
+
+            let sandbox = Sandbox::new()
+                .with_data_trigger("bob", "carol")
+                .with_data_trigger("carol", "dave")
+                .with_data_trigger("dave", "eve");
+            let mut block = sandbox.block();
+            block.batched_transfer(1, "alice", "bob");
+            let events = block.apply();
+            dbg!(&events);
+            block.assert_balances([
+                ("alice", 9),
+                ("bob", 0),
+                ("carol", 0),
+                ("dave", 0),
+                ("eve", 1),
+            ]);
+        }
+    }
+
+    type AccountBalances = std::collections::HashMapHashMap<&str, u32>;
+
+    struct Sandbox(State);
+
+    struct SandboxBlock<'state>(StateBlock<'state>);
+
+    impl Sandbox {
+        const DOMAIN: &'static str = "wonderland";
+        const ASSET: &'static str = "rose";
+        const ACCOUNTS: [&'static str; 5] = ["alice", "bob", "carol", "dave", "eve"];
+
+        fn new() -> Self {
+            todo!()
+        }
+
+        fn with_time_trigger(self, src: &str, dest: &str) -> Self {
+            todo!()
+        }
+
+        fn with_data_trigger(self, src: &str, dest: &str) -> Self {
+            todo!()
+        }
+
+        fn block(&self) -> SandboxBlock<'_> {
+            todo!()
+        }
+    }
+
+    impl SandboxBlock<'_> {
+        fn batched_transfer(&mut self, repeats: u32, src: &str, dest: &str) {
+            todo!()
+        }
+
+        fn apply(&mut self) -> Vec<EventBox> {
+            todo!()
+        }
+
+        fn assert_balances(&self, balances: impl Into<AccountBalances>) {
+            todo!()
+        }
     }
 }

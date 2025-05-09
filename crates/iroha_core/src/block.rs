@@ -1459,15 +1459,4 @@ mod tests {
             BlockValidationError::InvalidGenesis(InvalidGenesisError::UnexpectedAuthority)
         )
     }
-
-    mod time_trigger {
-        /// # Scenario
-        ///
-        /// 1. Transaction transfers an asset from Alice to Bob.
-        /// 2. Data trigger fires and transfers the asset from Bob to Carol.
-        /// 3. Time trigger should fire and transfer the asset from Carol to Dave.
-        /// 4. Data trigger should fire and transfer the asset from Dave to Eve.
-        #[test]
-        fn fires_after_external_transactions() {}
-    }
 }
