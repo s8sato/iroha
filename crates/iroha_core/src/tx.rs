@@ -306,9 +306,18 @@ impl StateBlock<'_> {
 
 #[cfg(test)]
 mod tests {
-    use iroha_data_model::prelude::EventBox;
+    use super::*;
 
-    use crate::state::{State, StateBlock};
+    use futures::io::Repeat;
+    use iroha_data_model::asset;
+    use iroha_data_model::prelude::EventBox;
+    use iroha_test_samples::{ALICE_ID, PEER_KEYPAIR};
+
+    use crate::block::{NewBlock, ValidBlock};
+    use crate::state::{State, StateBlock, World};
+    use crate::smartcontracts::isi::Registrable;
+
+    use std::sync::LazyLock;
 
     /// The origin that initiates a chain of data triggers.
     enum TriggerOrigin {
@@ -422,7 +431,7 @@ mod tests {
                 .with_data_trigger("bob", "carol")
                 .with_data_trigger("carol", "dave")
                 // This trigger depletes after a loop.
-                .with_data_trigger_limited("dave", "bob", 2);
+                .with_data_trigger_finite("dave", "bob", 2);
             if let TriggerOrigin::TimeTrigger = origin {
                 sandbox = sandbox.with_time_trigger("alice", "bob");
             }
@@ -481,39 +490,102 @@ mod tests {
         }
     }
 
-    type AccountBalances = std::collections::HashMap<&'static str, u32>;
-
     struct Sandbox(State);
-
     struct SandboxBlock<'state>(StateBlock<'state>);
 
-    impl Sandbox {
-        const DOMAIN: &'static str = "wonderland";
-        const ASSET: &'static str = "rose";
-        const ACCOUNTS: [&'static str; 5] = ["alice", "bob", "carol", "dave", "eve"];
+    type AccountMap = std::collections::HashMap<&'static str, AccountId>;
+    type AccountBalances = std::collections::HashMap<&'static str, u32>;
 
+    const DOMAIN_STR: &'static str = "wonderland";
+    const ASSET_STR: &'static str = "rose";
+    const ACCOUNTS_STR: [&'static str; 5] = ["alice", "bob", "carol", "dave", "eve"];
+
+    static DOMAIN: LazyLock<DomainId> = LazyLock::new(|| DOMAIN_STR.parse().unwrap());
+    static ASSET: LazyLock<AssetDefinitionId> = LazyLock::new(|| format!("{ASSET_STR}#{DOMAIN_STR}").parse().unwrap());
+    static ACCOUNTS: LazyLock<AccountMap> = LazyLock::new(|| {
+        ACCOUNTS_STR
+            .iter()
+            .map(|name| {
+                let pub_key = iroha_crypto::KeyPair::from_seed(name.as_bytes().into(), iroha_crypto::Algorithm::Ed25519).into_parts().0;
+                (*name, format!("{pub_key}@{DOMAIN_STR}").parse().unwrap())
+            })
+            .collect()
+    });
+
+    fn asset(account_name: &str) -> AssetId {
+        AssetId::new(
+            ASSET.clone(),
+            ACCOUNTS[account_name].clone(),
+        )
+    }
+
+    impl Sandbox {
         fn new() -> Self {
-            todo!()
+            let world= {
+                let domain = Domain::new(DOMAIN.clone()).build(&ALICE_ID);
+                let asset = AssetDefinition::new(ASSET.clone(), NumericSpec::default()).build(&ALICE_ID);
+                let accounts = ACCOUNTS
+                    .iter()
+                    .map(|(_name, id)| {
+                        Account::new(id.clone()).build(&ALICE_ID)
+                    });
+                World::with([domain], accounts, [asset])
+            };
+            let kura = crate::kura::Kura::blank_kura_for_testing();
+            let query_handle = crate::query::store::LiveQueryStore::start_test();
+            let state = State::new(world, kura, query_handle);
+
+            Self(state)
         }
 
         fn with_time_trigger(self, src: &str, dest: &str) -> Self {
-            todo!()
+            self._with_trigger(
+                "time",
+                src,
+                dest,
+                None,
+                TimeEventFilter::new(ExecutionTime::PreCommit),
+            )
         }
 
         fn with_data_trigger(self, src: &str, dest: &str) -> Self {
-            todo!()
+            self._with_trigger("data", src, dest, None, AssetEventFilter::new().for_events(AssetEventSet::Added).for_asset(asset(src)))
         }
 
-        fn with_data_trigger_limited(self, src: &str, dest: &str, repeats: u32) -> Self {
-            todo!()
+        fn with_data_trigger_finite(self, src: &str, dest: &str, lives: u32) -> Self {
+            self._with_trigger("data", src, dest, Some(lives), AssetEventFilter::new().for_events(AssetEventSet::Added).for_asset(asset(src)))
         }
 
-        fn with_max_execution_depth(self, depth: u8) -> Self {
-            todo!()
+        fn _with_trigger(self, condition: &str, src: &str, dest: &str, lives: Option<u32>, filter: impl Into<EventFilterBox>) -> Self {
+            let mut block = self.0.world.triggers.block();
+            let mut transaction = block.transaction();
+            let trigger = Trigger::new(
+                format!("{condition}-{src}-{dest}").parse().unwrap(),
+                Action::new(
+                    [Transfer::asset_numeric(
+                        asset(src),
+                        1u32,
+                        ACCOUNTS[dest].clone(),
+                    )],
+                    lives.map_or(Repeats::Indefinitely, Repeats::Exactly),
+                    ALICE_ID.clone(),
+                    filter,
+                ),
+            ).try_into().unwrap();
+            transaction.add_time_trigger(&self.0.engine, trigger).unwrap();
+            transaction.apply();
+            block.commit();
+            self
         }
 
-        fn block(&self) -> SandboxBlock<'_> {
-            todo!()
+        fn with_max_execution_depth(self, _depth: u8) -> Self {
+            // SATO depth parameter
+            self
+        }
+
+        fn block(&self) -> (SandboxBlock<'_>, ValidBlock) {
+            let block = ValidBlock::new_dummy(PEER_KEYPAIR.private_key());
+            (SandboxBlock(self.0.block(block.as_ref().header())), block)
         }
     }
 

@@ -1564,7 +1564,7 @@ impl StateTransaction<'_, '_> {
     }
 
     // SATO make it a parameter
-    const MAX_EXECUTION_DEPTH: u8 = 5;
+    const MAX_EXECUTION_DEPTH: u8 = 2;
 
     /// Perform a depth-first traversal of the trigger execution path.
     pub(crate) fn execute_data_triggers_dfs(&mut self) -> Result<(), TransactionRejectionReason> {
