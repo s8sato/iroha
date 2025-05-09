@@ -303,3 +303,33 @@ impl StateBlock<'_> {
             })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    mod data_trigger {
+        /// # Scenario
+        ///
+        /// 1. Transaction transfers an asset from Alice to Bob.
+        /// 2. Trigger should fire and transfer the asset from Bob to Carol.
+        /// 3. Transaction should transfer the asset from Carol to Dave.
+        #[test]
+        fn fires_for_each_transaction() {}
+
+        /// # Scenario
+        ///
+        /// 1. Transaction transfers an asset from Alice to Bob twice.
+        /// 2. Trigger should fire once and transfer one from Bob to Carol.
+        #[test]
+        fn fires_at_most_once_per_transaction() {}
+
+        /// # Scenario
+        ///
+        /// 1. Transaction transfers an asset from Alice to Bob.
+        /// 2. Trigger fires and transfers the asset from Bob to Carol.
+        /// 3. Trigger fires and transfers the asset from Carol to Dave.
+        /// 4. Trigger fires but fails to transfer the asset from Dave to John Doe (not found).
+        /// 5. Everything should be rolled back.
+        #[test]
+        fn chains_atomically() {}
+    }
+}
