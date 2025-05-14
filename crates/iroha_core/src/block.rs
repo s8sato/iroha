@@ -450,7 +450,6 @@ mod valid {
             Ok(())
         }
 
-        // SATO execute time triggers
         /// Validate the given block, apply resulting state changes,
         /// and record any transaction errors back into the block.
         ///
