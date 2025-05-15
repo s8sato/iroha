@@ -398,7 +398,7 @@ mod tests {
         async fn atomically_chains_from_transaction() {
             aborts_on_execution_error(TriggerOrigin::ExternalTransaction);
             // SATO
-            // aborts_on_exceeding_depth(TriggerOrigin::ExternalTransaction);
+            aborts_on_exceeding_depth(TriggerOrigin::ExternalTransaction);
             commits_on_depleting_lives(TriggerOrigin::ExternalTransaction);
             commits_on_regular_success(TriggerOrigin::ExternalTransaction);
         }
@@ -408,7 +408,7 @@ mod tests {
         async fn atomically_chains_from_time_trigger() {
             aborts_on_execution_error(TriggerOrigin::TimeTrigger);
             // SATO
-            // aborts_on_exceeding_depth(TriggerOrigin::TimeTrigger);
+            aborts_on_exceeding_depth(TriggerOrigin::TimeTrigger);
             commits_on_depleting_lives(TriggerOrigin::TimeTrigger);
             commits_on_regular_success(TriggerOrigin::TimeTrigger);
         }
@@ -698,8 +698,11 @@ mod tests {
             self
         }
 
-        fn with_max_execution_depth(self, _depth: u8) -> Self {
+        fn with_max_execution_depth(self, depth: u8) -> Self {
             // SATO depth parameter
+            let mut world = self.state.world.block();
+            world.parameters.smart_contract.execution_depth = depth;
+            world.commit();
             self
         }
 

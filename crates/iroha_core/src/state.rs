@@ -1584,8 +1584,6 @@ impl StateTransaction<'_, '_> {
     }
 
     // SATO make it a parameter
-    const MAX_EXECUTION_DEPTH: u8 = 5;
-
     /// Perform a depth-first traversal of the trigger execution path.
     pub(crate) fn execute_data_triggers_dfs(&mut self) -> Result<(), TransactionRejectionReason> {
         let mut stack: Vec<(DataEvent, TriggerId, u8)> = self
@@ -1597,7 +1595,8 @@ impl StateTransaction<'_, '_> {
             .collect();
 
         while let Some((event, trg_id, depth)) = stack.pop() {
-            if Self::MAX_EXECUTION_DEPTH < depth {
+            let max_depth = self.world.parameters.smart_contract.execution_depth;
+            if max_depth < depth {
                 return Err(TriggerExecutionFail::MaxDepthExceeded.into());
             }
             let (authority, executable) = {
