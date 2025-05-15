@@ -564,12 +564,14 @@ mod tests {
     impl Sandbox {
         fn new() -> Self {
             let world = {
-                let domain = Domain::new(DOMAIN.clone()).build(&ACCOUNT["alice"].id);
+                let domain = Domain::new(DOMAIN.clone()).build(&GENESIS_ACCOUNT.id);
                 let asset_def = AssetDefinition::new(ASSET.clone(), NumericSpec::default())
-                    .build(&ACCOUNT["alice"].id);
+                    .build(&GENESIS_ACCOUNT.id);
                 let accounts = ACCOUNT
-                    .iter()
-                    .map(|(_name, cred)| Account::new(cred.id.clone()).build(&ACCOUNT["alice"].id));
+                    .clone()
+                    .into_iter()
+                    .chain([("genesis", GENESIS_ACCOUNT.clone())])
+                    .map(|(_name, cred)| Account::new(cred.id.clone()).build(&GENESIS_ACCOUNT.id));
                 let assets = INIT_BALANCE
                     .iter()
                     .map(|(name, num)| Asset::new(asset(name), *num));
@@ -653,7 +655,7 @@ mod tests {
                 Action::new(
                     [transfer_one(src, dest)],
                     lives.map_or(Repeats::Indefinitely, Repeats::Exactly),
-                    ACCOUNT["alice"].id.clone(),
+                    GENESIS_ACCOUNT.id.clone(),
                     filter,
                 ),
             )
@@ -713,7 +715,7 @@ mod tests {
             )
             .unpack(|_| {})
             .unwrap();
-
+            dbg!(&valid);
             let committed = valid.commit(&TOPOLOGY).unpack(|_| {}).unwrap();
             self.state
                 .apply_without_execution(&committed, TOPOLOGY.iter().cloned().collect())
