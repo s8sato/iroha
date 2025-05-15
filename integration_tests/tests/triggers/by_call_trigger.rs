@@ -4,6 +4,7 @@ use eyre::{eyre, Result, WrapErr};
 use iroha::{
     crypto::KeyPair,
     data_model::{
+        isi::error::InstructionExecutionError,
         prelude::*,
         query::{builder::SingleQueryError, error::FindError, trigger::FindTriggers},
         transaction::Executable,
@@ -126,7 +127,12 @@ fn trigger_failure_should_not_cancel_other_triggers_execution() -> Result<()> {
     let prev_asset_value = get_asset_value(&test_client, asset_id.clone());
 
     // Executing bad trigger
-    test_client.submit_blocking(ExecuteTrigger::new(bad_trigger_id))?;
+    let err = test_client
+        .submit_blocking(ExecuteTrigger::new(bad_trigger_id))
+        .expect_err("should immediately result in error");
+    let _err = err
+        .downcast_ref::<InstructionExecutionError>()
+        .expect("unexpected error");
     rt.block_on(async { network.ensure_blocks_with(|x| x.total == 8).await })?;
 
     // Checking results
