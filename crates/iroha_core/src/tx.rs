@@ -308,7 +308,7 @@ impl StateBlock<'_> {
 mod tests {
     use std::sync::LazyLock;
 
-    use iroha_data_model::{block::SignedBlock, prelude::EventBox};
+    use iroha_data_model::{block::SignedBlock, isi::Instruction, prelude::EventBox};
     use iroha_genesis::GENESIS_DOMAIN_ID;
     use iroha_test_samples::{gen_account_in, PEER_KEYPAIR};
 
@@ -365,8 +365,8 @@ mod tests {
         /// 1. Transaction transfers an asset from Alice to Bob.
         /// 2. Trigger fires and transfers the asset from Bob to Carol.
         /// 3. Transaction __should succeed__ to transfer the asset from Carol to Dave.
-        #[test]
-        fn fires_for_each_transaction() {
+        #[tokio::test]
+        async fn fires_for_each_transaction() {
             let mut sandbox = Sandbox::new().with_data_trigger("bob", "carol");
             sandbox.transfer_ones(1, "alice", "bob");
             sandbox.transfer_ones(1, "carol", "dave");
@@ -546,6 +546,10 @@ mod tests {
         AssetId::new(ASSET.clone(), ACCOUNT[account_name].id.clone())
     }
 
+    fn transfer_one(src: &str, dest: &str) -> impl Instruction {
+        Transfer::asset_numeric(asset(src), 1u32, ACCOUNT[dest].id.clone())
+    }
+
     impl Sandbox {
         fn new() -> Self {
             let world = {
@@ -603,22 +607,18 @@ mod tests {
 
         fn _with_trigger(
             self,
-            condition: &str,
+            id_prefix: &str,
             src: &str,
             dest: &str,
             lives: Option<u32>,
             filter: impl Into<EventFilterBox>,
         ) -> Self {
-            let mut block = self.0.world.triggers.block();
+            let mut block = self.state.world.triggers.block();
             let mut transaction = block.transaction();
             let trigger = Trigger::new(
-                format!("{condition}-{src}-{dest}").parse().unwrap(),
+                format!("{id_prefix}-{src}-{dest}").parse().unwrap(),
                 Action::new(
-                    [Transfer::asset_numeric(
-                        asset(src),
-                        1u32,
-                        ACCOUNT[dest].id.clone(),
-                    )],
+                    [transfer_one(src, dest)],
                     lives.map_or(Repeats::Indefinitely, Repeats::Exactly),
                     ACCOUNT["alice"].id.clone(),
                     filter,
@@ -627,7 +627,7 @@ mod tests {
             .try_into()
             .unwrap();
             transaction
-                .add_time_trigger(&self.0.engine, trigger)
+                .add_time_trigger(&self.state.engine, trigger)
                 .unwrap();
             transaction.apply();
             block.commit();
@@ -642,8 +642,7 @@ mod tests {
         fn transfer_ones(&mut self, n_instructions: u32, src: &str, dest: &str) {
             let transaction = {
                 let sender = ACCOUNT[src].clone();
-                let instructions = (0..n_instructions)
-                    .map(|_| Transfer::asset_numeric(asset(src), 1u32, ACCOUNT[dest].id.clone()));
+                let instructions = (0..n_instructions).map(|_| transfer_one(src, dest));
                 TransactionBuilder::new(CHAIN_ID.clone(), sender.id)
                     .with_instructions(instructions)
                     .sign(&sender.key)
