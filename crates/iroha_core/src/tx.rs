@@ -397,7 +397,6 @@ mod tests {
         #[tokio::test]
         async fn atomically_chains_from_transaction() {
             aborts_on_execution_error(TriggerOrigin::ExternalTransaction);
-            // SATO
             aborts_on_exceeding_depth(TriggerOrigin::ExternalTransaction);
             commits_on_depleting_lives(TriggerOrigin::ExternalTransaction);
             commits_on_regular_success(TriggerOrigin::ExternalTransaction);
@@ -407,7 +406,6 @@ mod tests {
         #[tokio::test]
         async fn atomically_chains_from_time_trigger() {
             aborts_on_execution_error(TriggerOrigin::TimeTrigger);
-            // SATO
             aborts_on_exceeding_depth(TriggerOrigin::TimeTrigger);
             commits_on_depleting_lives(TriggerOrigin::TimeTrigger);
             commits_on_regular_success(TriggerOrigin::TimeTrigger);
@@ -699,7 +697,6 @@ mod tests {
         }
 
         fn with_max_execution_depth(self, depth: u8) -> Self {
-            // SATO depth parameter
             let mut world = self.state.world.block();
             world.parameters.smart_contract.execution_depth = depth;
             world.commit();
@@ -748,10 +745,7 @@ mod tests {
             )
             .unpack(|_| {})
             .unwrap();
-            // SATO
-            valid.as_ref().errors().for_each(|p| {
-                dbg!(p.0, p.1);
-            });
+
             let committed = valid.commit(&TOPOLOGY).unpack(|_| {}).unwrap();
             self.state
                 .apply_without_execution(&committed, TOPOLOGY.iter().cloned().collect())
@@ -774,11 +768,7 @@ mod tests {
                 .collect();
 
             expected.into().iter().for_each(|(name, diff)| {
-                assert_eq!(
-                    actual[name] as i32,
-                    INIT_BALANCE[name] as i32 + *diff,
-                    "{name}" // SATO
-                );
+                assert_eq!(actual[name] as i32, INIT_BALANCE[name] as i32 + *diff,);
             });
         }
     }

@@ -1583,7 +1583,6 @@ impl StateTransaction<'_, '_> {
         Ok(())
     }
 
-    // SATO make it a parameter
     /// Perform a depth-first traversal of the trigger execution path.
     pub(crate) fn execute_data_triggers_dfs(&mut self) -> Result<(), TransactionRejectionReason> {
         let mut stack: Vec<(DataEvent, TriggerId, u8)> = self
