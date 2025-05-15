@@ -53,7 +53,7 @@ use crate::{
                 SetReadOnly as TriggerSetReadOnly, SetTransaction as TriggerSetTransaction,
                 SetView as TriggerSetView,
             },
-            specialized::LoadedActionTrait,
+            specialized::{LoadedAction, LoadedActionTrait},
         },
         wasm, Execute,
     },
@@ -1434,10 +1434,7 @@ impl<'state> StateBlock<'state> {
     }
 
     /// Execute all time triggers matching the given block.
-    pub(crate) fn execute_time_triggers(
-        &mut self,
-        block: &SignedBlock,
-    ) -> Result<(), TransactionRejectionReason> {
+    pub(crate) fn execute_time_triggers(&mut self, block: &SignedBlock) {
         let time_event = self.create_time_event(block);
         self.world
             .external_event_buf
@@ -1449,20 +1446,37 @@ impl<'state> StateBlock<'state> {
             .collect();
 
         for (trg_id, action) in &matched {
-            let mut transaction = self.transaction();
-            transaction
-                .world
-                .triggers
-                .decrease_repeats([trg_id].into_iter());
-            transaction.execute_trigger(
-                trg_id,
-                action.authority(),
-                action.executable(),
-                time_event.clone().into(),
-            )?;
-            transaction.execute_data_triggers_dfs()?;
-            transaction.apply();
+            if let Err(error) = self.execute_time_trigger(trg_id, action, &time_event) {
+                // TODO(#4968): Record errors in the block alongside transaction errors.
+                iroha_logger::warn!(
+                    trigger=%trg_id,
+                    block=%block.hash(),
+                    reason=?error,
+                    "Time trigger and its chained data triggers failed to execute"
+                );
+            }
         }
+    }
+
+    fn execute_time_trigger(
+        &mut self,
+        trg_id: &TriggerId,
+        action: &LoadedAction<TimeEventFilter>,
+        time_event: &TimeEvent,
+    ) -> Result<(), TransactionRejectionReason> {
+        let mut transaction = self.transaction();
+        transaction
+            .world
+            .triggers
+            .decrease_repeats([trg_id].into_iter());
+        transaction.execute_trigger(
+            trg_id,
+            action.authority(),
+            action.executable(),
+            time_event.clone().into(),
+        )?;
+        transaction.execute_data_triggers_dfs()?;
+        transaction.apply();
 
         Ok(())
     }
@@ -1495,10 +1509,9 @@ impl<'state> StateBlock<'state> {
     #[iroha_logger::log(skip_all, fields(block_height))]
     pub fn apply(&mut self, block: &CommittedBlock, topology: Vec<PeerId>) -> Vec<EventBox> {
         self.apply_transactions(block);
-        debug!(height = %self.height(), "Transactions successfully applied");
-        self.execute_time_triggers(block.as_ref())
-            .expect("should be no errors");
-        debug!(height = %self.height(), "Time triggers successfully applied");
+        debug!(height = %self.height(), "Transactions applied");
+        self.execute_time_triggers(block.as_ref());
+        debug!(height = %self.height(), "Time triggers executed");
         self.apply_without_execution(block, topology)
     }
 

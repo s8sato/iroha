@@ -270,7 +270,6 @@ mod new {
     }
 
     impl NewBlock {
-        // SATO remove as a duplicate?
         /// Validate each transaction in the block, apply resulting state changes,
         /// and record any errors back into the block.
         pub fn validate_and_record_transactions(
@@ -303,6 +302,9 @@ mod new {
 
             let mut block: SignedBlock = self.into();
             block.set_transaction_errors(errors);
+            state_block.execute_time_triggers(&block);
+
+            // FIXME: Don't create a ValidBlock that deviates from the result of ValidBlock::validate.
             WithEvents::new(ValidBlock(block))
         }
 
@@ -487,13 +489,6 @@ mod valid {
                 return WithEvents::new(Err((block, error.into())));
             }
 
-            if let Err(error) = state_block.execute_time_triggers(&block) {
-                return WithEvents::new(Err((
-                    block,
-                    TransactionValidationError::from(error).into(),
-                )));
-            }
-
             WithEvents::new(Ok(ValidBlock(block)))
         }
 
@@ -532,13 +527,6 @@ mod valid {
                 &mut state_block,
             ) {
                 return WithEvents::new(Err((block, error.into())));
-            }
-
-            if let Err(error) = state_block.execute_time_triggers(&block) {
-                return WithEvents::new(Err((
-                    block,
-                    TransactionValidationError::from(error).into(),
-                )));
             }
 
             WithEvents::new(Ok((ValidBlock(block), state_block)))
@@ -682,6 +670,8 @@ mod valid {
                 })?;
 
             block.set_transaction_errors(errors);
+
+            state_block.execute_time_triggers(&block);
 
             Ok(())
         }
