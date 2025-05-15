@@ -315,7 +315,10 @@ mod tests {
     use super::*;
     use crate::{
         block::{BlockBuilder, ValidBlock},
-        smartcontracts::isi::Registrable,
+        smartcontracts::{
+            isi::Registrable,
+            triggers::{set::SetTransaction, specialized::SpecializedTrigger},
+        },
         state::{State, StateBlock, StateReadOnly, World},
         sumeragi::network_topology::Topology,
     };
@@ -348,7 +351,7 @@ mod tests {
             let events = block.apply();
             dbg!(&events);
             block.assert_balances([
-                ("alice", 9),
+                ("alice", -1),
                 ("bob", 0),
                 ("carol", 0),
                 ("dave", 0),
@@ -373,7 +376,7 @@ mod tests {
             let mut block = sandbox.block();
             let events = block.apply();
             dbg!(&events);
-            block.assert_balances([("alice", 9), ("bob", 0), ("carol", 0), ("dave", 1)]);
+            block.assert_balances([("alice", -1), ("bob", 0), ("carol", 0), ("dave", 1)]);
         }
 
         /// # Scenario
@@ -387,7 +390,7 @@ mod tests {
             let mut block = sandbox.block();
             let events = block.apply();
             dbg!(&events);
-            block.assert_balances([("alice", 8), ("bob", 1), ("carol", 1)]);
+            block.assert_balances([("alice", -2), ("bob", 1), ("carol", 1)]);
         }
 
         /// All or none of the initial transaction and subsequent data triggers should take effect.
@@ -424,7 +427,7 @@ mod tests {
             let events = block.apply();
             dbg!(&events);
             // Everything should be rolled back.
-            block.assert_balances([("alice", 10), ("bob", 0), ("carol", 0), ("dave", 0)]);
+            block.assert_balances([("alice", 0), ("bob", 0), ("carol", 0), ("dave", 0)]);
         }
 
         fn aborts_on_depleting_lives(origin: TriggerOrigin) {
@@ -443,7 +446,7 @@ mod tests {
             let events = block.apply();
             dbg!(&events);
             // Everything should be rolled back.
-            block.assert_balances([("alice", 10), ("bob", 0), ("carol", 0), ("dave", 0)]);
+            block.assert_balances([("alice", 0), ("bob", 0), ("carol", 0), ("dave", 0)]);
         }
 
         fn aborts_on_exceeding_depth(origin: TriggerOrigin) {
@@ -463,7 +466,7 @@ mod tests {
             let events = block.apply();
             dbg!(&events);
             // Everything should be rolled back.
-            block.assert_balances([("alice", 10), ("bob", 0), ("carol", 0), ("dave", 0)]);
+            block.assert_balances([("alice", 0), ("bob", 0), ("carol", 0), ("dave", 0)]);
         }
 
         fn commits_on_success(origin: TriggerOrigin) {
@@ -482,7 +485,7 @@ mod tests {
             dbg!(&events);
             // The execution sequence should take effect.
             block.assert_balances([
-                ("alice", 9),
+                ("alice", -1),
                 ("bob", 0),
                 ("carol", 0),
                 ("dave", 0),
@@ -523,9 +526,12 @@ mod tests {
             })
             .collect()
     });
+    static INIT_BALANCE: LazyLock<AccountBalance> =
+        LazyLock::new(|| ACCOUNTS_STR.into_iter().zip([10, 10, 10, 10, 10]).collect());
 
     type AccountMap = std::collections::HashMap<&'static str, Credential>;
-    type AccountBalances = std::collections::HashMap<&'static str, u32>;
+    type AccountBalance = std::collections::HashMap<&'static str, u32>;
+    type AccountBalanceDiff = std::collections::HashMap<&'static str, i32>;
 
     #[derive(Debug, Clone)]
     struct Credential {
@@ -537,8 +543,13 @@ mod tests {
         let leader: PeerId = PEER_KEYPAIR.public_key().clone().into();
         Topology::new([leader])
     });
-    static GENESIS_ACCOUNT: LazyLock<AccountId> =
-        LazyLock::new(|| gen_account_in(GENESIS_DOMAIN_ID.clone()).0);
+    static GENESIS_ACCOUNT: LazyLock<Credential> = LazyLock::new(|| {
+        let (id, key_pair) = gen_account_in(GENESIS_DOMAIN_ID.clone());
+        Credential {
+            id,
+            key: key_pair.into_parts().1,
+        }
+    });
     static CHAIN_ID: LazyLock<ChainId> =
         LazyLock::new(|| ChainId::from("00000000-0000-0000-0000-000000000000"));
 
@@ -554,12 +565,16 @@ mod tests {
         fn new() -> Self {
             let world = {
                 let domain = Domain::new(DOMAIN.clone()).build(&ACCOUNT["alice"].id);
-                let asset = AssetDefinition::new(ASSET.clone(), NumericSpec::default())
+                let asset_def = AssetDefinition::new(ASSET.clone(), NumericSpec::default())
                     .build(&ACCOUNT["alice"].id);
                 let accounts = ACCOUNT
                     .iter()
                     .map(|(_name, cred)| Account::new(cred.id.clone()).build(&ACCOUNT["alice"].id));
-                World::with([domain], accounts, [asset])
+                let assets = INIT_BALANCE
+                    .iter()
+                    .map(|(name, num)| Asset::new(asset(name), *num));
+
+                World::with_assets([domain], accounts, [asset_def], assets)
             };
             let kura = crate::kura::Kura::blank_kura_for_testing();
             let query_handle = crate::query::store::LiveQueryStore::start_test();
@@ -572,16 +587,19 @@ mod tests {
         }
 
         fn with_time_trigger(self, src: &str, dest: &str) -> Self {
+            let engine = self.state.engine.clone();
             self._with_trigger(
                 "time",
                 src,
                 dest,
                 None,
                 TimeEventFilter::new(ExecutionTime::PreCommit),
+                |txn, trg| txn.add_time_trigger(&engine, trg),
             )
         }
 
         fn with_data_trigger(self, src: &str, dest: &str) -> Self {
+            let engine = self.state.engine.clone();
             self._with_trigger(
                 "data",
                 src,
@@ -589,11 +607,14 @@ mod tests {
                 None,
                 AssetEventFilter::new()
                     .for_events(AssetEventSet::Added)
-                    .for_asset(asset(src)),
+                    .for_asset(asset(src))
+                    .into(),
+                |txn, trg| txn.add_data_trigger(&engine, trg),
             )
         }
 
         fn with_data_trigger_finite(self, src: &str, dest: &str, lives: u32) -> Self {
+            let engine = self.state.engine.clone();
             self._with_trigger(
                 "data",
                 src,
@@ -601,20 +622,32 @@ mod tests {
                 Some(lives),
                 AssetEventFilter::new()
                     .for_events(AssetEventSet::Added)
-                    .for_asset(asset(src)),
+                    .for_asset(asset(src))
+                    .into(),
+                |txn, trg| txn.add_data_trigger(&engine, trg),
             )
         }
 
-        fn _with_trigger(
+        fn _with_trigger<F>(
             self,
             id_prefix: &str,
             src: &str,
             dest: &str,
             lives: Option<u32>,
-            filter: impl Into<EventFilterBox>,
-        ) -> Self {
+            filter: F,
+            add_trigger: impl FnOnce(
+                &mut SetTransaction,
+                SpecializedTrigger<F>,
+            )
+                -> Result<bool, crate::smartcontracts::triggers::set::Error>,
+        ) -> Self
+        where
+            F: Into<EventFilterBox>,
+            SpecializedTrigger<F>: TryFrom<Trigger>,
+            <SpecializedTrigger<F> as TryFrom<Trigger>>::Error: std::fmt::Debug,
+        {
             let mut block = self.state.world.triggers.block();
-            let mut transaction = block.transaction();
+            let mut transaction: SetTransaction<'_, '_> = block.transaction();
             let trigger = Trigger::new(
                 format!("{id_prefix}-{src}-{dest}").parse().unwrap(),
                 Action::new(
@@ -626,9 +659,8 @@ mod tests {
             )
             .try_into()
             .unwrap();
-            transaction
-                .add_time_trigger(&self.state.engine, trigger)
-                .unwrap();
+
+            add_trigger(&mut transaction, trigger).unwrap();
             transaction.apply();
             block.commit();
             self
@@ -641,11 +673,10 @@ mod tests {
 
         fn transfer_ones(&mut self, n_instructions: u32, src: &str, dest: &str) {
             let transaction = {
-                let sender = ACCOUNT[src].clone();
                 let instructions = (0..n_instructions).map(|_| transfer_one(src, dest));
-                TransactionBuilder::new(CHAIN_ID.clone(), sender.id)
+                TransactionBuilder::new(CHAIN_ID.clone(), GENESIS_ACCOUNT.id.clone())
                     .with_instructions(instructions)
-                    .sign(&sender.key)
+                    .sign(&GENESIS_ACCOUNT.key)
             };
             self.transactions.push(transaction);
         }
@@ -659,7 +690,7 @@ mod tests {
                 };
                 BlockBuilder::new(transactions)
                     .chain(0, self.state.view().latest_block().as_deref())
-                    .sign(PEER_KEYPAIR.private_key())
+                    .sign(&GENESIS_ACCOUNT.key)
                     .unpack(|_| {})
                     .into()
             };
@@ -677,7 +708,7 @@ mod tests {
                 core::mem::take(&mut self.block).unwrap(),
                 &TOPOLOGY,
                 &CHAIN_ID,
-                &GENESIS_ACCOUNT,
+                &GENESIS_ACCOUNT.id,
                 &mut self.state,
             )
             .unpack(|_| {})
@@ -688,8 +719,8 @@ mod tests {
                 .apply_without_execution(&committed, TOPOLOGY.iter().cloned().collect())
         }
 
-        fn assert_balances(&self, expected: impl Into<AccountBalances>) {
-            let actual: AccountBalances = ACCOUNTS_STR
+        fn assert_balances(&self, expected: impl Into<AccountBalanceDiff>) {
+            let actual: AccountBalance = ACCOUNTS_STR
                 .iter()
                 .map(|name| {
                     let balance = self
@@ -697,16 +728,19 @@ mod tests {
                         .world
                         .assets
                         .get(&asset(name))
-                        .unwrap()
-                        .value
+                        .map_or(Numeric::ZERO, |asset| asset.value)
                         .try_into()
                         .unwrap();
                     (*name, balance)
                 })
                 .collect();
 
-            expected.into().iter().for_each(|(name, balance)| {
-                assert_eq!(actual[name], *balance);
+            expected.into().iter().for_each(|(name, diff)| {
+                assert_eq!(
+                    actual[name] as i32,
+                    INIT_BALANCE[name] as i32 + *diff,
+                    "{name}"
+                );
             });
         }
     }
