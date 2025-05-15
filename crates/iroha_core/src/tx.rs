@@ -308,14 +308,16 @@ impl StateBlock<'_> {
 mod tests {
     use std::sync::LazyLock;
 
-    use iroha_data_model::prelude::EventBox;
-    use iroha_test_samples::PEER_KEYPAIR;
+    use iroha_data_model::{block::SignedBlock, prelude::EventBox};
+    use iroha_genesis::GENESIS_DOMAIN_ID;
+    use iroha_test_samples::{gen_account_in, PEER_KEYPAIR};
 
     use super::*;
     use crate::{
-        block::ValidBlock,
+        block::{BlockBuilder, ValidBlock},
         smartcontracts::isi::Registrable,
-        state::{State, StateBlock, World},
+        state::{State, StateBlock, StateReadOnly, World},
+        sumeragi::network_topology::Topology,
     };
 
     /// The origin that initiates a chain of data triggers.
@@ -489,11 +491,14 @@ mod tests {
         }
     }
 
-    struct Sandbox(State);
-    struct SandboxBlock<'state>(StateBlock<'state>);
+    struct Sandbox {
+        state: State,
+    }
 
-    type AccountMap = std::collections::HashMap<&'static str, AccountId>;
-    type AccountBalances = std::collections::HashMap<&'static str, u32>;
+    struct SandboxBlock<'state> {
+        state: StateBlock<'state>,
+        transactions: Vec<SignedTransaction>,
+    }
 
     const DOMAIN_STR: &'static str = "wonderland";
     const ASSET_STR: &'static str = "rose";
@@ -506,30 +511,47 @@ mod tests {
         ACCOUNTS_STR
             .iter()
             .map(|name| {
-                let pub_key = iroha_crypto::KeyPair::from_seed(
-                    name.as_bytes().into(),
-                    iroha_crypto::Algorithm::Ed25519,
-                )
-                .into_parts()
-                .0;
-                (*name, format!("{pub_key}@{DOMAIN_STR}").parse().unwrap())
+                let key_pair = iroha_crypto::KeyPair::random().into_parts();
+                let credential = Credential {
+                    id: format!("{}@{DOMAIN_STR}", key_pair.0).parse().unwrap(),
+                    key: key_pair.1,
+                };
+                (*name, credential)
             })
             .collect()
     });
 
+    type AccountMap = std::collections::HashMap<&'static str, Credential>;
+    type AccountBalances = std::collections::HashMap<&'static str, u32>;
+
+    #[derive(Debug, Clone)]
+    struct Credential {
+        id: AccountId,
+        key: iroha_crypto::PrivateKey,
+    }
+
+    static TOPOLOGY: LazyLock<Topology> = LazyLock::new(|| {
+        let leader: PeerId = PEER_KEYPAIR.public_ley().clone().into();
+        Topology::new([leader])
+    });
+    static GENESIS_ACCOUNT: LazyLock<AccountId> =
+        LazyLock::new(|| gen_account_in(GENESIS_DOMAIN_ID.clone()).0);
+    static CHAIN_ID: LazyLock<ChainId> =
+        LazyLock::new(|| ChainId::from("00000000-0000-0000-0000-000000000000"));
+
     fn asset(account_name: &str) -> AssetId {
-        AssetId::new(ASSET.clone(), ACCOUNT[account_name].clone())
+        AssetId::new(ASSET.clone(), ACCOUNT[account_name].id.clone())
     }
 
     impl Sandbox {
         fn new() -> Self {
             let world = {
-                let domain = Domain::new(DOMAIN.clone()).build(&ACCOUNT["alice"]);
+                let domain = Domain::new(DOMAIN.clone()).build(&ACCOUNT["alice"].id);
                 let asset = AssetDefinition::new(ASSET.clone(), NumericSpec::default())
-                    .build(&ACCOUNT["alice"]);
+                    .build(&ACCOUNT["alice"].id);
                 let accounts = ACCOUNT
                     .iter()
-                    .map(|(_name, id)| Account::new(id.clone()).build(&ACCOUNT["alice"]));
+                    .map(|(_name, cred)| Account::new(cred.id.clone()).build(&ACCOUNT["alice"].id));
                 World::with([domain], accounts, [asset])
             };
             let kura = crate::kura::Kura::blank_kura_for_testing();
@@ -589,10 +611,10 @@ mod tests {
                     [Transfer::asset_numeric(
                         asset(src),
                         1u32,
-                        ACCOUNT[dest].clone(),
+                        ACCOUNT[dest].id.clone(),
                     )],
                     lives.map_or(Repeats::Indefinitely, Repeats::Exactly),
-                    ACCOUNT["alice"].clone(),
+                    ACCOUNT["alice"].id.clone(),
                     filter,
                 ),
             )
@@ -619,15 +641,65 @@ mod tests {
 
     impl SandboxBlock<'_> {
         fn transfer_ones(&mut self, n_instructions: u32, src: &str, dest: &str) {
-            todo!()
+            let transaction = {
+                let sender = ACCOUNT[src].clone();
+                let instructions = (0..n_instructions)
+                    .map(|_| Transfer::asset_numeric(asset(src), 1u32, ACCOUNT[dest].id.clone()));
+                TransactionBuilder::new(CHAIN_ID.clone(), sender.id)
+                    .with_instructions(instructions)
+                    .sign(&sender.key)
+            };
+            self.transactions.push(transaction);
         }
 
         fn apply(&mut self) -> Vec<EventBox> {
-            todo!()
+            let signed: SignedBlock = {
+                let transactions = {
+                    let signed = core::mem::take(&mut self.transactions);
+                    // Skip static analysis (AcceptedTransaction::accept)
+                    signed.into_iter().map(AcceptedTransaction).collect()
+                };
+                BlockBuilder::new(transactions)
+                    .chain(0, self.state.latest_block().as_deref())
+                    .sign(PEER_KEYPAIR.private_key())
+                    .unpack(|_| {})
+                    .into()
+            };
+            let valid = ValidBlock::validate(
+                signed,
+                &TOPOLOGY,
+                &CHAIN_ID,
+                &GENESIS_ACCOUNT,
+                &mut self.state,
+            )
+            .unpack(|_| {})
+            .unwrap();
+
+            let committed = valid.commit(&TOPOLOGY).unpack(|_| {}).unwrap();
+            self.state
+                .apply_without_execution(&committed, TOPOLOGY.iter().cloned().collect())
         }
 
-        fn assert_balances(&self, balances: impl Into<AccountBalances>) {
-            todo!()
+        fn assert_balances(&self, expected: impl Into<AccountBalances>) {
+            let actual: AccountBalances = ACCOUNTS_STR
+                .iter()
+                .map(|name| {
+                    let balance = self
+                        .state
+                        .world
+                        .assets
+                        .get(&asset(name))
+                        .unwrap()
+                        .value
+                        .try_into()
+                        .unwrap();
+                    (*name, balance)
+                })
+                .collect();
+
+            expected.into().iter().for_each(|(name, balance)| {
+                assert_eq!(actual[name], *balance);
+            });
         }
     }
 }
