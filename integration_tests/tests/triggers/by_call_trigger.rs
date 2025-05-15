@@ -472,11 +472,22 @@ fn trigger_should_be_able_to_modify_other_trigger() -> Result<()> {
 
     // Executing triggers
     let execute_trigger_unregister = ExecuteTrigger::new(trigger_id_unregister);
-    let execute_trigger_should_be_unregistered = ExecuteTrigger::new(trigger_id_to_be_unregistered);
-    test_client.submit_all_blocking([
-        execute_trigger_unregister,
-        execute_trigger_should_be_unregistered,
-    ])?;
+    let execute_trigger_should_be_unregistered =
+        ExecuteTrigger::new(trigger_id_to_be_unregistered.clone());
+    let err = test_client
+        .submit_all_blocking([
+            execute_trigger_unregister,
+            execute_trigger_should_be_unregistered,
+        ])
+        .expect_err("should immediately result in error");
+    let FindError::Trigger(not_found_trigger) = err
+        .root_cause()
+        .downcast_ref::<FindError>()
+        .expect("unexpected error")
+    else {
+        panic!("unexpected")
+    };
+    assert_eq!(*not_found_trigger, trigger_id_to_be_unregistered);
 
     // Checking results
     // First trigger should cancel second one, so value should stay the same
