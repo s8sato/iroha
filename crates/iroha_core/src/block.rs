@@ -270,6 +270,7 @@ mod new {
     }
 
     impl NewBlock {
+        // SATO remove as a duplicate?
         /// Validate each transaction in the block, apply resulting state changes,
         /// and record any errors back into the block.
         pub fn validate_and_record_transactions(

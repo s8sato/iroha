@@ -339,12 +339,12 @@ mod tests {
         /// 4. Data trigger fires and transfers the asset from Dave to Eve.
         #[test]
         fn fires_after_external_transactions() {
-            let sandbox = Sandbox::new()
+            let mut sandbox = Sandbox::new()
                 .with_data_trigger("bob", "carol")
                 .with_time_trigger("carol", "dave")
                 .with_data_trigger("dave", "eve");
+            sandbox.transfer_ones(1, "alice", "bob");
             let mut block = sandbox.block();
-            block.transfer_ones(1, "alice", "bob");
             let events = block.apply();
             dbg!(&events);
             block.assert_balances([
@@ -367,10 +367,10 @@ mod tests {
         /// 3. Transaction __should succeed__ to transfer the asset from Carol to Dave.
         #[test]
         fn fires_for_each_transaction() {
-            let sandbox = Sandbox::new().with_data_trigger("bob", "carol");
+            let mut sandbox = Sandbox::new().with_data_trigger("bob", "carol");
+            sandbox.transfer_ones(1, "alice", "bob");
+            sandbox.transfer_ones(1, "carol", "dave");
             let mut block = sandbox.block();
-            block.transfer_ones(1, "alice", "bob");
-            block.transfer_ones(1, "carol", "dave");
             let events = block.apply();
             dbg!(&events);
             block.assert_balances([("alice", 9), ("bob", 0), ("carol", 0), ("dave", 1)]);
@@ -382,9 +382,9 @@ mod tests {
         /// 2. Trigger __should fire once__ and transfer one from Bob to Carol.
         #[test]
         fn fires_at_most_once_per_transaction() {
-            let sandbox = Sandbox::new().with_data_trigger("bob", "carol");
+            let mut sandbox = Sandbox::new().with_data_trigger("bob", "carol");
+            sandbox.transfer_ones(2, "alice", "bob");
             let mut block = sandbox.block();
-            block.transfer_ones(2, "alice", "bob");
             let events = block.apply();
             dbg!(&events);
             block.assert_balances([("alice", 8), ("bob", 1), ("carol", 1)]);
@@ -417,10 +417,10 @@ mod tests {
             if let TriggerOrigin::TimeTrigger = origin {
                 sandbox = sandbox.with_time_trigger("alice", "bob");
             }
-            let mut block = sandbox.block();
             if let TriggerOrigin::ExternalTransaction = origin {
-                block.transfer_ones(1, "alice", "bob");
+                sandbox.transfer_ones(1, "alice", "bob");
             }
+            let mut block = sandbox.block();
             let events = block.apply();
             dbg!(&events);
             // Everything should be rolled back.
@@ -436,10 +436,10 @@ mod tests {
             if let TriggerOrigin::TimeTrigger = origin {
                 sandbox = sandbox.with_time_trigger("alice", "bob");
             }
-            let mut block = sandbox.block();
             if let TriggerOrigin::ExternalTransaction = origin {
-                block.transfer_ones(1, "alice", "bob");
+                sandbox.transfer_ones(1, "alice", "bob");
             }
+            let mut block = sandbox.block();
             let events = block.apply();
             dbg!(&events);
             // Everything should be rolled back.
@@ -456,10 +456,10 @@ mod tests {
             if let TriggerOrigin::TimeTrigger = origin {
                 sandbox = sandbox.with_time_trigger("alice", "bob");
             }
-            let mut block = sandbox.block();
             if let TriggerOrigin::ExternalTransaction = origin {
-                block.transfer_ones(1, "alice", "bob");
+                sandbox.transfer_ones(1, "alice", "bob");
             }
+            let mut block = sandbox.block();
             let events = block.apply();
             dbg!(&events);
             // Everything should be rolled back.
@@ -474,10 +474,10 @@ mod tests {
             if let TriggerOrigin::TimeTrigger = origin {
                 sandbox = sandbox.with_time_trigger("alice", "bob");
             }
-            let mut block = sandbox.block();
             if let TriggerOrigin::ExternalTransaction = origin {
-                block.transfer_ones(1, "alice", "bob");
+                sandbox.transfer_ones(1, "alice", "bob");
             }
+            let mut block = sandbox.block();
             let events = block.apply();
             dbg!(&events);
             // The execution sequence should take effect.
@@ -493,11 +493,14 @@ mod tests {
 
     struct Sandbox {
         state: State,
+        // Buffered transactions
+        transactions: Vec<SignedTransaction>,
     }
 
     struct SandboxBlock<'state> {
         state: StateBlock<'state>,
-        transactions: Vec<SignedTransaction>,
+        // Candidate to be validated and committed
+        block: Option<SignedBlock>,
     }
 
     const DOMAIN_STR: &'static str = "wonderland";
@@ -531,7 +534,7 @@ mod tests {
     }
 
     static TOPOLOGY: LazyLock<Topology> = LazyLock::new(|| {
-        let leader: PeerId = PEER_KEYPAIR.public_ley().clone().into();
+        let leader: PeerId = PEER_KEYPAIR.public_key().clone().into();
         Topology::new([leader])
     });
     static GENESIS_ACCOUNT: LazyLock<AccountId> =
@@ -558,7 +561,10 @@ mod tests {
             let query_handle = crate::query::store::LiveQueryStore::start_test();
             let state = State::new(world, kura, query_handle);
 
-            Self(state)
+            Self {
+                state,
+                transactions: vec![],
+            }
         }
 
         fn with_time_trigger(self, src: &str, dest: &str) -> Self {
@@ -633,13 +639,6 @@ mod tests {
             self
         }
 
-        fn block(&self) -> (SandboxBlock<'_>, ValidBlock) {
-            let block = ValidBlock::new_dummy(PEER_KEYPAIR.private_key());
-            (SandboxBlock(self.0.block(block.as_ref().header())), block)
-        }
-    }
-
-    impl SandboxBlock<'_> {
         fn transfer_ones(&mut self, n_instructions: u32, src: &str, dest: &str) {
             let transaction = {
                 let sender = ACCOUNT[src].clone();
@@ -652,21 +651,31 @@ mod tests {
             self.transactions.push(transaction);
         }
 
-        fn apply(&mut self) -> Vec<EventBox> {
-            let signed: SignedBlock = {
+        fn block(&mut self) -> SandboxBlock<'_> {
+            let block: SignedBlock = {
                 let transactions = {
                     let signed = core::mem::take(&mut self.transactions);
                     // Skip static analysis (AcceptedTransaction::accept)
                     signed.into_iter().map(AcceptedTransaction).collect()
                 };
                 BlockBuilder::new(transactions)
-                    .chain(0, self.state.latest_block().as_deref())
+                    .chain(0, self.state.view().latest_block().as_deref())
                     .sign(PEER_KEYPAIR.private_key())
                     .unpack(|_| {})
                     .into()
             };
+
+            SandboxBlock {
+                state: self.state.block(block.header()),
+                block: Some(block),
+            }
+        }
+    }
+
+    impl SandboxBlock<'_> {
+        fn apply(&mut self) -> Vec<EventBox> {
             let valid = ValidBlock::validate(
-                signed,
+                core::mem::take(&mut self.block).unwrap(),
                 &TOPOLOGY,
                 &CHAIN_ID,
                 &GENESIS_ACCOUNT,
