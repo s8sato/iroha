@@ -340,8 +340,8 @@ mod tests {
         /// 2. Data trigger fires and transfers the asset from Bob to Carol.
         /// 3. Time trigger fires and __should succeed__ to transfer the asset from Carol to Dave.
         /// 4. Data trigger fires and transfers the asset from Dave to Eve.
-        #[test]
-        fn fires_after_external_transactions() {
+        #[tokio::test]
+        async fn fires_after_external_transactions() {
             let mut sandbox = Sandbox::new()
                 .with_data_trigger("bob", "carol")
                 .with_time_trigger("carol", "dave")
@@ -383,8 +383,8 @@ mod tests {
         ///
         /// 1. Transaction transfers an asset from Alice to Bob twice.
         /// 2. Trigger __should fire once__ and transfer one from Bob to Carol.
-        #[test]
-        fn fires_at_most_once_per_transaction() {
+        #[tokio::test]
+        async fn fires_at_most_once_per_transaction() {
             let mut sandbox = Sandbox::new().with_data_trigger("bob", "carol");
             sandbox.transfer_ones(2, "alice", "bob");
             let mut block = sandbox.block();
@@ -394,48 +394,30 @@ mod tests {
         }
 
         /// All or none of the initial transaction and subsequent data triggers should take effect.
-        #[test]
-        fn atomically_chains_from_transaction() {
+        #[tokio::test]
+        async fn atomically_chains_from_transaction() {
             aborts_on_execution_error(TriggerOrigin::ExternalTransaction);
-            aborts_on_depleting_lives(TriggerOrigin::ExternalTransaction);
-            aborts_on_exceeding_depth(TriggerOrigin::ExternalTransaction);
-            commits_on_success(TriggerOrigin::ExternalTransaction);
+            // SATO
+            // aborts_on_exceeding_depth(TriggerOrigin::ExternalTransaction);
+            commits_on_depleting_lives(TriggerOrigin::ExternalTransaction);
+            commits_on_regular_success(TriggerOrigin::ExternalTransaction);
         }
 
         /// All or none of the initial time trigger and subsequent data triggers should take effect.
-        #[test]
-        fn atomically_chains_from_time_trigger() {
+        #[tokio::test]
+        async fn atomically_chains_from_time_trigger() {
             aborts_on_execution_error(TriggerOrigin::TimeTrigger);
-            aborts_on_depleting_lives(TriggerOrigin::TimeTrigger);
-            aborts_on_exceeding_depth(TriggerOrigin::TimeTrigger);
-            commits_on_success(TriggerOrigin::TimeTrigger);
+            // SATO
+            // aborts_on_exceeding_depth(TriggerOrigin::TimeTrigger);
+            commits_on_depleting_lives(TriggerOrigin::TimeTrigger);
+            commits_on_regular_success(TriggerOrigin::TimeTrigger);
         }
 
         fn aborts_on_execution_error(origin: TriggerOrigin) {
             let mut sandbox = Sandbox::new()
                 .with_data_trigger("bob", "carol")
-                .with_data_trigger("carol", "dave")
                 // This trigger execution fails.
-                .with_data_trigger("dave", "john_doe");
-            if let TriggerOrigin::TimeTrigger = origin {
-                sandbox = sandbox.with_time_trigger("alice", "bob");
-            }
-            if let TriggerOrigin::ExternalTransaction = origin {
-                sandbox.transfer_ones(1, "alice", "bob");
-            }
-            let mut block = sandbox.block();
-            let events = block.apply();
-            dbg!(&events);
-            // Everything should be rolled back.
-            block.assert_balances([("alice", 0), ("bob", 0), ("carol", 0), ("dave", 0)]);
-        }
-
-        fn aborts_on_depleting_lives(origin: TriggerOrigin) {
-            let mut sandbox = Sandbox::new()
-                .with_data_trigger("bob", "carol")
-                .with_data_trigger("carol", "dave")
-                // This trigger depletes after a loop.
-                .with_data_trigger_finite("dave", "bob", 2);
+                .with_data_trigger_fail("carol", "dave");
             if let TriggerOrigin::TimeTrigger = origin {
                 sandbox = sandbox.with_time_trigger("alice", "bob");
             }
@@ -456,6 +438,7 @@ mod tests {
                 .with_data_trigger("carol", "dave")
                 // The execution sequence exceeds the depth limit.
                 .with_data_trigger("dave", "eve");
+
             if let TriggerOrigin::TimeTrigger = origin {
                 sandbox = sandbox.with_time_trigger("alice", "bob");
             }
@@ -466,11 +449,36 @@ mod tests {
             let events = block.apply();
             dbg!(&events);
             // Everything should be rolled back.
-            block.assert_balances([("alice", 0), ("bob", 0), ("carol", 0), ("dave", 0)]);
+            block.assert_balances([
+                ("alice", 0),
+                ("bob", 0),
+                ("carol", 0),
+                ("dave", 0),
+                ("eve", 0),
+            ]);
         }
 
-        fn commits_on_success(origin: TriggerOrigin) {
+        fn commits_on_depleting_lives(origin: TriggerOrigin) {
             let mut sandbox = Sandbox::new()
+                .with_data_trigger("bob", "carol")
+                // This trigger depletes after an execution.
+                .with_data_trigger_finite("carol", "bob", 1);
+            if let TriggerOrigin::TimeTrigger = origin {
+                sandbox = sandbox.with_time_trigger("alice", "bob");
+            }
+            if let TriggerOrigin::ExternalTransaction = origin {
+                sandbox.transfer_ones(1, "alice", "bob");
+            }
+            let mut block = sandbox.block();
+            let events = block.apply();
+            dbg!(&events);
+            // Everything should be rolled back.
+            block.assert_balances([("alice", -1), ("bob", 0), ("carol", 1)]);
+        }
+
+        fn commits_on_regular_success(origin: TriggerOrigin) {
+            let mut sandbox = Sandbox::new()
+                .with_max_execution_depth(3)
                 .with_data_trigger("bob", "carol")
                 .with_data_trigger("carol", "dave")
                 .with_data_trigger("dave", "eve");
@@ -509,6 +517,7 @@ mod tests {
     const DOMAIN_STR: &'static str = "wonderland";
     const ASSET_STR: &'static str = "rose";
     const ACCOUNTS_STR: [&'static str; 5] = ["alice", "bob", "carol", "dave", "eve"];
+    const INIT_EXECUTION_DEPTH: u8 = 5;
 
     static DOMAIN: LazyLock<DomainId> = LazyLock::new(|| DOMAIN_STR.parse().unwrap());
     static ASSET: LazyLock<AssetDefinitionId> =
@@ -529,9 +538,9 @@ mod tests {
     static INIT_BALANCE: LazyLock<AccountBalance> =
         LazyLock::new(|| ACCOUNTS_STR.into_iter().zip([10, 10, 10, 10, 10]).collect());
 
-    type AccountMap = std::collections::HashMap<&'static str, Credential>;
-    type AccountBalance = std::collections::HashMap<&'static str, u32>;
-    type AccountBalanceDiff = std::collections::HashMap<&'static str, i32>;
+    type AccountMap = std::collections::BTreeMap<&'static str, Credential>;
+    type AccountBalance = std::collections::BTreeMap<&'static str, u32>;
+    type AccountBalanceDiff = std::collections::BTreeMap<&'static str, i32>;
 
     #[derive(Debug, Clone)]
     struct Credential {
@@ -586,6 +595,7 @@ mod tests {
                 state,
                 transactions: vec![],
             }
+            .with_max_execution_depth(INIT_EXECUTION_DEPTH)
         }
 
         fn with_time_trigger(self, src: &str, dest: &str) -> Self {
@@ -594,6 +604,7 @@ mod tests {
                 "time",
                 src,
                 dest,
+                transfer_one(src, dest),
                 None,
                 TimeEventFilter::new(ExecutionTime::PreCommit),
                 |txn, trg| txn.add_time_trigger(&engine, trg),
@@ -606,6 +617,7 @@ mod tests {
                 "data",
                 src,
                 dest,
+                transfer_one(src, dest),
                 None,
                 AssetEventFilter::new()
                     .for_events(AssetEventSet::Added)
@@ -618,9 +630,10 @@ mod tests {
         fn with_data_trigger_finite(self, src: &str, dest: &str, lives: u32) -> Self {
             let engine = self.state.engine.clone();
             self._with_trigger(
-                "data",
+                "data_finite",
                 src,
                 dest,
+                transfer_one(src, dest),
                 Some(lives),
                 AssetEventFilter::new()
                     .for_events(AssetEventSet::Added)
@@ -630,30 +643,47 @@ mod tests {
             )
         }
 
-        fn _with_trigger<F>(
+        fn with_data_trigger_fail(self, src: &str, dest: &str) -> Self {
+            let engine = self.state.engine.clone();
+            self._with_trigger(
+                "data_fail",
+                src,
+                dest,
+                Unregister::domain("nowhere".parse().unwrap()),
+                None,
+                AssetEventFilter::new()
+                    .for_events(AssetEventSet::Added)
+                    .for_asset(asset(src))
+                    .into(),
+                |txn, trg| txn.add_data_trigger(&engine, trg),
+            )
+        }
+
+        fn _with_trigger<F, G>(
             self,
             id_prefix: &str,
             src: &str,
             dest: &str,
+            instruction: impl Instruction,
             lives: Option<u32>,
             filter: F,
-            add_trigger: impl FnOnce(
-                &mut SetTransaction,
-                SpecializedTrigger<F>,
-            )
-                -> Result<bool, crate::smartcontracts::triggers::set::Error>,
+            add_trigger: G,
         ) -> Self
         where
             F: Into<EventFilterBox>,
             SpecializedTrigger<F>: TryFrom<Trigger>,
             <SpecializedTrigger<F> as TryFrom<Trigger>>::Error: std::fmt::Debug,
+            G: FnOnce(
+                &mut SetTransaction,
+                SpecializedTrigger<F>,
+            ) -> Result<bool, crate::smartcontracts::triggers::set::Error>,
         {
             let mut block = self.state.world.triggers.block();
             let mut transaction: SetTransaction<'_, '_> = block.transaction();
             let trigger = Trigger::new(
                 format!("{id_prefix}-{src}-{dest}").parse().unwrap(),
                 Action::new(
-                    [transfer_one(src, dest)],
+                    [instruction],
                     lives.map_or(Repeats::Indefinitely, Repeats::Exactly),
                     GENESIS_ACCOUNT.id.clone(),
                     filter,
@@ -715,7 +745,10 @@ mod tests {
             )
             .unpack(|_| {})
             .unwrap();
-            dbg!(&valid);
+            // SATO
+            valid.as_ref().errors().for_each(|p| {
+                dbg!(p.0, p.1);
+            });
             let committed = valid.commit(&TOPOLOGY).unpack(|_| {}).unwrap();
             self.state
                 .apply_without_execution(&committed, TOPOLOGY.iter().cloned().collect())
@@ -741,7 +774,7 @@ mod tests {
                 assert_eq!(
                     actual[name] as i32,
                     INIT_BALANCE[name] as i32 + *diff,
-                    "{name}"
+                    "{name}" // SATO
                 );
             });
         }

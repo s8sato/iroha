@@ -620,6 +620,7 @@ pub mod error {
             IntoSchema,
         )]
         #[ffi_type]
+        #[repr(u32)]
         pub enum TriggerExecutionFail {
             /// No remaining repeats.
             Depleted,

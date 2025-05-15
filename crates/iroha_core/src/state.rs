@@ -1465,17 +1465,22 @@ impl<'state> StateBlock<'state> {
         time_event: &TimeEvent,
     ) -> Result<(), TransactionRejectionReason> {
         let mut transaction = self.transaction();
+
+        if let Err(error) = transaction
+            .execute_trigger(
+                trg_id,
+                action.authority(),
+                action.executable(),
+                time_event.clone().into(),
+            )
+            .and_then(|_| transaction.execute_data_triggers_dfs())
+        {
+            return Err(error);
+        }
         transaction
             .world
             .triggers
             .decrease_repeats([trg_id].into_iter());
-        transaction.execute_trigger(
-            trg_id,
-            action.authority(),
-            action.executable(),
-            time_event.clone().into(),
-        )?;
-        transaction.execute_data_triggers_dfs()?;
         transaction.apply();
 
         Ok(())
@@ -1571,9 +1576,11 @@ impl StateTransaction<'_, '_> {
             }
             (action.authority().clone(), action.executable().clone())
         };
-        self.world.triggers.decrease_repeats([id].into_iter());
         self.world.external_event_buf.push(event.clone().into());
-        self.execute_trigger(id, &authority, &executable, event.into())
+        self.execute_trigger(id, &authority, &executable, event.into())?;
+        self.world.triggers.decrease_repeats([id].into_iter());
+
+        Ok(())
     }
 
     // SATO make it a parameter
@@ -1606,8 +1613,8 @@ impl StateTransaction<'_, '_> {
                 (action.authority().clone(), action.executable().clone())
             };
 
-            self.world.triggers.decrease_repeats([&trg_id].into_iter());
             self.execute_trigger(&trg_id, &authority, &executable, event.clone().into())?;
+            self.world.triggers.decrease_repeats([&trg_id].into_iter());
 
             let next_items = self
                 .capture_data_events()
