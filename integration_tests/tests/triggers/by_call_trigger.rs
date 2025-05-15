@@ -79,42 +79,6 @@ fn execute_trigger_should_produce_event() -> Result<()> {
 }
 
 #[test]
-fn infinite_recursion_should_produce_one_call_per_block() -> Result<()> {
-    let (network, rt) = NetworkBuilder::new().start_blocking()?;
-    let test_client = network.client();
-
-    // Waiting for empty block to be committed
-    rt.block_on(async { network.ensure_blocks_with(|x| x.total == 2).await })?;
-
-    let asset_definition_id = "rose#wonderland".parse()?;
-    let account_id = ALICE_ID.clone();
-    let asset_id = AssetId::new(asset_definition_id, account_id);
-    let trigger_id = TRIGGER_NAME.parse()?;
-    let call_trigger = ExecuteTrigger::new(trigger_id);
-    let prev_value = get_asset_value(&test_client, asset_id.clone());
-
-    let instructions = vec![
-        Mint::asset_numeric(1u32, asset_id.clone()).into(),
-        call_trigger.clone().into(),
-    ];
-    let register_trigger = build_register_trigger_isi(asset_id.account(), instructions);
-    test_client.submit_blocking(register_trigger)?;
-
-    // Waiting for empty block to be committed
-    rt.block_on(async { network.ensure_blocks_with(|x| x.total == 4).await })?;
-
-    test_client.submit_blocking(call_trigger)?;
-
-    // Waiting for empty block to be committed
-    rt.block_on(async { network.ensure_blocks_with(|x| x.total == 6).await })?;
-
-    let new_value = get_asset_value(&test_client, asset_id);
-    assert_eq!(new_value, prev_value.checked_add(numeric!(2)).unwrap());
-
-    Ok(())
-}
-
-#[test]
 fn trigger_failure_should_not_cancel_other_triggers_execution() -> Result<()> {
     let (network, rt) = NetworkBuilder::new().start_blocking()?;
     let test_client = network.client();

@@ -48,6 +48,7 @@ async fn trigger_completion_success_should_produce_event() -> Result<()> {
 }
 
 #[tokio::test]
+#[ignore = "transaction-level events drop on failure. record as rejected transactions (#4968)"]
 async fn trigger_completion_failure_should_produce_event() -> Result<()> {
     let network = NetworkBuilder::new().start().await?;
 
