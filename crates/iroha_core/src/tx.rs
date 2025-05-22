@@ -448,14 +448,27 @@ mod tests {
 
         fn aborts_on_execution_error(sandbox: Sandbox) {
             let mut sandbox = sandbox
-                .with_data_trigger_transfer("bob", 50, "carol")
+                .with_data_trigger_transfer("bob", 10, "carol")
+                .with_data_trigger_transfer("bob", 10, "dave")
                 // This trigger execution fails.
-                .with_data_trigger_transfer("carol", 500, "dave");
+                .with_data_trigger_transfer("dave", 500, "eve");
             let mut block = sandbox.block();
-            block.assert_balances([("alice", 60), ("bob", 10), ("carol", 10), ("dave", 10)]);
+            block.assert_balances([
+                ("alice", 60),
+                ("bob", 10),
+                ("carol", 10),
+                ("dave", 10),
+                ("eve", 10),
+            ]);
             let _events = block.apply();
             // Everything should be rolled back.
-            block.assert_balances([("alice", 60), ("bob", 10), ("carol", 10), ("dave", 10)]);
+            block.assert_balances([
+                ("alice", 60),
+                ("bob", 10),
+                ("carol", 10),
+                ("dave", 10),
+                ("eve", 10),
+            ]);
         }
 
         fn aborts_on_exceeding_depth(sandbox: Sandbox) {
