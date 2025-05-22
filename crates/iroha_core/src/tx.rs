@@ -320,14 +320,6 @@ mod tests {
         sumeragi::network_topology::Topology,
     };
 
-    /// The origin that initiates a chain of data triggers.
-    enum TriggerOrigin {
-        /// A user-submitted transaction.
-        ExternalTransaction,
-        /// A scheduled time-based trigger.
-        TimeTrigger,
-    }
-
     mod time_trigger {
         use super::*;
 
@@ -431,34 +423,34 @@ mod tests {
         /// All or none of the initial transaction and subsequent data triggers should take effect.
         #[tokio::test]
         async fn atomically_chains_from_transaction() {
-            aborts_on_execution_error(&TriggerOrigin::ExternalTransaction);
-            aborts_on_exceeding_depth(&TriggerOrigin::ExternalTransaction);
-            commits_on_depleting_lives(&TriggerOrigin::ExternalTransaction);
-            commits_on_regular_success(&TriggerOrigin::ExternalTransaction);
+            let sandbox = || {
+                let mut res = Sandbox::new();
+                res.request_transfer("alice", 50, "bob");
+                res
+            };
+
+            aborts_on_execution_error(sandbox());
+            aborts_on_exceeding_depth(sandbox());
+            commits_on_depleting_lives(sandbox());
+            commits_on_regular_success(sandbox());
         }
 
         /// All or none of the initial time trigger and subsequent data triggers should take effect.
         #[tokio::test]
         async fn atomically_chains_from_time_trigger() {
-            aborts_on_execution_error(&TriggerOrigin::TimeTrigger);
-            aborts_on_exceeding_depth(&TriggerOrigin::TimeTrigger);
-            commits_on_depleting_lives(&TriggerOrigin::TimeTrigger);
-            commits_on_regular_success(&TriggerOrigin::TimeTrigger);
+            let sandbox = || Sandbox::new().with_time_trigger_transfer("alice", 50, "bob");
+
+            aborts_on_execution_error(sandbox());
+            aborts_on_exceeding_depth(sandbox());
+            commits_on_depleting_lives(sandbox());
+            commits_on_regular_success(sandbox());
         }
 
-        fn aborts_on_execution_error(origin: &TriggerOrigin) {
-            let mut sandbox = Sandbox::new()
+        fn aborts_on_execution_error(sandbox: Sandbox) {
+            let mut sandbox = sandbox
                 .with_data_trigger_transfer("bob", 50, "carol")
                 // This trigger execution fails.
                 .with_data_trigger_transfer("carol", 500, "dave");
-            match origin {
-                TriggerOrigin::ExternalTransaction => {
-                    sandbox.request_transfer("alice", 50, "bob");
-                }
-                TriggerOrigin::TimeTrigger => {
-                    sandbox = sandbox.with_time_trigger_transfer("alice", 50, "bob");
-                }
-            }
             let mut block = sandbox.block();
             block.assert_balances([("alice", 60), ("bob", 10), ("carol", 10), ("dave", 10)]);
             let _events = block.apply();
@@ -466,21 +458,13 @@ mod tests {
             block.assert_balances([("alice", 60), ("bob", 10), ("carol", 10), ("dave", 10)]);
         }
 
-        fn aborts_on_exceeding_depth(origin: &TriggerOrigin) {
-            let mut sandbox = Sandbox::new()
+        fn aborts_on_exceeding_depth(sandbox: Sandbox) {
+            let mut sandbox = sandbox
                 .with_max_execution_depth(2)
                 .with_data_trigger_transfer("bob", 50, "carol")
                 .with_data_trigger_transfer("carol", 50, "dave")
                 // The execution sequence exceeds the depth limit.
                 .with_data_trigger_transfer("dave", 50, "eve");
-            match origin {
-                TriggerOrigin::ExternalTransaction => {
-                    sandbox.request_transfer("alice", 50, "bob");
-                }
-                TriggerOrigin::TimeTrigger => {
-                    sandbox = sandbox.with_time_trigger_transfer("alice", 50, "bob");
-                }
-            }
             let mut block = sandbox.block();
             block.assert_balances([
                 ("alice", 60),
@@ -500,19 +484,11 @@ mod tests {
             ]);
         }
 
-        fn commits_on_depleting_lives(origin: &TriggerOrigin) {
-            let mut sandbox = Sandbox::new()
+        fn commits_on_depleting_lives(sandbox: Sandbox) {
+            let mut sandbox = sandbox
                 .with_data_trigger_transfer("bob", 50, "carol")
                 // This trigger depletes after an execution.
                 .with_data_trigger_transfer_once("carol", 50, "bob");
-            match origin {
-                TriggerOrigin::ExternalTransaction => {
-                    sandbox.request_transfer("alice", 50, "bob");
-                }
-                TriggerOrigin::TimeTrigger => {
-                    sandbox = sandbox.with_time_trigger_transfer("alice", 50, "bob");
-                }
-            }
             let mut block = sandbox.block();
             block.assert_balances([("alice", 60), ("bob", 10), ("carol", 10)]);
             let _events = block.apply();
@@ -520,20 +496,12 @@ mod tests {
             block.assert_balances([("alice", 10), ("bob", 10), ("carol", 60)]);
         }
 
-        fn commits_on_regular_success(origin: &TriggerOrigin) {
-            let mut sandbox = Sandbox::new()
+        fn commits_on_regular_success(sandbox: Sandbox) {
+            let mut sandbox = sandbox
                 .with_max_execution_depth(3)
                 .with_data_trigger_transfer("bob", 50, "carol")
                 .with_data_trigger_transfer("carol", 50, "dave")
                 .with_data_trigger_transfer("dave", 50, "eve");
-            match origin {
-                TriggerOrigin::ExternalTransaction => {
-                    sandbox.request_transfer("alice", 50, "bob");
-                }
-                TriggerOrigin::TimeTrigger => {
-                    sandbox = sandbox.with_time_trigger_transfer("alice", 50, "bob");
-                }
-            }
             let mut block = sandbox.block();
             block.assert_balances([
                 ("alice", 60),
