@@ -306,6 +306,7 @@ impl StateBlock<'_> {
 
 #[cfg(test)]
 mod tests {
+    use core::panic;
     use std::sync::LazyLock;
 
     use iroha_data_model::{block::SignedBlock, isi::Instruction, prelude::EventBox};
@@ -319,6 +320,8 @@ mod tests {
         state::{State, StateBlock, StateReadOnly, World},
         sumeragi::network_topology::Topology,
     };
+
+    const DIR: &str = "/home/s8sato/git/forks/iroha/crates/iroha_core/tests/suite/events/";
 
     mod time_trigger {
         use super::*;
@@ -344,7 +347,8 @@ mod tests {
                 ("dave", 10),
                 ("eve", 10),
             ]);
-            let _events = block.apply();
+            let events = block.apply("time_trigger/fires_after_external_transactions");
+            assert_events(&events, "time_trigger/fires_after_external_transactions");
             block.assert_balances([
                 ("alice", 10),
                 ("bob", 10),
@@ -370,7 +374,8 @@ mod tests {
             sandbox.request_transfer("carol", 50, "dave");
             let mut block = sandbox.block();
             block.assert_balances([("alice", 60), ("bob", 10), ("carol", 10), ("dave", 10)]);
-            let _events = block.apply();
+            let events = block.apply("data_trigger/fires_for_each_transaction");
+            assert_events(&events, "data_trigger/fires_for_each_transaction");
             block.assert_balances([("alice", 10), ("bob", 10), ("carol", 10), ("dave", 60)]);
         }
 
@@ -384,7 +389,8 @@ mod tests {
             sandbox.request_transfers_batched::<2>("alice", 10, "bob");
             let mut block = sandbox.block();
             block.assert_balances([("alice", 60), ("bob", 10), ("carol", 10)]);
-            let _events = block.apply();
+            let events = block.apply("data_trigger/fires_at_most_once_per_step");
+            assert_events(&events, "data_trigger/fires_at_most_once_per_step");
             block.assert_balances([("alice", 40), ("bob", 20), ("carol", 20)]);
         }
 
@@ -410,7 +416,8 @@ mod tests {
                 ("dave", 10),
                 ("eve", 10),
             ]);
-            let _events = block.apply();
+            let events = block.apply("data_trigger/chains_in_depth_first_order");
+            assert_events(&events, "data_trigger/chains_in_depth_first_order");
             block.assert_balances([
                 ("alice", 10),
                 ("bob", 10),
@@ -429,10 +436,10 @@ mod tests {
                 res
             };
 
-            aborts_on_execution_error(sandbox());
-            aborts_on_exceeding_depth(sandbox());
-            commits_on_depleting_lives(sandbox());
-            commits_on_regular_success(sandbox());
+            aborts_on_execution_error(sandbox(), "txn");
+            aborts_on_exceeding_depth(sandbox(), "txn");
+            commits_on_depleting_lives(sandbox(), "txn");
+            commits_on_regular_success(sandbox(), "txn");
         }
 
         /// All or none of the initial time trigger and subsequent data triggers should take effect.
@@ -440,13 +447,13 @@ mod tests {
         async fn atomically_chains_from_time_trigger() {
             let sandbox = || Sandbox::new().with_time_trigger_transfer("alice", 50, "bob");
 
-            aborts_on_execution_error(sandbox());
-            aborts_on_exceeding_depth(sandbox());
-            commits_on_depleting_lives(sandbox());
-            commits_on_regular_success(sandbox());
+            aborts_on_execution_error(sandbox(), "time");
+            aborts_on_exceeding_depth(sandbox(), "time");
+            commits_on_depleting_lives(sandbox(), "time");
+            commits_on_regular_success(sandbox(), "time");
         }
 
-        fn aborts_on_execution_error(sandbox: Sandbox) {
+        fn aborts_on_execution_error(sandbox: Sandbox, suite_suffix: &str) {
             let mut sandbox = sandbox
                 .with_data_trigger_transfer("bob", 10, "carol")
                 .with_data_trigger_transfer("bob", 10, "dave")
@@ -460,7 +467,13 @@ mod tests {
                 ("dave", 10),
                 ("eve", 10),
             ]);
-            let _events = block.apply();
+            let events = block.apply(format!(
+                "data_trigger/aborts_on_execution_error-{suite_suffix}"
+            ));
+            assert_events(
+                &events,
+                format!("data_trigger/aborts_on_execution_error-{suite_suffix}"),
+            );
             // Everything should be rolled back.
             block.assert_balances([
                 ("alice", 60),
@@ -471,7 +484,7 @@ mod tests {
             ]);
         }
 
-        fn aborts_on_exceeding_depth(sandbox: Sandbox) {
+        fn aborts_on_exceeding_depth(sandbox: Sandbox, suite_suffix: &str) {
             let mut sandbox = sandbox
                 .with_max_execution_depth(2)
                 .with_data_trigger_transfer("bob", 50, "carol")
@@ -486,7 +499,13 @@ mod tests {
                 ("dave", 10),
                 ("eve", 10),
             ]);
-            let _events = block.apply();
+            let events = block.apply(format!(
+                "data_trigger/aborts_on_exceeding_depth-{suite_suffix}"
+            ));
+            assert_events(
+                &events,
+                format!("data_trigger/aborts_on_exceeding_depth-{suite_suffix}"),
+            );
             // Everything should be rolled back.
             block.assert_balances([
                 ("alice", 60),
@@ -497,19 +516,25 @@ mod tests {
             ]);
         }
 
-        fn commits_on_depleting_lives(sandbox: Sandbox) {
+        fn commits_on_depleting_lives(sandbox: Sandbox, suite_suffix: &str) {
             let mut sandbox = sandbox
                 .with_data_trigger_transfer("bob", 50, "carol")
                 // This trigger depletes after an execution.
                 .with_data_trigger_transfer_once("carol", 50, "bob");
             let mut block = sandbox.block();
             block.assert_balances([("alice", 60), ("bob", 10), ("carol", 10)]);
-            let _events = block.apply();
+            let events = block.apply(format!(
+                "data_trigger/commits_on_depleting_lives-{suite_suffix}"
+            ));
+            assert_events(
+                &events,
+                format!("data_trigger/commits_on_depleting_lives-{suite_suffix}"),
+            );
             // The execution sequence should take effect.
             block.assert_balances([("alice", 10), ("bob", 10), ("carol", 60)]);
         }
 
-        fn commits_on_regular_success(sandbox: Sandbox) {
+        fn commits_on_regular_success(sandbox: Sandbox, suite_suffix: &str) {
             let mut sandbox = sandbox
                 .with_max_execution_depth(3)
                 .with_data_trigger_transfer("bob", 50, "carol")
@@ -523,7 +548,13 @@ mod tests {
                 ("dave", 10),
                 ("eve", 10),
             ]);
-            let _events = block.apply();
+            let events = block.apply(format!(
+                "data_trigger/commits_on_regular_success-{suite_suffix}"
+            ));
+            assert_events(
+                &events,
+                format!("data_trigger/commits_on_regular_success-{suite_suffix}"),
+            );
             // The execution sequence should take effect.
             block.assert_balances([
                 ("alice", 10),
@@ -564,7 +595,11 @@ mod tests {
         ACCOUNTS_STR
             .iter()
             .map(|name| {
-                let key_pair = iroha_crypto::KeyPair::random().into_parts();
+                let key_pair = iroha_crypto::KeyPair::from_seed(
+                    name.as_bytes().into(),
+                    iroha_crypto::Algorithm::Ed25519,
+                )
+                .into_parts();
                 let credential = Credential {
                     id: format!("{}@{DOMAIN_STR}", key_pair.0).parse().unwrap(),
                     key: key_pair.1,
@@ -618,6 +653,27 @@ mod tests {
                 ACCOUNT[dest].id.clone(),
             )
         })
+    }
+
+    fn assert_events(actual: &Vec<EventBox>, expected: impl AsRef<str>) {
+        let expected: Vec<EventBox> = {
+            let mut path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/suite/events")
+                .join(expected.as_ref());
+            path.set_extension("json");
+            let reader = std::fs::File::open(path).unwrap();
+            serde_json::from_reader(reader).expect("test suite should be deserialized")
+        };
+        actual
+            .into_iter()
+            .zip(&expected)
+            .for_each(|(l, r)| match (l, r) {
+                (EventBox::Data(l), EventBox::Data(r)) => assert_eq!(l, r),
+                (EventBox::TriggerCompleted(l), EventBox::TriggerCompleted(r)) => assert_eq!(l, r),
+                (EventBox::Time(_), EventBox::Time(_)) => (),
+                (EventBox::Pipeline(_), EventBox::Pipeline(_)) => (),
+                _ => panic!("events mismatch"),
+            });
     }
 
     impl Sandbox {
@@ -769,7 +825,7 @@ mod tests {
     }
 
     impl SandboxBlock<'_> {
-        fn apply(&mut self) -> Vec<EventBox> {
+        fn apply(&mut self, test_name: impl AsRef<str>) -> Vec<EventBox> {
             let valid = ValidBlock::validate(
                 core::mem::take(&mut self.block).unwrap(),
                 &TOPOLOGY,
@@ -781,8 +837,16 @@ mod tests {
             .unwrap();
 
             let committed = valid.commit(&TOPOLOGY).unpack(|_| {}).unwrap();
-            self.state
-                .apply_without_execution(&committed, TOPOLOGY.iter().cloned().collect())
+            let events = self
+                .state
+                .apply_without_execution(&committed, TOPOLOGY.iter().cloned().collect());
+
+            let mut path = std::path::PathBuf::from(DIR).join(test_name.as_ref());
+            path.set_extension("json");
+            let writer = std::fs::File::create(path).unwrap();
+            serde_json::to_writer_pretty(writer, &events).unwrap();
+
+            events
         }
 
         fn assert_balances(&self, expected: impl Into<AccountBalance>) {
