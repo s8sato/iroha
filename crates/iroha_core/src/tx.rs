@@ -832,8 +832,10 @@ mod tests {
         }
 
         fn assert_balances(&self, expected: impl Into<AccountBalance>) {
+            let expected = expected.into();
             let actual: AccountBalance = ACCOUNTS_STR
                 .iter()
+                .filter(|name| expected.contains_key(*name))
                 .map(|name| {
                     let balance = self
                         .state
@@ -847,9 +849,7 @@ mod tests {
                 })
                 .collect();
 
-            expected.into().iter().for_each(|(name, balance)| {
-                assert_eq!(actual[name], *balance);
-            });
+            assert_eq!(actual, expected);
         }
     }
 }
