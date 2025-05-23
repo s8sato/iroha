@@ -28,12 +28,6 @@
     }
   },
   {
-    "TriggerCompleted": {
-      "trigger_id": "time-alice-bob-2030928169",
-      "outcome": "Success"
-    }
-  },
-  {
     "Data": {
       "Domain": {
         "Account": {
@@ -63,7 +57,7 @@
   },
   {
     "TriggerCompleted": {
-      "trigger_id": "data-bob-carol-2877078111",
+      "trigger_id": "data-bob-carol-2744090354",
       "outcome": "Success"
     }
   },
@@ -87,6 +81,40 @@
         "Account": {
           "Asset": {
             "Added": {
+              "asset": "rose##ed012060F5BA726B8E3CCE8FB64944ECEF5BFCD4308DF9078293421B45E9F5D64F5FDA@wonderland",
+              "amount": "50"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "TriggerCompleted": {
+      "trigger_id": "data-carol-dave-2464420335",
+      "outcome": "Success"
+    }
+  },
+  {
+    "Data": {
+      "Domain": {
+        "Account": {
+          "Asset": {
+            "Removed": {
+              "asset": "rose##ed012060F5BA726B8E3CCE8FB64944ECEF5BFCD4308DF9078293421B45E9F5D64F5FDA@wonderland",
+              "amount": "50"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "Data": {
+      "Domain": {
+        "Account": {
+          "Asset": {
+            "Added": {
               "asset": "rose##ed0120874F82265255BF774A8FAE7E0F9B900A03FAA1A548B0CC14A0B9669093D07491@wonderland",
               "amount": "50"
             }
@@ -97,7 +125,7 @@
   },
   {
     "TriggerCompleted": {
-      "trigger_id": "data-carol-bob-3002671975",
+      "trigger_id": "data-dave-bob-3088998250",
       "outcome": "Success"
     }
   },
@@ -121,7 +149,7 @@
         "Account": {
           "Asset": {
             "Added": {
-              "asset": "rose##ed0120384F5AF98BEDAF1C400B98D4E91913B5EE8C76F451D87EB03A9759296E791BAD@wonderland",
+              "asset": "rose##ed0120095FB7FDA7389A42277647E5777715D87A66BFE62525CEA889E3212503A14B73@wonderland",
               "amount": "50"
             }
           }
@@ -131,7 +159,7 @@
   },
   {
     "TriggerCompleted": {
-      "trigger_id": "data-bob-carol-2877078111",
+      "trigger_id": "data-bob-eve-4106222677",
       "outcome": "Success"
     }
   }

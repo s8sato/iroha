@@ -57,7 +57,7 @@
   },
   {
     "TriggerCompleted": {
-      "trigger_id": "data-bob-carol-2733613442",
+      "trigger_id": "data-bob-carol-3754520649",
       "outcome": "Success"
     }
   },
@@ -91,7 +91,7 @@
   },
   {
     "TriggerCompleted": {
-      "trigger_id": "data-carol-dave-1665349862",
+      "trigger_id": "time-carol-dave-1231080855",
       "outcome": "Success"
     }
   },
@@ -115,40 +115,6 @@
         "Account": {
           "Asset": {
             "Added": {
-              "asset": "rose##ed0120874F82265255BF774A8FAE7E0F9B900A03FAA1A548B0CC14A0B9669093D07491@wonderland",
-              "amount": "50"
-            }
-          }
-        }
-      }
-    }
-  },
-  {
-    "TriggerCompleted": {
-      "trigger_id": "data-dave-bob-2823706140",
-      "outcome": "Success"
-    }
-  },
-  {
-    "Data": {
-      "Domain": {
-        "Account": {
-          "Asset": {
-            "Removed": {
-              "asset": "rose##ed0120874F82265255BF774A8FAE7E0F9B900A03FAA1A548B0CC14A0B9669093D07491@wonderland",
-              "amount": "50"
-            }
-          }
-        }
-      }
-    }
-  },
-  {
-    "Data": {
-      "Domain": {
-        "Account": {
-          "Asset": {
-            "Added": {
               "asset": "rose##ed0120095FB7FDA7389A42277647E5777715D87A66BFE62525CEA889E3212503A14B73@wonderland",
               "amount": "50"
             }
@@ -159,7 +125,7 @@
   },
   {
     "TriggerCompleted": {
-      "trigger_id": "data-bob-eve-591321618",
+      "trigger_id": "data-dave-eve-3906059425",
       "outcome": "Success"
     }
   }

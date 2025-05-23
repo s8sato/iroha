@@ -491,7 +491,7 @@ mod tests {
             commits_on_regular_success(sandbox(), "time");
         }
 
-        fn aborts_on_execution_error(sandbox: Sandbox, suite_suffix: &str) {
+        fn aborts_on_execution_error(sandbox: Sandbox, snapshot_suffix: &str) {
             let mut sandbox = sandbox
                 .with_data_trigger_transfer("bob", 10, "carol")
                 .with_data_trigger_transfer("bob", 10, "dave")
@@ -508,7 +508,7 @@ mod tests {
             let events = block.apply();
             assert_events(
                 &events,
-                format!("data_trigger/aborts_on_execution_error-{suite_suffix}"),
+                format!("data_trigger/aborts_on_execution_error-{snapshot_suffix}"),
             );
             // Everything should be rolled back.
             block.assert_balances([
@@ -520,7 +520,7 @@ mod tests {
             ]);
         }
 
-        fn aborts_on_exceeding_depth(sandbox: Sandbox, suite_suffix: &str) {
+        fn aborts_on_exceeding_depth(sandbox: Sandbox, snapshot_suffix: &str) {
             let mut sandbox = sandbox
                 .with_max_execution_depth(2)
                 .with_data_trigger_transfer("bob", 50, "carol")
@@ -538,7 +538,7 @@ mod tests {
             let events = block.apply();
             assert_events(
                 &events,
-                format!("data_trigger/aborts_on_exceeding_depth-{suite_suffix}"),
+                format!("data_trigger/aborts_on_exceeding_depth-{snapshot_suffix}"),
             );
             // Everything should be rolled back.
             block.assert_balances([
@@ -550,7 +550,7 @@ mod tests {
             ]);
         }
 
-        fn commits_on_depleting_lives(sandbox: Sandbox, suite_suffix: &str) {
+        fn commits_on_depleting_lives(sandbox: Sandbox, snapshot_suffix: &str) {
             let mut sandbox = sandbox
                 .with_data_trigger_transfer("bob", 50, "carol")
                 // This trigger depletes after an execution.
@@ -560,13 +560,13 @@ mod tests {
             let events = block.apply();
             assert_events(
                 &events,
-                format!("data_trigger/commits_on_depleting_lives-{suite_suffix}"),
+                format!("data_trigger/commits_on_depleting_lives-{snapshot_suffix}"),
             );
             // The execution sequence should take effect.
             block.assert_balances([("alice", 10), ("bob", 10), ("carol", 60)]);
         }
 
-        fn commits_on_regular_success(sandbox: Sandbox, suite_suffix: &str) {
+        fn commits_on_regular_success(sandbox: Sandbox, snapshot_suffix: &str) {
             let mut sandbox = sandbox
                 .with_max_execution_depth(3)
                 .with_data_trigger_transfer("bob", 50, "carol")
@@ -583,7 +583,7 @@ mod tests {
             let events = block.apply();
             assert_events(
                 &events,
-                format!("data_trigger/commits_on_regular_success-{suite_suffix}"),
+                format!("data_trigger/commits_on_regular_success-{snapshot_suffix}"),
             );
             // The execution sequence should take effect.
             block.assert_balances([
@@ -688,7 +688,7 @@ mod tests {
     fn assert_events(actual: &[EventBox], snapshot_path: impl AsRef<std::path::Path>) {
         let expected = {
             let mut path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("tests/suite/events")
+                .join("tests/fixtures")
                 .join(snapshot_path.as_ref());
             path.set_extension("json");
             expect_test::expect_file![path]
