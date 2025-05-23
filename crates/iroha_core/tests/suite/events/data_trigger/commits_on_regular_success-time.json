@@ -29,7 +29,7 @@
   },
   {
     "TriggerCompleted": {
-      "trigger_id": "time-alice-bob",
+      "trigger_id": "time-alice-bob-3366073894",
       "outcome": "Success"
     }
   },
@@ -63,7 +63,7 @@
   },
   {
     "TriggerCompleted": {
-      "trigger_id": "data-bob-carol",
+      "trigger_id": "data-bob-carol-3081757845",
       "outcome": "Success"
     }
   },
@@ -97,7 +97,7 @@
   },
   {
     "TriggerCompleted": {
-      "trigger_id": "data-carol-dave",
+      "trigger_id": "data-carol-dave-3081895616",
       "outcome": "Success"
     }
   },
@@ -131,7 +131,7 @@
   },
   {
     "TriggerCompleted": {
-      "trigger_id": "data-dave-eve",
+      "trigger_id": "data-dave-eve-1530869215",
       "outcome": "Success"
     }
   }

@@ -312,6 +312,7 @@ mod tests {
     use iroha_data_model::{block::SignedBlock, isi::Instruction, prelude::EventBox};
     use iroha_genesis::GENESIS_DOMAIN_ID;
     use iroha_test_samples::gen_account_in;
+    use rand::RngCore;
 
     use super::*;
     use crate::{
@@ -422,6 +423,45 @@ mod tests {
                 ("carol", 10),
                 ("dave", 10),
                 ("eve", 60),
+            ]);
+        }
+
+        /// # Scenario
+        ///
+        /// 1. Transaction: Alice sends 50 units to Bob.
+        /// 2. Data triggers: each branch (Bob -> Carol -> Dave -> Eve) runs independently to a max depth of 3, forwarding 1 unit per step.
+        #[tokio::test]
+        async fn each_branch_is_assigned_depth() {
+            let mut sandbox = Sandbox::new()
+                .with_max_execution_depth(3)
+                // Branches: Bob -> Carol
+                .with_data_trigger_transfer("bob", 1, "carol")
+                .with_data_trigger_transfer("bob", 1, "carol")
+                .with_data_trigger_transfer("bob", 1, "carol")
+                .with_data_trigger_transfer("bob", 1, "carol")
+                .with_data_trigger_transfer("bob", 1, "carol")
+                .with_data_trigger_transfer("bob", 1, "carol")
+                .with_data_trigger_transfer("bob", 1, "carol")
+                // Common path: Carol -> Dave -> Eve
+                .with_data_trigger_transfer("carol", 1, "dave")
+                .with_data_trigger_transfer("dave", 1, "eve");
+            sandbox.request_transfer("alice", 50, "bob");
+            let mut block = sandbox.block();
+            block.assert_balances([
+                ("alice", 60),
+                ("bob", 10),
+                ("carol", 10),
+                ("dave", 10),
+                ("eve", 10),
+            ]);
+            let events = block.apply();
+            assert_events(&events, "data_trigger/each_branch_is_assigned_depth");
+            block.assert_balances([
+                ("alice", 10),
+                ("bob", 53),
+                ("carol", 10),
+                ("dave", 10),
+                ("eve", 17),
             ]);
         }
 
@@ -701,8 +741,9 @@ mod tests {
         ) -> Self {
             let mut block = self.state.world.triggers.block();
             let mut transaction = block.transaction();
+            let nonce = rand::thread_rng().next_u32();
             let trigger = Trigger::new(
-                format!("time-{src}-{dest}").parse().unwrap(),
+                format!("time-{src}-{dest}-{nonce}").parse().unwrap(),
                 Action::new(
                     transfer(src, quantity, dest),
                     repeats,
@@ -738,8 +779,9 @@ mod tests {
         ) -> Self {
             let mut block = self.state.world.triggers.block();
             let mut transaction = block.transaction();
+            let nonce = rand::thread_rng().next_u32();
             let trigger = Trigger::new(
-                format!("data-{src}-{dest}").parse().unwrap(),
+                format!("data-{src}-{dest}-{nonce}").parse().unwrap(),
                 Action::new(
                     transfer(src, quantity, dest),
                     repeats,

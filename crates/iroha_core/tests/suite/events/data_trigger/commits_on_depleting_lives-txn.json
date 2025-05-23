@@ -57,7 +57,7 @@
   },
   {
     "TriggerCompleted": {
-      "trigger_id": "data-bob-carol",
+      "trigger_id": "data-bob-carol-1573182780",
       "outcome": "Success"
     }
   },
@@ -91,7 +91,7 @@
   },
   {
     "TriggerCompleted": {
-      "trigger_id": "data-carol-bob",
+      "trigger_id": "data-carol-bob-2082791347",
       "outcome": "Success"
     }
   },
@@ -125,7 +125,7 @@
   },
   {
     "TriggerCompleted": {
-      "trigger_id": "data-bob-carol",
+      "trigger_id": "data-bob-carol-1573182780",
       "outcome": "Success"
     }
   }
