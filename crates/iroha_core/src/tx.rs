@@ -645,25 +645,19 @@ mod tests {
         })
     }
 
-    fn assert_events(actual: &[EventBox], expected: impl AsRef<str>) {
-        let expected: Vec<EventBox> = {
+    fn assert_events(actual: &[EventBox], snapshot_path: impl AsRef<std::path::Path>) {
+        let expected = {
             let mut path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("tests/suite/events")
-                .join(expected.as_ref());
+                .join(snapshot_path.as_ref());
             path.set_extension("json");
-            let reader = std::fs::File::open(path).unwrap();
-            serde_json::from_reader(reader).expect("test suite should be deserialized")
+            expect_test::expect_file![path]
         };
-        actual
+        let actual = actual
             .iter()
-            .zip(&expected)
-            .for_each(|(l, r)| match (l, r) {
-                (EventBox::Data(l), EventBox::Data(r)) => assert_eq!(l, r),
-                (EventBox::TriggerCompleted(l), EventBox::TriggerCompleted(r)) => assert_eq!(l, r),
-                (EventBox::Time(_), EventBox::Time(_))
-                | (EventBox::Pipeline(_), EventBox::Pipeline(_)) => (),
-                _ => panic!("events mismatch"),
-            });
+            .filter(|e| !matches!(e, EventBox::Time(_) | EventBox::Pipeline(_)))
+            .collect::<Vec<_>>();
+        expected.assert_eq(&serde_json::to_string_pretty(&actual).unwrap());
     }
 
     impl Sandbox {

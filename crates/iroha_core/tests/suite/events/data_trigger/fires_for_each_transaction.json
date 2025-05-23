@@ -88,27 +88,5 @@
         }
       }
     }
-  },
-  {
-    "Time": {
-      "interval": {
-        "since_ms": 1747950697929,
-        "length_ms": 0
-      }
-    }
-  },
-  {
-    "Pipeline": {
-      "Block": {
-        "header": {
-          "height": 1,
-          "prev_block_hash": null,
-          "transactions_hash": "6D4777A12CDFECD06B5AC16EA10E8336ADADDD22D6BF0E7B87541D05F7F28D99",
-          "creation_time_ms": 1747950697929,
-          "view_change_index": 0
-        },
-        "status": "Applied"
-      }
-    }
   }
 ]

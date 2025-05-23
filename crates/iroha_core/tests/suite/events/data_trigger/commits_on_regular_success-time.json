@@ -1,13 +1,5 @@
 [
   {
-    "Time": {
-      "interval": {
-        "since_ms": 1747950697976,
-        "length_ms": 0
-      }
-    }
-  },
-  {
     "Data": {
       "Domain": {
         "Account": {
@@ -141,20 +133,6 @@
     "TriggerCompleted": {
       "trigger_id": "data-dave-eve",
       "outcome": "Success"
-    }
-  },
-  {
-    "Pipeline": {
-      "Block": {
-        "header": {
-          "height": 1,
-          "prev_block_hash": null,
-          "transactions_hash": null,
-          "creation_time_ms": 1747950697976,
-          "view_change_index": 0
-        },
-        "status": "Applied"
-      }
     }
   }
 ]

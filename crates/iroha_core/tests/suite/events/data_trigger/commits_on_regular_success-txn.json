@@ -128,27 +128,5 @@
       "trigger_id": "data-dave-eve",
       "outcome": "Success"
     }
-  },
-  {
-    "Time": {
-      "interval": {
-        "since_ms": 1747950697999,
-        "length_ms": 0
-      }
-    }
-  },
-  {
-    "Pipeline": {
-      "Block": {
-        "header": {
-          "height": 1,
-          "prev_block_hash": null,
-          "transactions_hash": "56E90A8B4510114A8C2CAB76F373E7F97BC304418BCB1532563A7191221BD7C9",
-          "creation_time_ms": 1747950697999,
-          "view_change_index": 0
-        },
-        "status": "Applied"
-      }
-    }
   }
 ]

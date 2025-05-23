@@ -128,27 +128,5 @@
       "trigger_id": "data-bob-carol",
       "outcome": "Success"
     }
-  },
-  {
-    "Time": {
-      "interval": {
-        "since_ms": 1747950697971,
-        "length_ms": 0
-      }
-    }
-  },
-  {
-    "Pipeline": {
-      "Block": {
-        "header": {
-          "height": 1,
-          "prev_block_hash": null,
-          "transactions_hash": "9546710DB5327E70BBC1E4E59E2BF7B9A1E77F2A1C0E3E0DC4EFA2DBBDF7FD31",
-          "creation_time_ms": 1747950697971,
-          "view_change_index": 0
-        },
-        "status": "Applied"
-      }
-    }
   }
 ]
