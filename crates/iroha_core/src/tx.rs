@@ -312,7 +312,6 @@ mod tests {
     use iroha_data_model::{block::SignedBlock, isi::Instruction, prelude::EventBox};
     use iroha_genesis::GENESIS_DOMAIN_ID;
     use iroha_test_samples::gen_account_in;
-    use rand::RngCore;
 
     use super::*;
     use crate::{
@@ -435,13 +434,13 @@ mod tests {
             let mut sandbox = Sandbox::new()
                 .with_max_execution_depth(3)
                 // Branches: Bob -> Carol
-                .with_data_trigger_transfer("bob", 1, "carol")
-                .with_data_trigger_transfer("bob", 1, "carol")
-                .with_data_trigger_transfer("bob", 1, "carol")
-                .with_data_trigger_transfer("bob", 1, "carol")
-                .with_data_trigger_transfer("bob", 1, "carol")
-                .with_data_trigger_transfer("bob", 1, "carol")
-                .with_data_trigger_transfer("bob", 1, "carol")
+                .with_data_trigger_transfer_labelled("bob", 1, "carol", 0)
+                .with_data_trigger_transfer_labelled("bob", 1, "carol", 1)
+                .with_data_trigger_transfer_labelled("bob", 1, "carol", 2)
+                .with_data_trigger_transfer_labelled("bob", 1, "carol", 3)
+                .with_data_trigger_transfer_labelled("bob", 1, "carol", 4)
+                .with_data_trigger_transfer_labelled("bob", 1, "carol", 5)
+                .with_data_trigger_transfer_labelled("bob", 1, "carol", 6)
                 // Common path: Carol -> Dave -> Eve
                 .with_data_trigger_transfer("carol", 1, "dave")
                 .with_data_trigger_transfer("dave", 1, "eve");
@@ -741,9 +740,8 @@ mod tests {
         ) -> Self {
             let mut block = self.state.world.triggers.block();
             let mut transaction = block.transaction();
-            let nonce = rand::thread_rng().next_u32();
             let trigger = Trigger::new(
-                format!("time-{src}-{dest}-{nonce}").parse().unwrap(),
+                format!("time-{src}-{dest}").parse().unwrap(),
                 Action::new(
                     transfer(src, quantity, dest),
                     repeats,
@@ -763,11 +761,27 @@ mod tests {
         }
 
         fn with_data_trigger_transfer(self, src: &str, quantity: u32, dest: &str) -> Self {
-            self.with_data_trigger_transfer_internal(src, quantity, dest, Repeats::Indefinitely)
+            self.with_data_trigger_transfer_internal(src, quantity, dest, Repeats::Indefinitely, 0)
         }
 
         fn with_data_trigger_transfer_once(self, src: &str, quantity: u32, dest: &str) -> Self {
-            self.with_data_trigger_transfer_internal(src, quantity, dest, Repeats::Exactly(1))
+            self.with_data_trigger_transfer_internal(src, quantity, dest, Repeats::Exactly(1), 0)
+        }
+
+        fn with_data_trigger_transfer_labelled(
+            self,
+            src: &str,
+            quantity: u32,
+            dest: &str,
+            label: u32,
+        ) -> Self {
+            self.with_data_trigger_transfer_internal(
+                src,
+                quantity,
+                dest,
+                Repeats::Indefinitely,
+                label,
+            )
         }
 
         fn with_data_trigger_transfer_internal(
@@ -776,12 +790,12 @@ mod tests {
             quantity: u32,
             dest: &str,
             repeats: Repeats,
+            label: u32,
         ) -> Self {
             let mut block = self.state.world.triggers.block();
             let mut transaction = block.transaction();
-            let nonce = rand::thread_rng().next_u32();
             let trigger = Trigger::new(
-                format!("data-{src}-{dest}-{nonce}").parse().unwrap(),
+                format!("data-{src}-{dest}-{label}").parse().unwrap(),
                 Action::new(
                     transfer(src, quantity, dest),
                     repeats,
