@@ -4,6 +4,7 @@ use alloc::{collections::VecDeque, format, string::String, vec, vec::Vec};
 #[cfg(feature = "std")]
 use std::collections::VecDeque;
 
+use derive_more::Display;
 use iroha_schema::{IntoSchema, TypeId};
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
@@ -11,13 +12,26 @@ use serde::{Deserialize, Serialize};
 use crate::{Hash, HashOf};
 
 /// [Merkle Tree](https://en.wikipedia.org/wiki/Merkle_tree) used to validate `T`
-#[derive(Debug, TypeId, Decode, Encode, Deserialize, Serialize)]
+#[derive(
+    Debug,
+    Display,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Decode,
+    Encode,
+    Deserialize,
+    Serialize,
+    TypeId,
+)]
 #[repr(transparent)]
 pub struct MerkleTree<T>(Vec<Option<HashOf<T>>>);
 
 /// Iterator over leaves of [`MerkleTree`]
-pub struct LeafHashIterator<T> {
-    tree: MerkleTree<T>,
+pub struct LeafHashIterator<'a, T> {
+    tree: &'a MerkleTree<T>,
     next: usize,
 }
 
@@ -29,7 +43,7 @@ trait CompleteBTree<T> {
 
     /// Get the reference of the `idx`-th leaf node.
     fn get_leaf(&self, idx: usize) -> Option<&T> {
-        let offset = 2_usize.pow(self.height()) - 1;
+        let offset = (1 << self.height()) - 1_usize;
         offset.checked_add(idx).and_then(|i| self.get(i))
     }
 
@@ -38,7 +52,7 @@ trait CompleteBTree<T> {
     }
 
     fn max_nodes_at_height(&self) -> usize {
-        2_usize.pow(self.height() + 1) - 1
+        (1 << (self.height() + 1)) - 1
     }
 
     fn parent(&self, idx: usize) -> Option<usize> {
@@ -83,12 +97,12 @@ impl<T> FromIterator<HashOf<T>> for MerkleTree<T> {
         let mut queue = iter.into_iter().map(Some).collect::<VecDeque<_>>();
 
         let height = usize::BITS - queue.len().saturating_sub(1).leading_zeros();
-        let n_complement = 2_usize.pow(height) - queue.len();
+        let n_complement = (1 << height) - queue.len();
         for _ in 0..n_complement {
             queue.push_back(None);
         }
 
-        let mut tree = Vec::with_capacity(2_usize.pow(height + 1));
+        let mut tree = Vec::with_capacity(1 << (height + 1));
         while let Some(r_node) = queue.pop_back() {
             if let Some(l_node) = queue.pop_back() {
                 queue.push_front(Self::nodes_pair_hash(l_node.as_ref(), r_node.as_ref()));
@@ -109,9 +123,16 @@ impl<T> FromIterator<HashOf<T>> for MerkleTree<T> {
     }
 }
 
-impl<T> IntoIterator for MerkleTree<T> {
+impl<'a, T> MerkleTree<T> {
+    /// Leaf hashes of this Merkle tree.
+    pub fn iter(&'a self) -> LeafHashIterator<'a, T> {
+        <&Self as IntoIterator>::into_iter(self)
+    }
+}
+
+impl<'a, T> IntoIterator for &'a MerkleTree<T> {
     type Item = HashOf<T>;
-    type IntoIter = LeafHashIterator<T>;
+    type IntoIter = LeafHashIterator<'a, T>;
 
     fn into_iter(self) -> Self::IntoIter {
         LeafHashIterator::new(self)
@@ -166,7 +187,7 @@ impl<T> MerkleTree<T> {
             let mut new_array = vec![None];
             let mut array = self.0.clone();
             for depth in 0..self.height() {
-                let capacity_at_depth = 2_usize.pow(depth);
+                let capacity_at_depth = 1 << depth;
                 let tail = array.split_off(capacity_at_depth);
                 array.extend(core::iter::once(&None).cycle().take(capacity_at_depth));
                 new_array.append(&mut array);
@@ -225,10 +246,9 @@ impl<T> MerkleTree<T> {
     }
 }
 
-impl<T> Iterator for LeafHashIterator<T> {
+impl<T> Iterator for LeafHashIterator<'_, T> {
     type Item = HashOf<T>;
 
-    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let opt = match self.tree.get(self.next) {
             Some(node) => *node,
@@ -239,10 +259,15 @@ impl<T> Iterator for LeafHashIterator<T> {
     }
 }
 
-impl<T> LeafHashIterator<T> {
-    #[inline]
-    fn new(tree: MerkleTree<T>) -> Self {
-        let next = 2_usize.pow(tree.height()) - 1;
+impl<T> ExactSizeIterator for LeafHashIterator<'_, T> {
+    fn len(&self) -> usize {
+        1 << self.tree.height()
+    }
+}
+
+impl<'a, T> LeafHashIterator<'a, T> {
+    fn new(tree: &'a MerkleTree<T>) -> Self {
+        let next = (1 << tree.height()) - 1;
         Self { tree, next }
     }
 }

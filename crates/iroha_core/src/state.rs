@@ -95,7 +95,8 @@ pub struct World {
     pub(crate) executor: Cell<Executor>,
     /// Executor-defined data model
     pub(crate) executor_data_model: Cell<ExecutorDataModel>,
-    /// Required here for formal correctness, even though it is only used below block level.
+    /// Placeholder buffer of events pending publication to external subscribers.
+    /// Included for formal correctness, although used only below the block level.
     external_event_buf: Cell<Vec<EventBox>>,
 }
 
@@ -1413,7 +1414,7 @@ impl<'state> StateBlock<'state> {
             .expect("INTERNAL BUG: Block height exceeds usize::MAX");
         let transactions = block
             .as_ref()
-            .transactions()
+            .external_transactions()
             .map(SignedTransaction::hash)
             .collect();
         self.transactions.insert_block(transactions, block_height);
@@ -1433,23 +1434,55 @@ impl<'state> StateBlock<'state> {
         core::mem::take(&mut self.world.external_event_buf)
     }
 
-    /// Execute all time triggers matching the given block.
-    pub(crate) fn execute_time_triggers(&mut self, block: &SignedBlock) {
+    /// Executes all time triggers matching the given block.
+    /// Returns a pair of vectors: the first contains each trigger chain’s initial execution,
+    /// and the second contains their corresponding results.
+    pub(crate) fn execute_time_triggers(
+        &mut self,
+        block: &SignedBlock,
+    ) -> (Vec<HashOf<TransactionEntrypoint>>, Vec<TransactionResult>) {
         let time_event = self.create_time_event(block);
         self.world.external_event_buf.push(time_event.into());
         let matched: Vec<_> = self.world.triggers.match_time_event(time_event).collect();
 
+        let (mut hashes, mut results) = (Vec::new(), Vec::new());
         for (trg_id, action) in &matched {
-            if let Err(error) = self.execute_time_trigger(trg_id, action, &time_event) {
-                // TODO(#4968): Record errors in the block alongside transaction errors.
-                iroha_logger::warn!(
-                    trigger=%trg_id,
-                    block=%block.hash(),
-                    reason=?error,
-                    "Time trigger and its chained data triggers failed to execute"
-                );
+            #[expect(clippy::single_match_else)]
+            match self.execute_time_trigger(trg_id, action, &time_event) {
+                Err(error) => {
+                    iroha_logger::debug!(
+                        trigger=%trg_id,
+                        block=%block.hash(),
+                        reason=?error,
+                        "Time trigger and its chained data triggers failed to execute"
+                    );
+                    hashes.push(HashOf::new(&TransactionEntrypoint::Time(
+                        TimeTriggerEntrypoint {
+                            id: trg_id.clone(),
+                            instructions: ExecutionStep,
+                            authority: action.authority.clone(),
+                        },
+                    )));
+                    results.push(TransactionResult::Err(error));
+                }
+                Ok(()) => {
+                    iroha_logger::debug!(
+                        trigger=%trg_id,
+                        block=%block.hash(),
+                        "Time trigger and its chained data triggers successfully executed"
+                    );
+                    hashes.push(HashOf::new(&TransactionEntrypoint::Time(
+                        TimeTriggerEntrypoint {
+                            id: trg_id.clone(),
+                            instructions: ExecutionStep,
+                            authority: action.authority.clone(),
+                        },
+                    )));
+                    results.push(TransactionResult::Ok(Vec::new()));
+                }
             }
         }
+        (hashes, results)
     }
 
     fn execute_time_trigger(
@@ -1516,7 +1549,7 @@ impl<'state> StateBlock<'state> {
     fn apply_transactions(&mut self, block: &CommittedBlock) {
         let block = block.as_ref();
 
-        for (idx, tx) in block.transactions().enumerate() {
+        for (idx, tx) in block.external_transactions().enumerate() {
             if block.error(idx).is_none() {
                 // Execute each transaction in its own transactional state
                 let mut transaction = self.transaction();
