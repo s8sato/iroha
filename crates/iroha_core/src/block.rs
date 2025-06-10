@@ -256,8 +256,6 @@ mod chained {
 }
 
 mod new {
-    use iroha_data_model::prelude::TransactionEntrypoint;
-
     use super::*;
     use crate::{smartcontracts::wasm::cache::WasmCache, state::StateBlock};
 
@@ -287,44 +285,40 @@ mod new {
                 .cloned()
                 .fold((Vec::new(), Vec::new()), |mut acc, accepted_tx| {
                     let (hash, result) =
-                        match state_block.validate_transaction(accepted_tx, &mut wasm_cache) {
-                            Err((rejected_tx, error)) => {
-                                let hash = rejected_tx.hash();
-                                iroha_logger::debug!(
-                                    tx=%hash,
-                                    block=%self.header.hash(),
-                                    reason=?error,
-                                    "Transaction rejected"
-                                );
-                                (hash, Err(error))
-                            }
-                            Ok(transaction) => {
-                                let hash = transaction.hash();
-                                iroha_logger::debug!(
-                                    tx=%hash,
-                                    block=%self.header.hash(),
-                                    // trigger_sequence=?trigger_sequence,
-                                    "Transaction approved"
-                                );
-                                (hash, Ok(Vec::new()))
-                            }
-                        };
+                        state_block.validate_transaction(accepted_tx, &mut wasm_cache);
 
-                    let hash: HashOf<TransactionEntrypoint> = hash.transmute();
+                    match &result {
+                        Err(reason) => {
+                            iroha_logger::debug!(
+                                tx=%hash,
+                                block=%self.header.hash(),
+                                reason=?reason,
+                                "Transaction rejected"
+                            );
+                        }
+                        Ok(trigger_sequence) => {
+                            iroha_logger::debug!(
+                                tx=%hash,
+                                block=%self.header.hash(),
+                                trigger_sequence=?trigger_sequence,
+                                "Transaction approved"
+                            );
+                        }
+                    }
+
                     acc.0.push(hash);
                     acc.1.push(result);
-
                     acc
                 });
 
             let mut block: SignedBlock = self.into();
 
-            let (mut time_trg_hashes, mut time_trg_results) =
+            let (time_trgs, mut time_trg_hashes, mut time_trg_results) =
                 state_block.execute_time_triggers(&block);
             hashes.append(&mut time_trg_hashes);
             results.append(&mut time_trg_results);
 
-            block.set_transaction_results(hashes, results);
+            block.set_transaction_results(time_trgs, hashes, results);
 
             WithEvents::new(ValidBlock(block))
         }
@@ -371,10 +365,7 @@ mod valid {
     use std::time::SystemTime;
 
     use commit::CommittedBlock;
-    use iroha_data_model::{
-        account::AccountId, events::pipeline::PipelineEventBox, prelude::TransactionEntrypoint,
-        ChainId,
-    };
+    use iroha_data_model::{account::AccountId, events::pipeline::PipelineEventBox, ChainId};
 
     use super::*;
     use crate::{
@@ -644,6 +635,10 @@ mod valid {
 
         /// Validate each transaction in the block, apply resulting state changes,
         /// and record results back into the block.
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if any pre-validation static analysis fails.
         fn validate_and_record_transactions(
             block: &mut SignedBlock,
             expected_chain_id: &ChainId,
@@ -678,42 +673,38 @@ mod valid {
                     }?;
 
                     let (hash, result) =
-                        match state_block.validate_transaction(accepted_tx, &mut wasm_cache) {
-                            Err((rejected_tx, error)) => {
-                                let hash = rejected_tx.hash();
-                                iroha_logger::debug!(
-                                    tx=%hash,
-                                    block=%block.hash(),
-                                    reason=?error,
-                                    "Transaction rejected"
-                                );
-                                (hash, Err(error))
-                            }
-                            Ok(transaction) => {
-                                let hash = transaction.hash();
-                                iroha_logger::debug!(
-                                    tx=%hash,
-                                    block=%block.hash(),
-                                    // trigger_sequence=?trigger_sequence,
-                                    "Transaction approved"
-                                );
-                                (hash, Ok(Vec::new()))
-                            }
-                        };
+                        state_block.validate_transaction(accepted_tx, &mut wasm_cache);
 
-                    let hash: HashOf<TransactionEntrypoint> = hash.transmute();
+                    match &result {
+                        Err(reason) => {
+                            iroha_logger::debug!(
+                                tx=%hash,
+                                block=%block.hash(),
+                                reason=?reason,
+                                "Transaction rejected"
+                            );
+                        }
+                        Ok(trigger_sequence) => {
+                            iroha_logger::debug!(
+                                tx=%hash,
+                                block=%block.hash(),
+                                trigger_sequence=?trigger_sequence,
+                                "Transaction approved"
+                            );
+                        }
+                    }
+
                     acc.0.push(hash);
                     acc.1.push(result);
-
                     Ok::<_, TransactionValidationError>(acc)
                 })?;
 
-            let (mut time_trg_hashes, mut time_trg_results) =
+            let (time_trgs, mut time_trg_hashes, mut time_trg_results) =
                 state_block.execute_time_triggers(block);
             hashes.append(&mut time_trg_hashes);
             results.append(&mut time_trg_results);
 
-            block.set_transaction_results(hashes, results);
+            block.set_transaction_results(time_trgs, hashes, results);
 
             Ok(())
         }

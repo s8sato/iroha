@@ -256,7 +256,9 @@ mod model {
         Serialize,
         IntoSchema,
     )]
-    pub struct ExecutionStep;
+    #[display(fmt = "ExecutionStep")]
+
+    pub struct ExecutionStep(pub ConstVec<InstructionBox>);
 }
 
 impl<A: Instruction> FromIterator<A> for Executable {

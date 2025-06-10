@@ -215,12 +215,14 @@ impl SignedBlock {
     #[cfg(feature = "transparent_api")]
     pub fn set_transaction_results(
         &mut self,
+        time_triggers: Vec<TimeTriggerEntrypoint>,
         hashes: Vec<HashOf<TransactionEntrypoint>>,
         results: Vec<TransactionResult>,
     ) {
         let SignedBlock::V1(block) = self;
 
         let result_hashes = results.iter().map(HashOf::new);
+        block.result.time_triggers = time_triggers;
         block.result.merkle = MerkleTree::from_iter(hashes);
         block.result.result_merkle = result_hashes.collect();
         block.result.transaction_results = results;
