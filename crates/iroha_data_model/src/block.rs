@@ -217,15 +217,16 @@ impl SignedBlock {
         &mut self,
         time_triggers: Vec<TimeTriggerEntrypoint>,
         hashes: Vec<HashOf<TransactionEntrypoint>>,
-        results: Vec<TransactionResult>,
+        results: Vec<TransactionResultInner>,
     ) {
         let SignedBlock::V1(block) = self;
 
-        let result_hashes = results.iter().map(HashOf::new);
+        let result_hashes = results.iter().map(TransactionResult::hash_from_inner);
         block.result.time_triggers = time_triggers;
         block.result.merkle = MerkleTree::from_iter(hashes);
         block.result.result_merkle = result_hashes.collect();
-        block.result.transaction_results = results;
+        block.result.transaction_results =
+            results.into_iter().map(TransactionResult::from).collect();
         block.payload.header.result_merkle_root = block.result.result_merkle.hash();
     }
 

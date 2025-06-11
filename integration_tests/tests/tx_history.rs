@@ -1,5 +1,7 @@
 #![allow(missing_docs)]
 
+use std::time::Duration;
+
 use eyre::Result;
 use iroha::data_model::{prelude::*, query::parameters::Pagination};
 use iroha_test_network::*;
@@ -42,19 +44,27 @@ fn client_has_rejected_and_accepted_txs_should_return_tx_history() -> Result<()>
 
     let transactions = client
         .query(FindTransactions::new())
-        .filter_with(|tx| tx.value.authority.eq(account_id.clone()))
+        .filter_with(|tx| tx.entrypoint.authority.eq(account_id.clone()))
         .with_pagination(Pagination::new(Some(nonzero!(50_u64)), 1))
         .execute_all()?;
     assert_eq!(transactions.len(), 50);
 
-    let mut prev_creation_time = None;
-    transactions.iter().map(AsRef::as_ref).for_each(|tx| {
-        assert_eq!(tx.authority(), &account_id);
-        //check sorted descending
-        if let Some(prev_creation_time) = prev_creation_time {
-            assert!(tx.creation_time() <= prev_creation_time);
-        }
-        prev_creation_time = Some(tx.creation_time());
-    });
+    transactions
+        .iter()
+        .fold(Duration::ZERO, |prev_timestamp, tx| {
+            assert_eq!(tx.entrypoint().authority(), &account_id);
+            match tx.entrypoint() {
+                TransactionEntrypoint::External(entrypoint) => {
+                    let curr_timestamp = entrypoint.creation_time();
+                    assert!(prev_timestamp < curr_timestamp);
+                    curr_timestamp
+                }
+                TransactionEntrypoint::Time(_) => {
+                    // Ensure that time-triggered entrypoints come after external transactions.
+                    Duration::MAX
+                }
+            }
+        });
+
     Ok(())
 }
