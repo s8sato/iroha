@@ -199,7 +199,7 @@ mod pending {
                     .map(AsRef::as_ref)
                     .map(SignedTransaction::hash)
                     .collect::<MerkleTree<_>>()
-                    .hash()
+                    .root()
                     .map(HashOf::transmute),
                 result_merkle_root: None,
                 creation_time_ms: creation_time
