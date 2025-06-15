@@ -331,7 +331,7 @@ pub mod tests {
         /// 4. Data trigger: Dave forwards the donation to Eve.
         #[tokio::test]
         async fn fires_after_external_transactions() {
-            let mut sandbox = Sandbox::new()
+            let mut sandbox = Sandbox::default()
                 .with_data_trigger_transfer("bob", 50, "carol")
                 .with_time_trigger_transfer("carol", 50, "dave")
                 .with_data_trigger_transfer("dave", 50, "eve");
@@ -366,7 +366,7 @@ pub mod tests {
         /// 3. Transaction: Carol attempts to send the donation to Dave; this should fail if step 2 did not occur.
         #[tokio::test]
         async fn fires_for_each_transaction() {
-            let mut sandbox = Sandbox::new().with_data_trigger_transfer("bob", 50, "carol");
+            let mut sandbox = Sandbox::default().with_data_trigger_transfer("bob", 50, "carol");
             sandbox.request_transfer("alice", 50, "bob");
             sandbox.request_transfer("carol", 50, "dave");
             let mut block = sandbox.block();
@@ -382,7 +382,7 @@ pub mod tests {
         /// 2. Data trigger: Bob forwards exactly one package to Carol; this trigger fires only once.
         #[tokio::test]
         async fn fires_at_most_once_per_step() {
-            let mut sandbox = Sandbox::new().with_data_trigger_transfer("bob", 10, "carol");
+            let mut sandbox = Sandbox::default().with_data_trigger_transfer("bob", 10, "carol");
             sandbox.request_transfers_batched::<2>("alice", 10, "bob");
             let mut block = sandbox.block();
             block.assert_balances([("alice", 60), ("bob", 10), ("carol", 10)]);
@@ -398,7 +398,7 @@ pub mod tests {
         /// 3. Data trigger: Bob forwards the donation to Eve; this should fail if step 2 has not completed.
         #[tokio::test]
         async fn chains_in_depth_first_order() {
-            let mut sandbox = Sandbox::new()
+            let mut sandbox = Sandbox::default()
                 // Carol receives it before Eve because triggers matching the same event are processed in lexicographical order of their IDs.
                 .with_data_trigger_transfer_once("bob", 50, "carol")
                 // Sibling trigger waits for depth-first resolution.
@@ -431,7 +431,7 @@ pub mod tests {
         /// 2. Data triggers: each branch (Bob -> Carol -> Dave -> Eve) runs independently to a max depth of 3, forwarding 1 unit per step.
         #[tokio::test]
         async fn each_branch_is_assigned_depth() {
-            let mut sandbox = Sandbox::new()
+            let mut sandbox = Sandbox::default()
                 .with_max_execution_depth(3)
                 // Branches: Bob -> Carol
                 .with_data_trigger_transfer_labeled("bob", 1, "carol", 0)
@@ -468,7 +468,7 @@ pub mod tests {
         #[tokio::test]
         async fn atomically_chains_from_transaction() {
             let sandbox = || {
-                let mut res = Sandbox::new();
+                let mut res = Sandbox::default();
                 res.request_transfer("alice", 50, "bob");
                 res
             };
@@ -482,7 +482,7 @@ pub mod tests {
         /// All or none of the initial time trigger and subsequent data triggers should take effect.
         #[tokio::test]
         async fn atomically_chains_from_time_trigger() {
-            let sandbox = || Sandbox::new().with_time_trigger_transfer("alice", 50, "bob");
+            let sandbox = || Sandbox::default().with_time_trigger_transfer("alice", 50, "bob");
 
             aborts_on_execution_error(sandbox(), "time");
             aborts_on_exceeding_depth(sandbox(), "time");
@@ -699,8 +699,8 @@ pub mod tests {
         expected.assert_eq(&serde_json::to_string_pretty(&actual).unwrap());
     }
 
-    impl Sandbox {
-        pub fn new() -> Self {
+    impl Default for Sandbox {
+        fn default() -> Self {
             let world = {
                 let domain = Domain::new(DOMAIN.clone()).build(&GENESIS_ACCOUNT.id);
                 let asset_def = AssetDefinition::new(ASSET.clone(), NumericSpec::default())
@@ -726,11 +726,15 @@ pub mod tests {
             }
             .with_max_execution_depth(INIT_EXECUTION_DEPTH)
         }
+    }
 
+    impl Sandbox {
+        #[must_use]
         pub fn with_time_trigger_transfer(self, src: &str, quantity: u32, dest: &str) -> Self {
             self.with_time_trigger_transfer_internal(src, quantity, dest, Repeats::Indefinitely, 0)
         }
 
+        #[must_use]
         pub fn with_time_trigger_transfer_labeled(
             self,
             src: &str,
@@ -777,14 +781,17 @@ pub mod tests {
             self
         }
 
+        #[must_use]
         pub fn with_data_trigger_transfer(self, src: &str, quantity: u32, dest: &str) -> Self {
             self.with_data_trigger_transfer_internal(src, quantity, dest, Repeats::Indefinitely, 0)
         }
 
+        #[must_use]
         pub fn with_data_trigger_transfer_once(self, src: &str, quantity: u32, dest: &str) -> Self {
             self.with_data_trigger_transfer_internal(src, quantity, dest, Repeats::Exactly(1), 0)
         }
 
+        #[must_use]
         pub fn with_data_trigger_transfer_labeled(
             self,
             src: &str,
@@ -833,6 +840,7 @@ pub mod tests {
             self
         }
 
+        #[must_use]
         pub fn with_max_execution_depth(self, depth: u8) -> Self {
             let mut world = self.state.world.block();
             world.parameters.smart_contract.execution_depth = depth;
