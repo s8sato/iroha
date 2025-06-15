@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use iroha::{
     client::QueryError,
     data_model::{
@@ -76,7 +74,6 @@ fn find_transactions_reversed() -> eyre::Result<()> {
     let TransactionEntrypoint::External(entrypoint) = txs[3].entrypoint() else {
         eyre::bail!("entrypoint should be external transaction");
     };
-    dbg!(&entrypoint);
     let Executable::Instructions(instructions) = entrypoint.instructions() else {
         eyre::bail!("entrypoint should be builtin instructions");
     };
