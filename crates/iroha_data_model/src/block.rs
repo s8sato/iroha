@@ -227,7 +227,7 @@ impl SignedBlock {
         block.result.result_merkle = result_hashes.collect();
         block.result.transaction_results =
             results.into_iter().map(TransactionResult::from).collect();
-        block.payload.header.result_merkle_root = block.result.result_merkle.hash();
+        block.payload.header.result_merkle_root = block.result.result_merkle.root();
     }
 
     /// Return error for the transaction index
@@ -293,7 +293,7 @@ impl SignedBlock {
         &self,
     ) -> impl ExactSizeIterator<Item = HashOf<TransactionEntrypoint>> + '_ {
         let SignedBlock::V1(block) = self;
-        block.result.merkle.iter()
+        block.result.merkle.leaves()
     }
 
     /// Transaction entrypoints (external and time-triggered) in execution order.
@@ -307,7 +307,7 @@ impl SignedBlock {
     #[inline]
     pub fn result_hashes(&self) -> impl ExactSizeIterator<Item = HashOf<TransactionResult>> + '_ {
         let SignedBlock::V1(block) = self;
-        block.result.result_merkle.iter()
+        block.result.result_merkle.leaves()
     }
 
     /// Actual transaction results (trigger sequence or rejection reason) in execution order.
