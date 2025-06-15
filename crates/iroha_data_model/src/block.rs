@@ -480,36 +480,15 @@ impl BlockSignature {
 struct EntrypointIterator<'a> {
     block: &'a SignedBlock,
     index: usize,
+    index_back: usize,
     n_external_transactions: usize,
-    n_entrypoints: usize,
-}
-
-impl ExactSizeIterator for EntrypointIterator<'_> {
-    fn len(&self) -> usize {
-        self.n_entrypoints.saturating_sub(self.index)
-    }
-}
-
-impl<'a> EntrypointIterator<'a> {
-    fn new(block: &'a SignedBlock) -> Self {
-        let SignedBlock::V1(block_inner) = block;
-        let n_external_transactions = block_inner.payload.transactions.len();
-        let n_entrypoints = n_external_transactions + block_inner.result.time_triggers.len();
-
-        Self {
-            block,
-            index: 0,
-            n_external_transactions,
-            n_entrypoints,
-        }
-    }
 }
 
 impl Iterator for EntrypointIterator<'_> {
     type Item = TransactionEntrypoint;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.n_entrypoints <= self.index {
+        if self.index_back <= self.index {
             return None;
         }
 
@@ -522,8 +501,53 @@ impl Iterator for EntrypointIterator<'_> {
                 .into()
         };
 
+        // Increment the front index eagerly.
         self.index += 1;
         Some(item)
+    }
+}
+
+impl DoubleEndedIterator for EntrypointIterator<'_> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.index_back <= self.index {
+            return None;
+        }
+        // Decrement the back index lazily.
+        self.index_back -= 1;
+
+        let SignedBlock::V1(block_inner) = self.block;
+        let item = if self.index_back < self.n_external_transactions {
+            block_inner.payload.transactions[self.index_back]
+                .clone()
+                .into()
+        } else {
+            block_inner.result.time_triggers[self.index_back - self.n_external_transactions]
+                .clone()
+                .into()
+        };
+
+        Some(item)
+    }
+}
+
+impl ExactSizeIterator for EntrypointIterator<'_> {
+    fn len(&self) -> usize {
+        self.index_back - self.index
+    }
+}
+
+impl<'a> EntrypointIterator<'a> {
+    fn new(block: &'a SignedBlock) -> Self {
+        let SignedBlock::V1(block_inner) = block;
+        let n_external_transactions = block_inner.payload.transactions.len();
+        let n_entrypoints = n_external_transactions + block_inner.result.time_triggers.len();
+
+        Self {
+            block,
+            index: 0,
+            index_back: n_entrypoints,
+            n_external_transactions,
+        }
     }
 }
 
