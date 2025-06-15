@@ -266,7 +266,9 @@ impl SignedBlock {
     /// Signed transactions originating from external sources.
     /// Indices align with those of the entrypoints.
     #[inline]
-    pub fn external_transactions(&self) -> impl ExactSizeIterator<Item = &SignedTransaction> {
+    pub fn external_transactions(
+        &self,
+    ) -> impl ExactSizeIterator<Item = &SignedTransaction> + DoubleEndedIterator {
         let SignedBlock::V1(block) = self;
         block.payload.transactions.iter()
     }
@@ -281,7 +283,9 @@ impl SignedBlock {
     /// Time-triggered entrypoints in execution order, following external transactions.
     /// Indices offset by the number of the external transactions align with those of the entrypoints.
     #[inline]
-    pub fn time_triggers(&self) -> impl ExactSizeIterator<Item = &TimeTriggerEntrypoint> {
+    pub fn time_triggers(
+        &self,
+    ) -> impl ExactSizeIterator<Item = &TimeTriggerEntrypoint> + DoubleEndedIterator {
         let SignedBlock::V1(block) = self;
         block.result.time_triggers.iter()
     }
@@ -291,21 +295,26 @@ impl SignedBlock {
     #[inline]
     pub fn entrypoint_hashes(
         &self,
-    ) -> impl ExactSizeIterator<Item = HashOf<TransactionEntrypoint>> + '_ {
+    ) -> impl ExactSizeIterator<Item = HashOf<TransactionEntrypoint>> + DoubleEndedIterator + '_
+    {
         let SignedBlock::V1(block) = self;
         block.result.merkle.leaves()
     }
 
     /// Transaction entrypoints (external and time-triggered) in execution order.
     #[inline]
-    pub fn entrypoints_owned(&self) -> impl ExactSizeIterator<Item = TransactionEntrypoint> + '_ {
+    pub fn entrypoints_owned(
+        &self,
+    ) -> impl ExactSizeIterator<Item = TransactionEntrypoint> + DoubleEndedIterator + '_ {
         EntrypointIterator::new(self)
     }
 
     /// Hashes of each transaction result (trigger sequence or rejection reason) in execution order.
     /// Indices align with those of the entrypoints.
     #[inline]
-    pub fn result_hashes(&self) -> impl ExactSizeIterator<Item = HashOf<TransactionResult>> + '_ {
+    pub fn result_hashes(
+        &self,
+    ) -> impl ExactSizeIterator<Item = HashOf<TransactionResult>> + DoubleEndedIterator + '_ {
         let SignedBlock::V1(block) = self;
         block.result.result_merkle.leaves()
     }
@@ -313,7 +322,9 @@ impl SignedBlock {
     /// Actual transaction results (trigger sequence or rejection reason) in execution order.
     /// Indices align with those of the entrypoints.
     #[inline]
-    pub fn results(&self) -> impl ExactSizeIterator<Item = &TransactionResult> {
+    pub fn results(
+        &self,
+    ) -> impl ExactSizeIterator<Item = &TransactionResult> + DoubleEndedIterator {
         let SignedBlock::V1(block) = self;
         block.result.transaction_results.iter()
     }
