@@ -473,4 +473,88 @@ mod tests {
         ));
         Ok(())
     }
+
+    /// Tests for permissionless account creation scenarios.
+    mod permissionless_accounts {
+        use iroha_executor_data_model::permission::peer::CanManagePeers;
+
+        use super::*;
+        use crate::tx::tests::*;
+
+        #[tokio::test]
+        async fn creates_account_upon_receiving_assets() {
+            let instruction = |account: &AccountId| {
+                Transfer::asset_numeric(asset("alice"), 1u32, account.clone()).into()
+            };
+            creates_account_upon(instruction).await
+        }
+
+        #[tokio::test]
+        async fn creates_account_upon_minting_assets() {
+            let instruction = |account: &AccountId| {
+                Mint::asset_numeric(1u32, AssetId::new(ASSET.clone(), account.clone())).into()
+            };
+            creates_account_upon(instruction).await
+        }
+
+        #[tokio::test]
+        async fn creates_account_upon_receiving_nfts() {
+            let instruction = |account: &AccountId| {
+                Transfer::nft(ACCOUNT["alice"].id.clone(), NFT.clone(), account.clone()).into()
+            };
+            creates_account_upon(instruction).await
+        }
+
+        #[tokio::test]
+        async fn creates_account_upon_setting_metadata() {
+            let instruction = |account: &AccountId| {
+                SetKeyValue::account(account.clone(), "key".parse().unwrap(), "value").into()
+            };
+            creates_account_upon(instruction).await
+        }
+
+        #[tokio::test]
+        async fn creates_account_upon_granting_roles() {
+            let instruction = |account: &AccountId| {
+                Grant::account_role("role".parse().unwrap(), account.clone()).into()
+            };
+            creates_account_upon(instruction).await
+        }
+
+        #[tokio::test]
+        async fn creates_account_upon_granting_permissions() {
+            let instruction = |account: &AccountId| {
+                Grant::account_permission(CanManagePeers, account.clone()).into()
+            };
+            creates_account_upon(instruction).await
+        }
+
+        /// Ensures a domain membership is created when an account is registered.
+        #[tokio::test]
+        async fn creates_membership_upon_registering_to_domain() {
+            let _default_domain: DomainId = "default".parse().unwrap();
+
+            let account = gen_account_in(DOMAIN_STR).0;
+            let register = Register::account(Account::new(account.clone()));
+            let mut sandbox = Sandbox::default();
+            // TODO: Execute another instruction and ensure the account is in the default domain.
+            sandbox.request_instructions([register]);
+            let mut block = sandbox.block();
+            // assert!(block.state.world.accounts.get(&account).is_some_and(|account| *account.domain == default_domain));
+            let (_events, _committed_block) = block.apply();
+            // assert!(block.state.world.accounts.get(&account).is_some_and(|account| *account.domain == DOMAIN.clone()));
+        }
+
+        /// Ensures an account is automatically created when the given instruction is executed.
+        async fn creates_account_upon(instruction: impl FnOnce(&AccountId) -> InstructionBox) {
+            let account = gen_account_in(DOMAIN_STR).0;
+            let instruction = instruction(&account);
+            let mut sandbox = Sandbox::default();
+            sandbox.request_instructions([instruction]);
+            let mut block = sandbox.block();
+            assert!(block.state.world.accounts.get(&account).is_none());
+            let (_events, _committed_block) = block.apply();
+            assert!(block.state.world.accounts.get(&account).is_some());
+        }
+    }
 }

@@ -619,9 +619,12 @@ pub mod tests {
 
     pub const DOMAIN_STR: &str = "wonderland";
     pub const ASSET_STR: &str = "rose";
+    pub const NFT_STR: &str = "nft";
     pub static DOMAIN: LazyLock<DomainId> = LazyLock::new(|| DOMAIN_STR.parse().unwrap());
     pub static ASSET: LazyLock<AssetDefinitionId> =
         LazyLock::new(|| format!("{ASSET_STR}#{DOMAIN_STR}").parse().unwrap());
+    pub static NFT: LazyLock<NftId> =
+        LazyLock::new(|| format!("{NFT_STR}${DOMAIN_STR}").parse().unwrap());
     pub static ACCOUNT: LazyLock<AccountMap> = LazyLock::new(|| {
         ACCOUNTS_STR
             .iter()
@@ -707,6 +710,7 @@ pub mod tests {
                 let domain = Domain::new(DOMAIN.clone()).build(&GENESIS_ACCOUNT.id);
                 let asset_def = AssetDefinition::new(ASSET.clone(), NumericSpec::default())
                     .build(&GENESIS_ACCOUNT.id);
+                let nft = Nft::new(NFT.clone(), Metadata::default()).build(&GENESIS_ACCOUNT.id);
                 let accounts = ACCOUNT
                     .clone()
                     .into_iter()
@@ -716,7 +720,7 @@ pub mod tests {
                     .iter()
                     .map(|(name, num)| Asset::new(asset(name), *num));
 
-                World::with_assets([domain], accounts, [asset_def], assets, [])
+                World::with_assets([domain], accounts, [asset_def], assets, [nft])
             };
             let kura = crate::kura::Kura::blank_kura_for_testing();
             let query_handle = crate::query::store::LiveQueryStore::start_test();
