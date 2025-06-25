@@ -860,9 +860,16 @@ pub mod tests {
             quantity_per_instruction: u32,
             dest: &str,
         ) {
+            let instructions =
+                transfers_batched::<N_INSTRUCTIONS>(src, quantity_per_instruction, dest);
+            self.request_instructions(instructions)
+        }
+
+        pub fn request_instructions(
+            &mut self,
+            instructions: impl IntoIterator<Item = impl Instruction>,
+        ) {
             let transaction = {
-                let instructions =
-                    transfers_batched::<N_INSTRUCTIONS>(src, quantity_per_instruction, dest);
                 TransactionBuilder::new(CHAIN_ID.clone(), GENESIS_ACCOUNT.id.clone())
                     .with_instructions(instructions)
                     .sign(&GENESIS_ACCOUNT.key)
