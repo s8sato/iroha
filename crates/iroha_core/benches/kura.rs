@@ -60,12 +60,12 @@ async fn measure_block_size_for_n_executors(n_executors: u32) {
     let mut block = {
         let unverified_block = BlockBuilder::new(vec![tx])
             .chain(0, state.view().latest_block().as_deref())
-            .sign(peer_key_pair.private_key())
+            .build(peer_key_pair.private_key())
             .unpack(|_| {});
 
         let mut state_block = state.block(unverified_block.header());
         let block = unverified_block
-            .validate_and_record_transactions(&mut state_block)
+            .validate_unchecked(&mut state_block)
             .unpack(|_| {});
         state_block.commit();
         block

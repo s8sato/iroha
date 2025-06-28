@@ -51,12 +51,12 @@ pub fn create_block<'a>(
     )
     .unwrap()])
     .chain(0, state.view().latest_block().as_deref())
-    .sign(peer_private_key)
+    .build(peer_private_key)
     .unpack(|_| {});
 
     let mut state_block = state.block(unverified_block.header());
     let block = unverified_block
-        .validate_and_record_transactions(&mut state_block)
+        .validate_unchecked(&mut state_block)
         .unpack(|_| {})
         .commit(topology)
         .unpack(|_| {})
@@ -225,7 +225,7 @@ pub fn build_state(rt: &tokio::runtime::Handle, account_id: &AccountId) -> State
         )
         .unwrap()])
         .chain(0, state.view().latest_block().as_deref())
-        .sign(&private_key)
+        .build(&private_key)
         .unpack(|_| {});
         let mut state_block = state.block(unverified_block.header());
 

@@ -68,7 +68,7 @@ fn build_test_and_transient_state() -> State {
         )
         .unwrap()])
         .chain(0, state.view().latest_block().as_deref())
-        .sign(key_pair.private_key())
+        .build(key_pair.private_key())
         .unpack(|_| {});
         let mut state_block = state.block(unverified_block.header());
         let mut state_transaction = state_block.transaction();
@@ -156,7 +156,7 @@ fn validate_transaction(criterion: &mut Criterion) {
     )
     .unwrap()])
     .chain(0, state.view().latest_block().as_deref())
-    .sign(key_pair.private_key())
+    .build(key_pair.private_key())
     .unpack(|_| {});
     let transaction = AcceptedTransaction::accept(
         build_test_transaction(chain_id.clone()).sign(STARTER_KEYPAIR.private_key()),
@@ -219,7 +219,7 @@ fn sign_blocks(criterion: &mut Criterion) {
         b.iter_batched(
             || block.clone(),
             |block| {
-                let _: NewBlock = block.sign(&peer_private_key).unpack(|_| {});
+                let _: NewBlock = block.build(&peer_private_key).unpack(|_| {});
                 count += 1;
             },
             BatchSize::SmallInput,

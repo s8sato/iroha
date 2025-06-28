@@ -175,7 +175,9 @@ pub fn try_read_snapshot(
                 iroha_logger::warn!(
                     "Snapshot has incorrect latest block hash, discarding changes made by this block"
                 );
-                state.block_and_revert(kura_block.header()).commit();
+                state
+                    .block_and_revert(kura_block.header().regress())
+                    .commit();
             } else {
                 return Err(TryReadError::MismatchedHash {
                     height,

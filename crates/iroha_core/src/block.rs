@@ -50,7 +50,7 @@
 //! [`ValidBlock::commit_unchecked`] (infallible)
 use std::time::Duration;
 
-use iroha_crypto::{HashOf, KeyPair, MerkleTree};
+use iroha_crypto::{HashOf, KeyPair};
 use iroha_data_model::{
     block::*, events::prelude::*, peer::PeerId, transaction::SignedTransaction,
 };
@@ -185,7 +185,7 @@ mod pending {
             &self,
             prev_block: Option<&SignedBlock>,
             view_change_index: usize,
-        ) -> BlockHeader {
+        ) -> NewBlockHeader {
             let prev_block_time =
                 prev_block.map_or(Duration::ZERO, |block| block.header().creation_time());
 
@@ -212,7 +212,7 @@ mod pending {
             .max()
             .unwrap();
 
-            BlockHeader {
+            NewBlockHeader {
                 height: prev_block.map(|block| block.header().height).map_or_else(
                     || nonzero!(1_u64),
                     |height| {
@@ -222,15 +222,6 @@ mod pending {
                     },
                 ),
                 prev_block_hash: prev_block.map(SignedBlock::hash),
-                merkle_root: self
-                    .0
-                    .transactions
-                    .iter()
-                    .map(AsRef::as_ref)
-                    .map(SignedTransaction::hash_as_entrypoint)
-                    .collect::<MerkleTree<_>>()
-                    .root(),
-                result_merkle_root: None,
                 creation_time_ms: creation_time
                     .as_millis()
                     .try_into()
@@ -258,62 +249,56 @@ mod pending {
 }
 
 mod chained {
-    use iroha_crypto::SignatureOf;
     use new::NewBlock;
 
     use super::*;
 
     /// When a `Pending` block is chained with the blockchain it becomes [`Chained`] block.
+    /// SATO
     #[derive(Debug, Clone)]
     pub struct Chained {
-        pub(super) header: BlockHeader,
+        pub(super) header: NewBlockHeader,
         pub(super) transactions: Vec<AcceptedTransaction>,
     }
 
     impl BlockBuilder<Chained> {
         /// Sign this block and get [`NewBlock`].
-        pub fn sign(self, private_key: &PrivateKey) -> WithEvents<NewBlock> {
-            let signature = BlockSignature(0, SignatureOf::new(private_key, &self.0.header));
-
-            WithEvents::new(NewBlock {
-                signature,
+        /// SATO
+        pub fn build(self, _private_key: &PrivateKey) -> NewBlock {
+            NewBlock {
                 header: self.0.header,
                 transactions: self.0.transactions,
-            })
+            }
         }
     }
 }
 
 mod new {
     use super::*;
-    use crate::state::StateBlock;
+    use crate::{block::validation_finish::ValidationFinish, state::StateBlock};
 
     /// First stage in the life-cycle of a block.
     ///
-    /// Transactions in this block are not categorized.
+    /// Transactions in this block are not validated.
+    /// SATO
     #[derive(Debug, Clone)]
     pub struct NewBlock {
-        pub(super) signature: BlockSignature,
-        pub(super) header: BlockHeader,
+        pub(super) header: NewBlockHeader,
         pub(super) transactions: Vec<AcceptedTransaction>,
     }
 
     impl NewBlock {
         /// Transition to [`ValidBlock`]. Skips static checks and only applies state changes.
-        pub fn validate_and_record_transactions(
-            self,
-            state_block: &mut StateBlock<'_>,
-        ) -> WithEvents<ValidBlock> {
-            ValidBlock::validate_unchecked(self.into(), state_block)
-        }
-
-        /// Block signature
-        pub fn signature(&self) -> &BlockSignature {
-            &self.signature
+        pub fn validate_unchecked(self, state_block: &mut StateBlock<'_>) -> ValidationFinish {
+            let unverified_unsigned = SignedBlock::new_unverified_unsigned(
+                self.header,
+                self.transactions.into_iter().map(Into::into).collect(),
+            );
+            ValidBlock::validate_unchecked(unverified_unsigned, state_block)
         }
 
         /// Block header
-        pub fn header(&self) -> BlockHeader {
+        pub fn header(&self) -> NewBlockHeader {
             self.header
         }
 
@@ -321,27 +306,32 @@ mod new {
         pub fn transactions(&self) -> &[AcceptedTransaction] {
             &self.transactions
         }
-
-        #[cfg(test)]
-        pub(crate) fn update_header(self, header: BlockHeader, private_key: &PrivateKey) -> Self {
-            let signature = BlockSignature(0, iroha_crypto::SignatureOf::new(private_key, &header));
-
-            Self {
-                signature,
-                header,
-                transactions: self.transactions,
-            }
-        }
     }
+}
 
-    impl From<NewBlock> for SignedBlock {
-        fn from(block: NewBlock) -> Self {
-            SignedBlock::presigned(
-                block.signature,
-                block.header,
-                // FIXME: transmute somehow
-                block.transactions.into_iter().map(Into::into).collect(),
-            )
+mod validation_finish {
+    use super::*;
+
+    /// SATO
+    #[derive(Debug, Clone)]
+    pub struct ValidationFinish(pub(super) SignedBlock);
+
+    impl ValidationFinish {
+        /// SATO
+        /// Add additional signatures for [`Self`].
+        pub fn sign(mut self, key_pair: &KeyPair, topology: &Topology) -> WithEvents<ValidBlock> {
+            let signatory_idx = topology
+                .position(key_pair.public_key())
+                .expect("INTERNAL BUG: Node is not in topology");
+
+            self.0.sign(key_pair.private_key(), signatory_idx);
+            self.finish_unsigned()
+        }
+
+        /// SATO
+        /// Finish block validation without signing it.
+        pub fn finish_unsigned(self) -> WithEvents<ValidBlock> {
+            WithEvents::new(ValidBlock(self.0))
         }
     }
 }
@@ -354,6 +344,7 @@ mod valid {
 
     use super::*;
     use crate::{
+        block::validation_finish::ValidationFinish,
         smartcontracts::wasm::cache::WasmCache,
         state::{
             storage_transactions::TransactionsReadOnly, StateBlock, StateReadOnlyWithTransactions,
@@ -462,7 +453,7 @@ mod valid {
             expected_chain_id: &ChainId,
             genesis_account: &AccountId,
             state_block: &mut StateBlock<'_>,
-        ) -> WithEvents<Result<ValidBlock, Error>> {
+        ) -> Result<ValidationFinish, Error> {
             if let Err(error) = Self::validate_static(
                 &block,
                 topology,
@@ -471,10 +462,10 @@ mod valid {
                 state_block,
                 false,
             ) {
-                return WithEvents::new(Err((Box::new(block), error)));
+                return Err((Box::new(block), error));
             }
             Self::validate_and_record_transactions(&mut block, state_block);
-            WithEvents::new(Ok(ValidBlock(block)))
+            Ok(ValidationFinish(block))
         }
 
         /// Same as [`Self::validate`] but:
@@ -489,7 +480,7 @@ mod valid {
             state: &'state State,
             voting_block: &mut Option<VotingBlock>,
             soft_fork: bool,
-        ) -> WithEvents<Result<(ValidBlock, StateBlock<'state>), Error>> {
+        ) -> Result<(ValidationFinish, StateBlock<'state>), Error> {
             if let Err(error) = Self::validate_static(
                 &block,
                 topology,
@@ -498,17 +489,17 @@ mod valid {
                 &state.view(),
                 soft_fork,
             ) {
-                return WithEvents::new(Err((Box::new(block), error)));
+                return Err((Box::new(block), error));
             }
             // Release block writer before creating new one
             let _ = voting_block.take();
             let mut state_block = if soft_fork {
-                state.block_and_revert(block.header())
+                state.block_and_revert(block.header().regress())
             } else {
-                state.block(block.header())
+                state.block(block.header().regress())
             };
             Self::validate_and_record_transactions(&mut block, &mut state_block);
-            WithEvents::new(Ok((ValidBlock(block), state_block)))
+            Ok((ValidationFinish(block), state_block))
         }
 
         /// All static checks of the block.
@@ -678,9 +669,9 @@ mod valid {
         pub fn validate_unchecked(
             mut block: SignedBlock,
             state_block: &mut StateBlock<'_>,
-        ) -> WithEvents<ValidBlock> {
+        ) -> ValidationFinish {
             Self::validate_and_record_transactions(&mut block, state_block);
-            WithEvents::new(ValidBlock(block))
+            ValidationFinish(block)
         }
 
         /// Add additional signature for [`Self`]
@@ -774,6 +765,8 @@ mod valid {
         ///
         /// The difference from calling [`Self::validate_keep_voting_block`] + [`ValidBlock::commit`]
         /// is that signatures are eagerly checked first.
+        ///
+        /// SATO does not sign
         #[allow(clippy::too_many_arguments)]
         pub fn commit_keep_voting_block<'state, F: Fn(PipelineEventBox)>(
             block: SignedBlock,
@@ -799,8 +792,10 @@ mod valid {
                     voting_block,
                     soft_fork,
                 )
-                .unpack(send_events)
-                .map(|(block, state_block)| (CommittedBlock(block), state_block)),
+                .map(|(validation, state_block)| {
+                    let valid_block = validation.finish_unsigned().unpack(send_events);
+                    (CommittedBlock(valid_block), state_block)
+                }),
             )
         }
 
@@ -829,15 +824,6 @@ mod valid {
             Ok(())
         }
 
-        /// Add additional signatures for [`Self`].
-        pub fn sign(&mut self, key_pair: &KeyPair, topology: &Topology) {
-            let signatory_idx = topology
-                .position(key_pair.public_key())
-                .expect("INTERNAL BUG: Node is not in topology");
-
-            self.0.sign(key_pair.private_key(), signatory_idx);
-        }
-
         #[cfg(test)]
         pub(crate) fn new_dummy(leader_private_key: &PrivateKey) -> Self {
             Self::new_dummy_and_modify_header(leader_private_key, |_| {})
@@ -862,10 +848,10 @@ mod valid {
                 header,
                 transactions: Vec::new(),
             })
-            .sign(leader_private_key)
+            .build(leader_private_key)
             .unpack(|_| {});
 
-            Self(SignedBlock::presigned(
+            Self(SignedBlock::empty_signed(
                 unverified_block.signature,
                 unverified_block.header,
                 unverified_block
@@ -1053,8 +1039,6 @@ mod commit {
 }
 
 mod event {
-    use new::NewBlock;
-
     use super::*;
     use crate::state::StateBlock;
 
@@ -1115,17 +1099,6 @@ mod event {
         pub(crate) fn unpack<F: Fn(PipelineEventBox)>(self, f: F) -> (B, E) {
             self.0 .1.produce_events().for_each(f);
             self.0
-        }
-    }
-
-    impl EventProducer for NewBlock {
-        fn produce_events(&self) -> impl Iterator<Item = PipelineEventBox> {
-            let block_event = BlockEvent {
-                header: self.header,
-                status: BlockStatus::Created,
-            };
-
-            core::iter::once(block_event.into())
         }
     }
 
@@ -1248,12 +1221,12 @@ mod tests {
         let transactions = vec![tx.clone(), tx];
         let unverified_block = BlockBuilder::new(transactions)
             .chain(0, state.view().latest_block().as_deref())
-            .sign(alice_keypair.private_key())
+            .build(alice_keypair.private_key())
             .unpack(|_| {});
 
         let mut state_block = state.block(unverified_block.header);
         let valid_block = unverified_block
-            .validate_and_record_transactions(&mut state_block)
+            .validate_unchecked(&mut state_block)
             .unpack(|_| {});
         state_block.commit();
 
@@ -1317,11 +1290,11 @@ mod tests {
         let transactions = vec![tx0, tx, tx2];
         let unverified_block = BlockBuilder::new(transactions)
             .chain(0, state.view().latest_block().as_deref())
-            .sign(alice_keypair.private_key())
+            .build(alice_keypair.private_key())
             .unpack(|_| {});
         let mut state_block = state.block(unverified_block.header);
         let valid_block = unverified_block
-            .validate_and_record_transactions(&mut state_block)
+            .validate_unchecked(&mut state_block)
             .unpack(|_| {});
         state_block.commit();
 
@@ -1371,12 +1344,12 @@ mod tests {
         let transactions = vec![tx_fail, tx_accept];
         let unverified_block = BlockBuilder::new(transactions)
             .chain(0, state.view().latest_block().as_deref())
-            .sign(alice_keypair.private_key())
+            .build(alice_keypair.private_key())
             .unpack(|_| {});
 
         let mut state_block = state.block(unverified_block.header);
         let valid_block = unverified_block
-            .validate_and_record_transactions(&mut state_block)
+            .validate_unchecked(&mut state_block)
             .unpack(|_| {});
         state_block.commit();
 
@@ -1438,12 +1411,12 @@ mod tests {
         let topology = test_topology(1);
         let unverified_block = BlockBuilder::new(transactions)
             .chain(0, state.view().latest_block().as_deref())
-            .sign(genesis_correct_key.private_key())
+            .build(genesis_correct_key.private_key())
             .unpack(|_| {});
 
         let mut state_block = state.block(unverified_block.header);
         let valid_block = unverified_block
-            .validate_and_record_transactions(&mut state_block)
+            .validate_unchecked(&mut state_block)
             .unpack(|_| {});
         state_block.commit();
 

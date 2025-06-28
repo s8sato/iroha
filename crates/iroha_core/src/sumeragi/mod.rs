@@ -107,8 +107,10 @@ impl SumeragiHandle {
             genesis_account,
             state_block,
         )
-        .unpack(|e| {
-            let _ = events_sender.send(e.into());
+        .map(|validation| {
+            validation.finish_unsigned().unpack(|e| {
+                let _ = events_sender.send(e.into());
+            })
         })
         .expect("INTERNAL BUG: Invalid block stored in Kura")
         .commit(topology)
@@ -190,7 +192,7 @@ impl SumeragiStartArgs {
         );
 
         for block in blocks_iter {
-            let mut state_block = state.block(block.header());
+            let mut state_block = state.block(block.header().regress());
             SumeragiHandle::replay_block(
                 &common_config.chain,
                 &genesis_account,

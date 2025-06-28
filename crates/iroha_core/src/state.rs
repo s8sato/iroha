@@ -8,7 +8,7 @@ use iroha_crypto::HashOf;
 use iroha_data_model::{
     account::{AccountEntry, AccountValue},
     asset::{AssetEntry, AssetValue},
-    block::{BlockHeader, SignedBlock},
+    block::{BlockHeader, NewBlockHeader, SignedBlock},
     events::{
         pipeline::BlockEvent,
         time::TimeEvent,
@@ -260,7 +260,7 @@ pub struct StateBlock<'state> {
     /// Lock to prevent getting inconsistent view of the state
     view_lock: &'state parking_lot::RwLock<()>,
 
-    pub(crate) curr_block: BlockHeader,
+    pub(crate) curr_block: NewBlockHeader,
 }
 
 /// Struct for single transaction's aggregated changes
@@ -284,7 +284,7 @@ pub struct StateTransaction<'block, 'state> {
     #[cfg(feature = "telemetry")]
     pub telemetry: &'state StateTelemetry,
 
-    pub(crate) curr_block: BlockHeader,
+    pub(crate) curr_block: NewBlockHeader,
 }
 
 /// Consistent point in time view of the [`State`]
@@ -1156,7 +1156,7 @@ impl State {
     }
 
     /// Create structure to execute a block
-    pub fn block(&self, curr_block: BlockHeader) -> StateBlock<'_> {
+    pub fn block(&self, curr_block: NewBlockHeader) -> StateBlock<'_> {
         StateBlock {
             world: self.world.block(),
             block_hashes: self.block_hashes.block(),
@@ -1174,7 +1174,7 @@ impl State {
     }
 
     /// Create structure to execute a block while reverting changes made in the latest block
-    pub fn block_and_revert(&self, curr_block: BlockHeader) -> StateBlock<'_> {
+    pub fn block_and_revert(&self, curr_block: NewBlockHeader) -> StateBlock<'_> {
         StateBlock {
             world: self.world.block_and_revert(),
             block_hashes: self.block_hashes.block_and_revert(),

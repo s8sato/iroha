@@ -462,7 +462,7 @@ pub mod state {
         pub mod executor {
             //! States related to *Executor* execution.
 
-            use iroha_data_model::block::BlockHeader;
+            use iroha_data_model::block::NewBlockHeader;
 
             use super::*;
 
@@ -470,7 +470,7 @@ pub mod state {
             #[derive(Constructor)]
             pub struct Validate<T> {
                 pub(in super::super::super::super) to_validate: T,
-                pub(in super::super::super::super) curr_block: BlockHeader,
+                pub(in super::super::super::super) curr_block: NewBlockHeader,
             }
 
             /// State kind for executing `execute_transaction()` entrypoint of executor
@@ -1391,7 +1391,10 @@ impl<'wrld, S: StateReadOnly> Runtime<state::executor::ValidateQuery<'wrld, S>> 
             self.config,
             span,
             state::chain_state::WithConst(state_ro),
-            state::specific::executor::ValidateQuery::new(query, latest_block.as_ref().header()),
+            state::specific::executor::ValidateQuery::new(
+                query,
+                latest_block.as_ref().header().regress(),
+            ),
         );
 
         self.execute_executor_execute_internal(module, state, import::EXECUTOR_VALIDATE_QUERY)

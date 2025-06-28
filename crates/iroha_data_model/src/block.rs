@@ -27,6 +27,43 @@ mod model {
     use super::*;
 
     /// Essential metadata for a block in the chain.
+    /// SATO
+    #[derive(
+        Debug,
+        Display,
+        Clone,
+        Copy,
+        PartialEq,
+        Eq,
+        PartialOrd,
+        Ord,
+        CopyGetters,
+        Getters,
+        Decode,
+        Encode,
+        Deserialize,
+        Serialize,
+        IntoSchema,
+    )]
+    #[display(fmt = "№{height}")]
+    #[ffi_type]
+    pub struct NewBlockHeader {
+        /// Number of blocks in the chain including this block.
+        #[getset(get_copy = "pub")]
+        pub height: NonZeroU64,
+        /// Hash of the previous block in the chain.
+        #[getset(get_copy = "pub")]
+        pub prev_block_hash: Option<HashOf<BlockHeader>>,
+        /// Creation timestamp as Unix time in milliseconds.
+        #[getset(skip)]
+        pub creation_time_ms: u64,
+        /// Value of view change index. Used to resolve soft forks.
+        #[getset(skip)]
+        pub view_change_index: u32,
+    }
+
+    /// Essential metadata for a block in the chain.
+    /// SATO
     #[derive(
         Debug,
         Display,
@@ -154,6 +191,19 @@ declare_versioned!(SignedBlock 1..2, Debug, Clone, PartialEq, Eq, PartialOrd, Or
 #[cfg(all(not(feature = "ffi_export"), not(feature = "ffi_import")))]
 declare_versioned!(SignedBlock 1..2, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, FromVariant, IntoSchema);
 
+impl NewBlockHeader {
+    /// Checks if it's a header of a genesis block.
+    #[inline]
+    pub const fn is_genesis(&self) -> bool {
+        self.height.get() == 1
+    }
+
+    /// Creation timestamp
+    pub const fn creation_time(&self) -> Duration {
+        Duration::from_millis(self.creation_time_ms)
+    }
+}
+
 impl BlockHeader {
     /// Checks if it's a header of a genesis block.
     #[inline]
@@ -171,6 +221,16 @@ impl BlockHeader {
     pub fn hash(&self) -> HashOf<BlockHeader> {
         iroha_crypto::HashOf::new(self)
     }
+
+    /// SATO
+    pub const fn regress(self) -> NewBlockHeader {
+        NewBlockHeader {
+            height: self.height,
+            prev_block_hash: self.prev_block_hash,
+            creation_time_ms: self.creation_time_ms,
+            view_change_index: self.view_change_index,
+        }
+    }
 }
 
 impl SignedBlockV1 {
@@ -184,21 +244,30 @@ impl SignedBlockV1 {
 }
 
 impl SignedBlock {
-    /// Create new block with a given signature
-    ///
-    /// # Warning
-    ///
-    /// All transactions are categorized as valid
+    /// SATO
     #[cfg(feature = "transparent_api")]
-    pub fn presigned(
-        signature: BlockSignature,
-        header: BlockHeader,
+    pub fn new_unverified_unsigned(
+        header: NewBlockHeader,
         transactions: Vec<SignedTransaction>,
     ) -> SignedBlock {
+        let NewBlockHeader {
+            height,
+            prev_block_hash,
+            creation_time_ms,
+            view_change_index,
+        } = header;
+
         SignedBlockV1 {
-            signatures: vec![signature],
+            signatures: Vec::new(),
             payload: BlockPayload {
-                header,
+                header: BlockHeader {
+                    height,
+                    prev_block_hash,
+                    merkle_root: None,
+                    result_merkle_root: None,
+                    creation_time_ms,
+                    view_change_index,
+                },
                 transactions,
             },
             result: BlockResult::default(),

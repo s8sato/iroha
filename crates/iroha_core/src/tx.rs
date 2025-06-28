@@ -906,7 +906,7 @@ pub mod tests {
                 };
                 BlockBuilder::new(transactions)
                     .chain(0, self.state.view().latest_block().as_deref())
-                    .sign(&GENESIS_ACCOUNT.key)
+                    .build(&GENESIS_ACCOUNT.key)
                     .unpack(|_| {})
                     .into()
             };
