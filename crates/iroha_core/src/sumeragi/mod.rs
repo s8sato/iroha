@@ -108,7 +108,7 @@ impl SumeragiHandle {
             state_block,
         )
         .map(|validation| {
-            validation.finish_unsigned().unpack(|e| {
+            validation.finish_without_signing().unpack(|e| {
                 let _ = events_sender.send(e.into());
             })
         })

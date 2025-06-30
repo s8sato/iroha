@@ -368,7 +368,7 @@ mod tests {
             .unwrap();
 
         {
-            let mut state_block = state.block(committed_block.as_ref().header());
+            let mut state_block = state.block(committed_block.as_ref().header().regress());
             let _events =
                 state_block.apply_without_execution(&committed_block, topology.as_ref().to_owned());
             state_block.commit();
@@ -386,7 +386,7 @@ mod tests {
             .unwrap();
 
         {
-            let mut state_block = state.block(committed_block.as_ref().header());
+            let mut state_block = state.block(committed_block.as_ref().header().regress());
             let _events =
                 state_block.apply_without_execution(&committed_block, topology.as_ref().to_owned());
             state_block.commit();
@@ -429,7 +429,7 @@ mod tests {
             .unwrap();
 
         {
-            let mut state_block = state.block(committed_block.as_ref().header());
+            let mut state_block = state.block(committed_block.as_ref().header().regress());
             let _events =
                 state_block.apply_without_execution(&committed_block, topology.as_ref().to_owned());
             state_block.commit();
@@ -447,7 +447,7 @@ mod tests {
             .unwrap();
 
         {
-            let mut state_block = state.block(committed_block.as_ref().header());
+            let mut state_block = state.block(committed_block.as_ref().header().regress());
             let _events =
                 state_block.apply_without_execution(&committed_block, topology.as_ref().to_owned());
             state_block.commit();

@@ -342,15 +342,17 @@ pub mod tests {
     use core::panic;
     use std::sync::LazyLock;
 
-    use iroha_data_model::{block::SignedBlock, isi::Instruction, prelude::EventBox};
+    use iroha_crypto::{Algorithm, KeyPair, PrivateKey};
+    use iroha_data_model::{isi::Instruction, prelude::EventBox};
     use iroha_genesis::GENESIS_DOMAIN_ID;
     use iroha_test_samples::gen_account_in;
 
     use super::*;
     use crate::{
-        block::{BlockBuilder, CommittedBlock, ValidBlock},
+        block::{BlockBuilder, CommittedBlock, NewBlock},
         smartcontracts::isi::Registrable,
         state::{State, StateBlock, StateReadOnly, World},
+        sumeragi::network_topology::Topology,
     };
 
     mod time_trigger {
@@ -637,7 +639,7 @@ pub mod tests {
     pub struct SandboxBlock<'state> {
         pub state: StateBlock<'state>,
         // Candidate to be validated and committed
-        pub block: Option<SignedBlock>,
+        pub block: Option<NewBlock>,
     }
 
     pub const ACCOUNTS_STR: [&str; 5] = ["alice", "bob", "carol", "dave", "eve"];
@@ -657,11 +659,8 @@ pub mod tests {
         ACCOUNTS_STR
             .iter()
             .map(|name| {
-                let key_pair = iroha_crypto::KeyPair::from_seed(
-                    name.as_bytes().into(),
-                    iroha_crypto::Algorithm::Ed25519,
-                )
-                .into_parts();
+                let key_pair =
+                    KeyPair::from_seed(name.as_bytes().into(), Algorithm::Ed25519).into_parts();
                 let credential = Credential {
                     id: format!("{}@{DOMAIN_STR}", key_pair.0).parse().unwrap(),
                     key: key_pair.1,
@@ -674,9 +673,14 @@ pub mod tests {
     #[derive(Debug, Clone)]
     pub struct Credential {
         pub id: AccountId,
-        pub key: iroha_crypto::PrivateKey,
+        pub key: PrivateKey,
     }
 
+    pub static LEADER_KEYPAIR: LazyLock<KeyPair> = LazyLock::new(|| KeyPair::random());
+    pub static TOPOLOGY: LazyLock<Topology> = LazyLock::new(|| {
+        let leader: PeerId = LEADER_KEYPAIR.public_key().clone().into();
+        Topology::new([leader])
+    });
     pub static GENESIS_ACCOUNT: LazyLock<Credential> = LazyLock::new(|| {
         let (id, key_pair) = gen_account_in(GENESIS_DOMAIN_ID.clone());
         Credential {
@@ -898,7 +902,7 @@ pub mod tests {
         }
 
         pub fn block(&mut self) -> SandboxBlock<'_> {
-            let block: SignedBlock = {
+            let block: NewBlock = {
                 let transactions = {
                     let signed = core::mem::take(&mut self.transactions);
                     // Skip static analysis (AcceptedTransaction::accept)
@@ -907,8 +911,6 @@ pub mod tests {
                 BlockBuilder::new(transactions)
                     .chain(0, self.state.view().latest_block().as_deref())
                     .build(&GENESIS_ACCOUNT.key)
-                    .unpack(|_| {})
-                    .into()
             };
 
             SandboxBlock {
@@ -920,17 +922,15 @@ pub mod tests {
 
     impl SandboxBlock<'_> {
         pub fn apply(&mut self) -> (Vec<EventBox>, CommittedBlock) {
-            let valid = ValidBlock::validate_unchecked(
-                core::mem::take(&mut self.block).unwrap(),
-                &mut self.state,
-            )
-            .unpack(|_| {});
-            let committed = valid.commit_unchecked().unpack(|_| {});
-            let events = self.state.apply_without_execution(
-                &committed,
-                // topology in state is only used by sumeragi
-                vec![],
-            );
+            let valid = core::mem::take(&mut self.block)
+                .unwrap()
+                .validate_unchecked(&mut self.state)
+                .sign(&LEADER_KEYPAIR, &TOPOLOGY)
+                .unpack(|_| {});
+            let committed = valid.commit(&TOPOLOGY).unpack(|_| {}).unwrap();
+            let events = self
+                .state
+                .apply_without_execution(&committed, TOPOLOGY.iter().cloned().collect());
 
             (events, committed)
         }

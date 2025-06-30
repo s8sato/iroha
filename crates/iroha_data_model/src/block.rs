@@ -223,6 +223,7 @@ impl BlockHeader {
     }
 
     /// SATO
+    /// Reverts the block header to a `NewBlockHeader` format.
     pub const fn regress(self) -> NewBlockHeader {
         NewBlockHeader {
             height: self.height,
@@ -320,6 +321,12 @@ impl SignedBlock {
     pub fn header(&self) -> BlockHeader {
         let SignedBlock::V1(block) = self;
         block.header()
+    }
+
+    /// Mutable reference to the block header. Test-only API.
+    pub fn header_mut(&mut self) -> &mut BlockHeader {
+        let SignedBlock::V1(block) = self;
+        &mut block.payload.header
     }
 
     /// Signatures of peers which approved this block.

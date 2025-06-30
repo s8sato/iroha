@@ -1840,7 +1840,7 @@ mod tests {
         let block_header = ValidBlock::new_dummy(&KeyPair::random().into_parts().1)
             .as_ref()
             .header();
-        let mut state_block = state.block(block_header);
+        let mut state_block = state.block(block_header.regress());
         let mut state_transaction = state_block.transaction();
         runtime
             .execute(&mut state_transaction, authority, wat)
@@ -1887,7 +1887,7 @@ mod tests {
         let block_header = ValidBlock::new_dummy(&KeyPair::random().into_parts().1)
             .as_ref()
             .header();
-        let mut state_block = state.block(block_header);
+        let mut state_block = state.block(block_header.regress());
         let mut state_transaction = state_block.transaction();
         runtime
             .execute(&mut state_transaction, authority, wat)
@@ -1945,7 +1945,7 @@ mod tests {
         let block_header = ValidBlock::new_dummy(&KeyPair::random().into_parts().1)
             .as_ref()
             .header();
-        let mut state_block = state.block(block_header);
+        let mut state_block = state.block(block_header.regress());
         let mut state_transaction = state_block.transaction();
         let res = runtime.validate(&mut state_transaction, authority, wat, nonzero!(1_u64));
         state_transaction.apply();

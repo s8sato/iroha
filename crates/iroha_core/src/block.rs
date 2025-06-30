@@ -318,6 +318,13 @@ mod validation_finish {
 
     impl ValidationFinish {
         /// SATO
+        #[cfg(test)]
+        pub fn sign_as_leader(mut self, private_key: &PrivateKey) -> WithEvents<ValidBlock> {
+            self.0.sign(private_key, 0);
+            self.finish_without_signing()
+        }
+
+        /// SATO
         /// Add additional signatures for [`Self`].
         pub fn sign(mut self, key_pair: &KeyPair, topology: &Topology) -> WithEvents<ValidBlock> {
             let signatory_idx = topology
@@ -325,12 +332,12 @@ mod validation_finish {
                 .expect("INTERNAL BUG: Node is not in topology");
 
             self.0.sign(key_pair.private_key(), signatory_idx);
-            self.finish_unsigned()
+            self.finish_without_signing()
         }
 
         /// SATO
         /// Finish block validation without signing it.
-        pub fn finish_unsigned(self) -> WithEvents<ValidBlock> {
+        pub fn finish_without_signing(self) -> WithEvents<ValidBlock> {
             WithEvents::new(ValidBlock(self.0))
         }
     }
@@ -793,7 +800,7 @@ mod valid {
                     soft_fork,
                 )
                 .map(|(validation, state_block)| {
-                    let valid_block = validation.finish_unsigned().unpack(send_events);
+                    let valid_block = validation.finish_without_signing().unpack(send_events);
                     (CommittedBlock(valid_block), state_block)
                 }),
             )
@@ -824,6 +831,17 @@ mod valid {
             Ok(())
         }
 
+        /// Add an additional signature for `ValidBlock`.
+        /// For testing purposes only. In production, signing should be done via `ValidationFinish`.
+        #[cfg(test)]
+        pub fn sign(&mut self, key_pair: &KeyPair, topology: &Topology) {
+            let signatory_idx = topology
+                .position(key_pair.public_key())
+                .expect("INTERNAL BUG: Node is not in topology");
+
+            self.0.sign(key_pair.private_key(), signatory_idx);
+        }
+
         #[cfg(test)]
         pub(crate) fn new_dummy(leader_private_key: &PrivateKey) -> Self {
             Self::new_dummy_and_modify_header(leader_private_key, |_| {})
@@ -832,14 +850,11 @@ mod valid {
         #[cfg(test)]
         pub(crate) fn new_dummy_and_modify_header(
             leader_private_key: &PrivateKey,
-            f: impl FnOnce(&mut BlockHeader),
+            f: impl FnOnce(&mut NewBlockHeader),
         ) -> Self {
-            let merkle_root = HashOf::from_untyped_unchecked(Hash::prehashed([1; Hash::LENGTH]));
-            let mut header = BlockHeader {
+            let mut header = NewBlockHeader {
                 height: nonzero_ext::nonzero!(2_u64),
                 prev_block_hash: None,
-                merkle_root: Some(merkle_root),
-                result_merkle_root: None,
                 creation_time_ms: 0,
                 view_change_index: 0,
             };
@@ -848,18 +863,18 @@ mod valid {
                 header,
                 transactions: Vec::new(),
             })
-            .build(leader_private_key)
-            .unpack(|_| {});
-
-            Self(SignedBlock::empty_signed(
-                unverified_block.signature,
-                unverified_block.header,
-                unverified_block
-                    .transactions
-                    .into_iter()
-                    .map(Into::into)
-                    .collect(),
-            ))
+            .build(leader_private_key);
+            let dummy_state = {
+                let world = World::default();
+                let kura = crate::kura::Kura::blank_kura_for_testing();
+                let query_handle = crate::query::store::LiveQueryStore::start_test();
+                State::new(world, kura, query_handle)
+            };
+            let mut dummy_state_block = dummy_state.block(header);
+            unverified_block
+                .validate_unchecked(&mut dummy_state_block)
+                .sign_as_leader(leader_private_key)
+                .unpack(|_| {})
         }
     }
 
@@ -1169,7 +1184,7 @@ mod tests {
     use super::*;
     use crate::{
         kura::Kura, query::store::LiveQueryStore, state::State,
-        sumeragi::network_topology::test_topology,
+        sumeragi::network_topology::test_topology_with_keys,
     };
 
     #[test]
@@ -1221,12 +1236,13 @@ mod tests {
         let transactions = vec![tx.clone(), tx];
         let unverified_block = BlockBuilder::new(transactions)
             .chain(0, state.view().latest_block().as_deref())
-            .build(alice_keypair.private_key())
-            .unpack(|_| {});
+            .build(alice_keypair.private_key());
 
         let mut state_block = state.block(unverified_block.header);
+        let topology = test_topology_with_keys([&alice_keypair]);
         let valid_block = unverified_block
             .validate_unchecked(&mut state_block)
+            .sign(&alice_keypair, &topology)
             .unpack(|_| {});
         state_block.commit();
 
@@ -1290,11 +1306,13 @@ mod tests {
         let transactions = vec![tx0, tx, tx2];
         let unverified_block = BlockBuilder::new(transactions)
             .chain(0, state.view().latest_block().as_deref())
-            .build(alice_keypair.private_key())
-            .unpack(|_| {});
+            .build(alice_keypair.private_key());
+
         let mut state_block = state.block(unverified_block.header);
+        let topology = test_topology_with_keys([&alice_keypair]);
         let valid_block = unverified_block
             .validate_unchecked(&mut state_block)
+            .sign(&alice_keypair, &topology)
             .unpack(|_| {});
         state_block.commit();
 
@@ -1344,12 +1362,13 @@ mod tests {
         let transactions = vec![tx_fail, tx_accept];
         let unverified_block = BlockBuilder::new(transactions)
             .chain(0, state.view().latest_block().as_deref())
-            .build(alice_keypair.private_key())
-            .unpack(|_| {});
+            .build(alice_keypair.private_key());
 
         let mut state_block = state.block(unverified_block.header);
+        let topology = test_topology_with_keys([&alice_keypair]);
         let valid_block = unverified_block
             .validate_unchecked(&mut state_block)
+            .sign(&alice_keypair, &topology)
             .unpack(|_| {});
         state_block.commit();
 
@@ -1408,22 +1427,22 @@ mod tests {
 
         // Create genesis block
         let transactions = vec![tx];
-        let topology = test_topology(1);
         let unverified_block = BlockBuilder::new(transactions)
             .chain(0, state.view().latest_block().as_deref())
-            .build(genesis_correct_key.private_key())
-            .unpack(|_| {});
+            .build(genesis_correct_key.private_key());
 
         let mut state_block = state.block(unverified_block.header);
+        let topology = test_topology_with_keys([&genesis_correct_key]);
         let valid_block = unverified_block
             .validate_unchecked(&mut state_block)
+            .sign(&genesis_correct_key, &topology)
             .unpack(|_| {});
         state_block.commit();
 
         // Validate genesis block
         // Use correct genesis key and check if transaction is rejected
         let block: SignedBlock = valid_block.into();
-        let mut state_block = state.block(block.header());
+        let mut state_block = state.block(block.header().regress());
         let (_, error) = ValidBlock::validate(
             block,
             &topology,
@@ -1431,7 +1450,6 @@ mod tests {
             &genesis_correct_account_id,
             &mut state_block,
         )
-        .unpack(|_| {})
         .unwrap_err();
         state_block.commit();
 

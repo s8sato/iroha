@@ -2412,7 +2412,7 @@ mod tests {
     };
 
     /// Used to inject faulty payload for testing
-    fn new_dummy_block_with_payload(f: impl FnOnce(&mut BlockHeader)) -> CommittedBlock {
+    fn new_dummy_block_with_payload(f: impl FnOnce(&mut NewBlockHeader)) -> CommittedBlock {
         let (leader_public_key, leader_private_key) = iroha_crypto::KeyPair::random().into_parts();
         let peer_id = PeerId::new(leader_public_key);
         let topology = Topology::new(vec![peer_id]);
@@ -2438,7 +2438,7 @@ mod tests {
                 header.prev_block_hash = block_hashes.last().copied();
             });
 
-            let mut state_block = state.block(block.as_ref().header());
+            let mut state_block = state.block(block.as_ref().header().regress());
             block_hashes.push(block.as_ref().hash());
             let _events = state_block.apply(&block, Vec::new());
             state_block.commit();
@@ -2469,7 +2469,7 @@ mod tests {
                 header.height = NonZeroU64::new(i as u64).unwrap();
             });
 
-            let mut state_block = state.block(block.as_ref().header());
+            let mut state_block = state.block(block.as_ref().header().regress());
             let _events = state_block.apply(&block, Vec::new());
             state_block.commit();
             kura.store_block(block);

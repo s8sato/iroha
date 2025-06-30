@@ -231,7 +231,7 @@ mod tests {
         let block_header = ValidBlock::new_dummy(&KeyPair::random().into_parts().1)
             .as_ref()
             .header();
-        let mut state_block = state.block(block_header);
+        let mut state_block = state.block(block_header.regress());
         let mut state_transaction = state_block.transaction();
         Register::domain(Domain::new("wonderland".parse()?))
             .execute(&SAMPLE_GENESIS_ACCOUNT_ID, &mut state_transaction)?;
@@ -251,7 +251,7 @@ mod tests {
         let block_header = ValidBlock::new_dummy(&KeyPair::random().into_parts().1)
             .as_ref()
             .header();
-        let mut state_block = state.block(block_header);
+        let mut state_block = state.block(block_header.regress());
         let mut state_transaction = state_block.transaction();
         let account_id = ALICE_ID.clone();
         let nft_id: NftId = "rose$wonderland".parse()?;
@@ -276,7 +276,7 @@ mod tests {
         let block_header = ValidBlock::new_dummy(&KeyPair::random().into_parts().1)
             .as_ref()
             .header();
-        let mut state_block = state.block(block_header);
+        let mut state_block = state.block(block_header.regress());
         let mut state_transaction = state_block.transaction();
         let account_id = ALICE_ID.clone();
         let key = "Bytes".parse::<Name>()?;
@@ -299,7 +299,7 @@ mod tests {
         let block_header = ValidBlock::new_dummy(&KeyPair::random().into_parts().1)
             .as_ref()
             .header();
-        let mut state_block = state.block(block_header);
+        let mut state_block = state.block(block_header.regress());
         let mut state_transaction = state_block.transaction();
         let definition_id = "rose#wonderland".parse::<AssetDefinitionId>()?;
         let account_id = ALICE_ID.clone();
@@ -330,7 +330,7 @@ mod tests {
         let block_header = ValidBlock::new_dummy(&KeyPair::random().into_parts().1)
             .as_ref()
             .header();
-        let mut state_block = state.block(block_header);
+        let mut state_block = state.block(block_header.regress());
         let mut state_transaction = state_block.transaction();
         let domain_id = "wonderland".parse::<DomainId>()?;
         let account_id = ALICE_ID.clone();
@@ -357,7 +357,7 @@ mod tests {
         let block_header = ValidBlock::new_dummy(&KeyPair::random().into_parts().1)
             .as_ref()
             .header();
-        let mut state_block = state.block(block_header);
+        let mut state_block = state.block(block_header.regress());
         let mut state_transaction = state_block.transaction();
         let account_id = ALICE_ID.clone();
         let trigger_id = "test_trigger_id".parse()?;
@@ -382,7 +382,7 @@ mod tests {
         let block_header = ValidBlock::new_dummy(&KeyPair::random().into_parts().1)
             .as_ref()
             .header();
-        let mut state_block = state.block(block_header);
+        let mut state_block = state.block(block_header.regress());
         let mut state_transaction = state_block.transaction();
         let account_id = ALICE_ID.clone();
         let (fake_account_id, _fake_account_keypair) = gen_account_in("wonderland");
@@ -431,7 +431,7 @@ mod tests {
         let block_header = ValidBlock::new_dummy(&KeyPair::random().into_parts().1)
             .as_ref()
             .header();
-        let mut state_block = state.block(block_header);
+        let mut state_block = state.block(block_header.regress());
         let mut state_transaction = state_block.transaction();
         let account_id = ALICE_ID.clone();
         assert!(matches!(

@@ -1119,7 +1119,7 @@ mod tests {
                 .expect("genesis block should be built");
 
         {
-            let mut state_block = state.block(genesis.0.header());
+            let mut state_block = state.block(genesis.0.header().regress());
             let block_genesis = ValidBlock::validate(
                 genesis.0.clone(),
                 &topology,
@@ -1127,8 +1127,9 @@ mod tests {
                 &genesis_id,
                 &mut state_block,
             )
-            .unpack(|_| {})
             .unwrap()
+            .sign_as_leader(&leader_private_key)
+            .unpack(|_| {})
             .commit(&topology)
             .unpack(|_| {})
             .unwrap();
@@ -1158,12 +1159,12 @@ mod tests {
         {
             let unverified_block = BlockBuilder::new(vec![tx1.clone()])
                 .chain(0, state.view().latest_block().as_deref())
-                .build(&leader_private_key)
-                .unpack(|_| {});
+                .build(&leader_private_key);
 
             let mut state_block = state.block(unverified_block.header());
             let block = unverified_block
                 .validate_unchecked(&mut state_block)
+                .sign_as_leader(&leader_private_key)
                 .unpack(|_| {})
                 .commit(&topology)
                 .unpack(|_| {})
@@ -1178,12 +1179,12 @@ mod tests {
         {
             let unverified_block_soft_fork = BlockBuilder::new(vec![tx1])
                 .chain(1, Some(&genesis.0))
-                .build(&leader_private_key)
-                .unpack(|_| {});
+                .build(&leader_private_key);
 
             let mut state_block = state.block_and_revert(unverified_block_soft_fork.header());
             let block_soft_fork = unverified_block_soft_fork
                 .validate_unchecked(&mut state_block)
+                .sign_as_leader(&leader_private_key)
                 .unpack(|_| {})
                 .commit(&topology)
                 .unpack(|_| {})
@@ -1199,12 +1200,12 @@ mod tests {
         {
             let unverified_block_next = BlockBuilder::new(vec![tx2])
                 .chain(0, state.view().latest_block().as_deref())
-                .build(&leader_private_key)
-                .unpack(|_| {});
+                .build(&leader_private_key);
 
             let mut state_block = state.block(unverified_block_next.header());
             let block_next = unverified_block_next
                 .validate_unchecked(&mut state_block)
+                .sign_as_leader(&leader_private_key)
                 .unpack(|_| {})
                 .commit(&topology)
                 .unpack(|_| {})

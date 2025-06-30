@@ -428,18 +428,17 @@ mod tests {
             .sign(self.account_keypair.private_key());
             let tx =
                 AcceptedTransaction::accept(tx, &chain_id(), max_clock_drift, tx_limits).unwrap();
-            let block = BlockBuilder::new_with_time_source(vec![tx], self.time_source.clone())
+
+            BlockBuilder::new_with_time_source(vec![tx], self.time_source.clone())
                 .chain(0, self.state.view().latest_block().as_deref())
                 .build(&self.leader_private_key)
-                .unpack(|_| {});
-
-            block
         }
 
         fn commit_block(&self, block: NewBlock) -> CommittedBlock {
             let mut state_block = self.state.block(block.header());
             let block = block
                 .validate_unchecked(&mut state_block)
+                .sign_as_leader(&self.leader_private_key)
                 .unpack(|_| {})
                 .commit(&self.topology)
                 .unpack(|_| {})
@@ -556,10 +555,17 @@ mod tests {
     #[test]
     fn genesis_commit_time_is_zero() {
         let (time_handle, time_source) = TimeSource::new_mock(Duration::from_millis(1500));
-        let header = BlockBuilder::new_with_time_source(vec![], time_source.clone())
+        let block = BlockBuilder::new_with_time_source(vec![], time_source.clone())
             .chain(1, None)
-            .build(KeyPair::random().private_key())
+            .build(KeyPair::random().private_key());
+
+        let dummy_state = SystemUnderTest::new().state;
+        let mut dummy_state_block = dummy_state.block(block.header());
+        let header = block
+            .validate_unchecked(&mut dummy_state_block)
+            .sign_as_leader(KeyPair::random().private_key())
             .unpack(|_| {})
+            .as_ref()
             .header();
 
         time_handle.advance(Duration::from_secs(12));

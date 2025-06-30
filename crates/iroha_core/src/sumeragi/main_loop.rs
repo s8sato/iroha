@@ -245,7 +245,11 @@ impl Sumeragi {
                         genesis_account,
                         &mut state_block,
                     )
-                    .map(|validation| validation.finish_unsigned().unpack(|e| self.send_event(e)))
+                    .map(|validation| {
+                        validation
+                            .finish_without_signing()
+                            .unpack(|e| self.send_event(e))
+                    })
                     .and_then(|block| {
                         block
                             .commit(&self.topology)
@@ -313,7 +317,11 @@ impl Sumeragi {
             genesis_account,
             &mut state_block,
         )
-        .map(|validation| validation.finish_unsigned().unpack(|e| self.send_event(e)))
+        .map(|validation| {
+            validation
+                .finish_without_signing()
+                .unpack(|e| self.send_event(e))
+        })
         .expect("Genesis invalid");
 
         let msg = BlockCreated::from(&genesis);
@@ -1472,6 +1480,7 @@ fn categorize_block_sync(
 
 #[cfg(test)]
 mod tests {
+    use iroha_crypto::SignatureOf;
     use iroha_data_model::{isi::InstructionBox, transaction::TransactionBuilder};
     use iroha_genesis::GENESIS_DOMAIN_ID;
     use iroha_test_samples::gen_account_in;
@@ -1482,22 +1491,33 @@ mod tests {
     use crate::{query::store::LiveQueryStore, smartcontracts::Registrable};
 
     /// Used to inject faulty payload for testing
-    fn clone_and_modify_header(
-        block: &NewBlock,
-        private_key: &PrivateKey,
+    fn modify_header_and_sign_as_leader(
+        block: ValidBlock,
+        leader_private_key: &PrivateKey,
         f: impl FnOnce(&mut BlockHeader),
-    ) -> NewBlock {
-        let mut header = block.header();
-        f(&mut header);
+    ) -> SignedBlock {
+        let mut block: SignedBlock = block.into();
+        f(block.header_mut());
 
-        block.clone().update_header(header, private_key)
+        let signature = BlockSignature(0, SignatureOf::new(leader_private_key, &block.header()));
+        block.replace_signatures(vec![signature]).unwrap();
+        block
     }
 
     fn create_data_for_test(
         chain_id: &ChainId,
         topology: &Topology,
         leader_private_key: &PrivateKey,
-    ) -> (State, Arc<Kura>, NewBlock, AccountId) {
+    ) -> (
+        // State after applying state changes during ValidBlock validation
+        State,
+        // Kura containing the genesis block
+        Arc<Kura>,
+        // The block after genesis, validated with state changes applied
+        ValidBlock,
+        // Genesis account ID
+        AccountId,
+    ) {
         // Predefined world state
         let (alice_id, alice_keypair) = gen_account_in("wonderland");
         let genesis_account = AccountId::new(
@@ -1544,13 +1564,12 @@ mod tests {
         // Creating a block of two identical transactions and validating it
         let unverified_genesis = BlockBuilder::new(vec![peers, tx.clone(), tx])
             .chain(0, state.view().latest_block().as_deref())
-            .build(leader_private_key)
-            .unpack(|_| {});
+            .build(leader_private_key);
 
         let mut state_block = state.block(unverified_genesis.header());
         let genesis = unverified_genesis
             .validate_unchecked(&mut state_block)
-            .sign(&KeyPair::from(leader_private_key.clone()), topology)
+            .sign_as_leader(&leader_private_key)
             .unpack(|_| {})
             .commit(topology)
             .unpack(|_| {})
@@ -1581,10 +1600,17 @@ mod tests {
                 .expect("Valid");
 
             // Creating a block of two identical transactions and validating it
-            BlockBuilder::new(vec![tx1, tx2])
+            let unverified_block = BlockBuilder::new(vec![tx1, tx2])
                 .chain(0, state.view().latest_block().as_deref())
-                .build(leader_private_key)
-                .unpack(|_| {})
+                .build(leader_private_key);
+
+            let mut state_block = state.block(unverified_block.header());
+            let block = unverified_block
+                .validate_unchecked(&mut state_block)
+                .sign_as_leader(leader_private_key)
+                .unpack(|_| {});
+            state_block.commit();
+            block
         };
 
         (state, kura, block, genesis_account)
@@ -1601,12 +1627,18 @@ mod tests {
             create_data_for_test(&chain_id, &topology, &leader_private_key);
 
         // Malform block to make it invalid
-        let block = clone_and_modify_header(&block, &leader_private_key, |header| {
-            header.prev_block_hash = Some(HashOf::from_untyped_unchecked(Hash::new([1; 32])));
-        })
-        .into();
+        let block_modified =
+            modify_header_and_sign_as_leader(block, &leader_private_key, |header| {
+                header.prev_block_hash = Some(HashOf::from_untyped_unchecked(Hash::new([1; 32])));
+            });
 
-        let result = handle_block_sync(&chain_id, block, &state, &genesis_public_key, &|_| {});
+        let result = handle_block_sync(
+            &chain_id,
+            block_modified,
+            &state,
+            &genesis_public_key,
+            &|_| {},
+        );
         assert!(matches!(result, Err((_, BlockSyncError::BlockNotValid(_)))))
     }
 
@@ -1617,15 +1649,12 @@ mod tests {
         let (leader_public_key, leader_private_key) = KeyPair::random().into_parts();
         let peer_id = PeerId::new(leader_public_key);
         let topology = Topology::new(vec![peer_id]);
-        let (state, kura, unverified_block, genesis_public_key) =
+        let (state, kura, block, genesis_public_key) =
             create_data_for_test(&chain_id, &topology, &leader_private_key);
 
-        let mut state_block = state.block(unverified_block.header());
-        let committed_block = unverified_block
+        let mut state_block = state.block(block.as_ref().header().regress());
+        let committed_block = block
             .clone()
-            .validate_unchecked(&mut state_block)
-            .sign(&KeyPair::from(leader_private_key), &topology)
-            .unpack(|_| {})
             .commit(&topology)
             .unpack(|_| {})
             .expect("Block is valid");
@@ -1635,13 +1664,19 @@ mod tests {
         kura.store_block(committed_block);
 
         // Malform block to make it invalid
-        let block = clone_and_modify_header(&unverified_block, &leader_private_key, |header| {
-            header.prev_block_hash = Some(HashOf::from_untyped_unchecked(Hash::new([1; 32])));
-            header.view_change_index = 1;
-        })
-        .into();
+        let block_modified =
+            modify_header_and_sign_as_leader(block, &leader_private_key, |header| {
+                header.prev_block_hash = Some(HashOf::from_untyped_unchecked(Hash::new([1; 32])));
+                header.view_change_index = 1;
+            });
 
-        let result = handle_block_sync(&chain_id, block, &state, &genesis_public_key, &|_| {});
+        let result = handle_block_sync(
+            &chain_id,
+            block_modified,
+            &state,
+            &genesis_public_key,
+            &|_| {},
+        );
         assert!(matches!(
             result,
             Err((_, BlockSyncError::SoftForkBlockNotValid(_)))
@@ -1659,12 +1694,18 @@ mod tests {
             create_data_for_test(&chain_id, &topology, &leader_private_key);
 
         // Change block height
-        let block = clone_and_modify_header(&block, &leader_private_key, |header| {
-            header.height = nonzero!(42_u64);
-        })
-        .into();
+        let block_modified =
+            modify_header_and_sign_as_leader(block, &leader_private_key, |header| {
+                header.height = nonzero!(42_u64);
+            });
 
-        let result = handle_block_sync(&chain_id, block, &state, &genesis_public_key, &|_| {});
+        let result = handle_block_sync(
+            &chain_id,
+            block_modified,
+            &state,
+            &genesis_public_key,
+            &|_| {},
+        );
 
         assert!(matches!(
             result,
@@ -1709,17 +1750,11 @@ mod tests {
         let (leader_public_key, leader_private_key) = KeyPair::random().into_parts();
         let peer_id = PeerId::new(leader_public_key);
         let topology = Topology::new(vec![peer_id]);
-        let (state, kura, unverified_block, genesis_public_key) =
+        let (state, kura, block, genesis_public_key) =
             create_data_for_test(&chain_id, &topology, &leader_private_key);
 
-        let mut state_block = state.block(unverified_block.header());
-        let committed_block = unverified_block
-            .clone()
-            .validate_unchecked(&mut state_block)
-            .unpack(|_| {})
-            .commit(&topology)
-            .unpack(|_| {})
-            .unwrap();
+        let mut state_block = state.block(block.as_ref().header().regress());
+        let committed_block = block.clone().commit(&topology).unpack(|_| {}).unwrap();
         let _events =
             state_block.apply_without_execution(&committed_block, topology.as_ref().to_owned());
         state_block.commit();
@@ -1730,12 +1765,18 @@ mod tests {
         assert_eq!(latest_block_view_change_index, 0);
 
         // Increase block view change index
-        let block = clone_and_modify_header(&unverified_block, &leader_private_key, |header| {
-            header.view_change_index = 42;
-        })
-        .into();
+        let block_modified =
+            modify_header_and_sign_as_leader(block, &leader_private_key, |header| {
+                header.view_change_index = 42;
+            });
 
-        let result = handle_block_sync(&chain_id, block, &state, &genesis_public_key, &|_| {});
+        let result = handle_block_sync(
+            &chain_id,
+            block_modified,
+            &state,
+            &genesis_public_key,
+            &|_| {},
+        );
         assert!(matches!(result, Ok(BlockSyncOk::ReplaceTopBlock(_, _, _))))
     }
 
@@ -1750,15 +1791,15 @@ mod tests {
             create_data_for_test(&chain_id, &topology, &leader_private_key);
 
         // Increase block view change index
-        let unverified_block = clone_and_modify_header(&block, &leader_private_key, |header| {
-            header.view_change_index = 42;
-        });
+        let header = {
+            let mut block = block.as_ref().clone();
+            block.header_mut().view_change_index = 42;
+            block.header()
+        };
 
-        let mut state_block = state.block(unverified_block.header());
-        let committed_block = unverified_block
+        let mut state_block = state.block(header.regress());
+        let committed_block = block
             .clone()
-            .validate_unchecked(&mut state_block)
-            .unpack(|_| {})
             .commit(&topology)
             .unpack(|_| {})
             .expect("Block is valid");
@@ -1774,12 +1815,19 @@ mod tests {
         assert_eq!(latest_block_view_change_index, 42);
 
         // Decrease block view change index back
-        let block = clone_and_modify_header(&unverified_block, &leader_private_key, |header| {
-            header.view_change_index = 0;
-        })
-        .into();
+        let block_modified =
+            modify_header_and_sign_as_leader(block, &leader_private_key, |header| {
+                header.view_change_index = 0;
+            })
+            .into();
 
-        let result = handle_block_sync(&chain_id, block, &state, &genesis_public_key, &|_| {});
+        let result = handle_block_sync(
+            &chain_id,
+            block_modified,
+            &state,
+            &genesis_public_key,
+            &|_| {},
+        );
         assert!(matches!(
             result,
             Err((
@@ -1804,13 +1852,19 @@ mod tests {
 
         // Change block height and view change index
         // Soft-fork on genesis block is not possible
-        let block = clone_and_modify_header(&block, &leader_private_key, |header| {
-            header.view_change_index = 42;
-            header.height = nonzero!(1_u64);
-        })
-        .into();
+        let block_modified =
+            modify_header_and_sign_as_leader(block, &leader_private_key, |header| {
+                header.view_change_index = 42;
+                header.height = nonzero!(1_u64);
+            });
 
-        let result = handle_block_sync(&chain_id, block, &state, &genesis_public_key, &|_| {});
+        let result = handle_block_sync(
+            &chain_id,
+            block_modified,
+            &state,
+            &genesis_public_key,
+            &|_| {},
+        );
 
         assert!(matches!(
             result,
@@ -1836,23 +1890,16 @@ mod tests {
         let (leader_public_key, leader_private_key) = KeyPair::random().into_parts();
         let peer_id = PeerId::new(leader_public_key);
         let topology = Topology::new(vec![peer_id]);
-        let (state, _, unverified_block, genesis_public_key) =
+        let (state, _, block, genesis_public_key) =
             create_data_for_test(&chain_id, &topology, &leader_private_key);
-        let mut state_block = state.block(unverified_block.header());
-        let valid_block = unverified_block
-            .validate_unchecked(&mut state_block)
-            .unpack(|_| {});
-        state_block.commit();
 
         // Malform block signatures so that block going to be rejected
-        let dummy_signature = BlockSignature(
-            42,
-            valid_block.as_ref().signatures().next().unwrap().1.clone(),
-        );
-        let mut block: SignedBlock = valid_block.into();
+        let dummy_signature =
+            BlockSignature(42, block.as_ref().signatures().next().unwrap().1.clone());
+        let mut block: SignedBlock = block.into();
         let _prev_signatures = block.replace_signatures(vec![dummy_signature]).unwrap();
         let dummy_block = ValidBlock::new_dummy(&leader_private_key);
-        let dummy_state_block = state.block(dummy_block.as_ref().header());
+        let dummy_state_block = state.block(dummy_block.as_ref().header().regress());
         let mut voting_block = Some(VotingBlock::new(dummy_block, dummy_state_block));
 
         let block_sync_type = categorize_block_sync(&block, &state.view());
