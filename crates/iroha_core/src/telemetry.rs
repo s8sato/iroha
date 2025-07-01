@@ -552,8 +552,8 @@ mod tests {
         assert_eq!(metrics.last_commit_time_ms.get(), 170 - CORRECTION);
     }
 
-    #[test]
-    fn genesis_commit_time_is_zero() {
+    #[tokio::test]
+    async fn genesis_commit_time_is_zero() {
         let (time_handle, time_source) = TimeSource::new_mock(Duration::from_millis(1500));
         let block = BlockBuilder::new_with_time_source(vec![], time_source.clone())
             .chain(1, None)

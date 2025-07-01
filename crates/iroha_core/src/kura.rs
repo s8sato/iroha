@@ -930,8 +930,8 @@ mod tests {
         assert_eq!(0, block_store.read_index_count().unwrap());
     }
 
-    #[test]
-    fn append_block_to_chain_increases_block_count() {
+    #[tokio::test]
+    async fn append_block_to_chain_increases_block_count() {
         let dir = tempfile::tempdir().unwrap();
         let mut block_store = BlockStore::new(dir.path());
         block_store.create_files_if_they_do_not_exist().unwrap();
@@ -946,8 +946,8 @@ mod tests {
         assert_eq!(append_count, block_store.read_index_count().unwrap());
     }
 
-    #[test]
-    fn append_block_to_chain_increases_hashes_count() {
+    #[tokio::test]
+    async fn append_block_to_chain_increases_hashes_count() {
         let dir = tempfile::tempdir().unwrap();
         let mut block_store = BlockStore::new(dir.path());
         block_store.create_files_if_they_do_not_exist().unwrap();
@@ -962,8 +962,8 @@ mod tests {
         assert_eq!(append_count, block_store.read_hashes_count().unwrap());
     }
 
-    #[test]
-    fn append_block_to_chain_write_correct_hashes() {
+    #[tokio::test]
+    async fn append_block_to_chain_write_correct_hashes() {
         let dir = tempfile::tempdir().unwrap();
         let mut block_store = BlockStore::new(dir.path());
         block_store.create_files_if_they_do_not_exist().unwrap();
@@ -982,8 +982,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn append_block_to_chain_places_blocks_correctly_in_data_file() {
+    #[tokio::test]
+    async fn append_block_to_chain_places_blocks_correctly_in_data_file() {
         let dir = tempfile::tempdir().unwrap();
         let mut block_store = BlockStore::new(dir.path());
         block_store.create_files_if_they_do_not_exist().unwrap();

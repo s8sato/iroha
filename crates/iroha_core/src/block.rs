@@ -920,8 +920,8 @@ mod valid {
         use super::*;
         use crate::sumeragi::network_topology::test_topology_with_keys;
 
-        #[test]
-        fn signature_verification_ok() {
+        #[tokio::test]
+        async fn signature_verification_ok() {
             let key_pairs = core::iter::repeat_with(KeyPair::random)
                 .take(7)
                 .collect::<Vec<_>>();
@@ -951,8 +951,8 @@ mod valid {
             let _ = block.commit(&topology).unpack(|_| {}).unwrap();
         }
 
-        #[test]
-        fn signature_verification_consensus_not_required_ok() {
+        #[tokio::test]
+        async fn signature_verification_consensus_not_required_ok() {
             let key_pairs = core::iter::repeat_with(KeyPair::random)
                 .take(1)
                 .collect::<Vec<_>>();
@@ -964,8 +964,8 @@ mod valid {
         }
 
         /// Check requirement of having at least $2f + 1$ signatures in $3f + 1$ network
-        #[test]
-        fn signature_verification_not_enough_signatures() {
+        #[tokio::test]
+        async fn signature_verification_not_enough_signatures() {
             let key_pairs = core::iter::repeat_with(KeyPair::random)
                 .take(7)
                 .collect::<Vec<_>>();
@@ -985,8 +985,8 @@ mod valid {
         }
 
         /// Check requirement of having leader signature
-        #[test]
-        fn signature_verification_miss_proxy_tail_signature() {
+        #[tokio::test]
+        async fn signature_verification_miss_proxy_tail_signature() {
             let key_pairs = core::iter::repeat_with(KeyPair::random)
                 .take(7)
                 .collect::<Vec<_>>();
@@ -1187,8 +1187,8 @@ mod tests {
         sumeragi::network_topology::test_topology_with_keys,
     };
 
-    #[test]
-    pub fn committed_and_valid_block_hashes_are_equal() {
+    #[tokio::test]
+    pub async fn committed_and_valid_block_hashes_are_equal() {
         let peer_key_pair = KeyPair::random();
         let peer_id = PeerId::new(peer_key_pair.public_key().clone());
         let topology = Topology::new(vec![peer_id]);

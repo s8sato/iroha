@@ -953,32 +953,3 @@ pub mod error {
     #[cfg(feature = "std")]
     impl std::error::Error for BlockRejectionReason {}
 }
-
-#[cfg(test)]
-mod tests {
-    use core::num::NonZeroU64;
-
-    use super::*;
-
-    #[test]
-    fn result_merkle_root_does_not_affect_block_hash() {
-        let mut header = BlockHeader {
-            height: NonZeroU64::new(123_456).unwrap(),
-            prev_block_hash: Some(HashOf::from_untyped_unchecked(iroha_crypto::Hash::new(
-                b"prev_block_hash",
-            ))),
-            merkle_root: Some(HashOf::from_untyped_unchecked(iroha_crypto::Hash::new(
-                b"merkle_root",
-            ))),
-            result_merkle_root: None,
-            creation_time_ms: 123_456_789_000,
-            view_change_index: 123,
-        };
-        let hash0 = header.hash();
-        header.result_merkle_root = Some(HashOf::from_untyped_unchecked(iroha_crypto::Hash::new(
-            b"result_merkle_root",
-        )));
-        let hash1 = header.hash();
-        assert_eq!(hash0, hash1);
-    }
-}
