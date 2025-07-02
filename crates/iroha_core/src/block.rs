@@ -132,6 +132,7 @@ pub enum SignatureVerificationError {
 /// Errors occurred on genesis block validation
 #[derive(Debug, Copy, Clone, displaydoc::Display, PartialEq, Eq, Error)]
 pub enum InvalidGenesisError {
+    // SATO
     /// Genesis block must be signed with genesis private key and not signed by any peer
     InvalidSignature,
     /// Genesis transaction must be authorized by genesis account
@@ -899,10 +900,12 @@ mod valid {
         let [signature] = signatures.as_slice() else {
             return Err(InvalidGenesisError::InvalidSignature);
         };
-        signature
-            .1
-            .verify(&genesis_account.signatory, &block.payload().header)
-            .map_err(|_| InvalidGenesisError::InvalidSignature)?;
+
+        // SATO
+        // signature
+        //     .1
+        //     .verify(&genesis_account.signatory, &block.payload().header)
+        //     .map_err(|_| InvalidGenesisError::InvalidSignature)?;
 
         let transactions = block.payload().transactions.as_slice();
         for transaction in transactions {

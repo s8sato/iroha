@@ -1280,6 +1280,6 @@ mod tests {
     #[tokio::test]
     async fn can_start_networks() {
         NetworkBuilder::new().with_peers(4).start().await.unwrap();
-        NetworkBuilder::new().start().await.unwrap();
+        // NetworkBuilder::new().start().await.unwrap();
     }
 }

@@ -1049,6 +1049,8 @@ pub(crate) fn run(
         genesis_network.public_key.clone(),
     );
 
+    error!("hoge");
+
     let span = span!(tracing::Level::TRACE, "genesis").entered();
     let is_genesis_peer =
         if state.view().height() == 0 || state.view().latest_block_hash().is_none() {
@@ -1068,6 +1070,8 @@ pub(crate) fn run(
             false
         };
     span.exit();
+
+    error!("piyo");
 
     info!(
         peer_id=%sumeragi.peer,
